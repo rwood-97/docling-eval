@@ -75,15 +75,17 @@ def main():
         with open(save_fn, "w") as fd:
             json.dump(layout_evaluation.model_dump(), fd, indent=2, sort_keys=True)
 
-        results = layout_evaluation.to_table()
-        logging.info(f"mAP results for layout:\n\n{tabulate(results)}")
-
+        data, headers = layout_evaluation.to_table()
+        logging.info("Class mAP[0.5:0.95] table: \n\n"+tabulate(data, headers=headers, tablefmt="github"))
+        
     if True:
         save_fn = (
             odir
             / f"evaluation_{BenchMarkNames.OMNIDOCBENCH.value}_{EvaluationModality.TABLEFORMER.value}.json"
         )
 
+        figname = odir / f"evaluation_{BenchMarkNames.OMNIDOCBENCH.value}_{EvaluationModality.TABLEFORMER.value}.png"
+        
         table_evaluator = TableEvaluator()
         table_evaluation = table_evaluator(odir_tab, split="test")
 
@@ -91,9 +93,10 @@ def main():
         with open(save_fn, "w") as fd:
             json.dump(table_evaluation.model_dump(), fd, indent=2, sort_keys=True)
 
-        results = table_evaluation.TEDS.to_table()
-        md = tabulate(results, headers=["x0 <= TEDS", "TEDS <= x1", "%", "count"])
-        logging.info(f"TEDS results for TableFormer:\n\n{md}")
+        data, headers = table_evaluation.TEDS.to_table()
+        logging.info("TEDS table: \n\n"+tabulate(data, headers=headers, tablefmt="github"))
+
+        table_evaluation.TEDS.save_histogram(figname=figname)
 
     
 if __name__ == "__main__":
