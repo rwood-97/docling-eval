@@ -5,10 +5,9 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Annotated, Optional
 
-from tabulate import tabulate
-
 import matplotlib.pyplot as plt
 import typer
+from tabulate import tabulate  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
 from docling_eval.benchmarks.dpbench.create import (
@@ -125,25 +124,29 @@ def visualise(
 
     elif modality == EvaluationModality.LAYOUT:
         with open(filename, "r") as fd:
-            evaluation = DatasetLayoutEvaluation.parse_file(filename)
+            layout_evaluation = DatasetLayoutEvaluation.parse_file(filename)
 
-        table, headers = evaluation.to_table()
-        
-        logging.info("Class mAP[0.5:0.95] table: \n\n"+tabulate(table, headers=headers, tablefmt="github"))
+        data, headers = layout_evaluation.to_table()
+
+        logging.info(
+            "Class mAP[0.5:0.95] table: \n\n"
+            + tabulate(data, headers=headers, tablefmt="github")
+        )
 
     elif modality == EvaluationModality.TABLEFORMER:
 
         with open(filename, "r") as fd:
-            evaluation = DatasetTableEvaluation.parse_file(filename)
+            table_evaluation = DatasetTableEvaluation.parse_file(filename)
 
-        table, headers = evaluation.to_table()        
-        logging.info("TEDS table: \n\n"+tabulate(table, headers=headers, tablefmt="github"))
-            
+        data, headers = table_evaluation.TEDS.to_table()
+        logging.info(
+            "TEDS table: \n\n" + tabulate(data, headers=headers, tablefmt="github")
+        )
+
         figname = odir / f"evaluation_{benchmark.value}_{modality.value}.png"
         logging.info(f"saving figure to {figname}")
-        
-        evaluation.save_histogram(figname)
 
+        table_evaluation.TEDS.save_histogram(figname=figname)
 
     elif modality == EvaluationModality.CODEFORMER:
         pass

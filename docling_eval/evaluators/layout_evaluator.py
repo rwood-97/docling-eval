@@ -35,19 +35,21 @@ class DatasetLayoutEvaluation(BaseModel):
 
     def to_table(self) -> Tuple[List[List[str]], List[str]]:
 
-        headers=["label", "Class mAP[0.5:0.95]"]
+        headers = ["label", "Class mAP[0.5:0.95]"]
 
         self.evaluations = sorted(self.evaluations, key=lambda x: x.value, reverse=True)
-        
+
         table = []
         for i in range(len(self.evaluations)):
-            table.append([
-                f"{self.evaluations[i].label}",
-                f"{100.0*self.evaluations[i].value:.2f}",
-            ])
+            table.append(
+                [
+                    f"{self.evaluations[i].label}",
+                    f"{100.0*self.evaluations[i].value:.2f}",
+                ]
+            )
 
         return table, headers
-        
+
 
 class LayoutEvaluator:
 
@@ -108,12 +110,12 @@ class LayoutEvaluator:
                 filter_labels=intersection_labels,
             )
 
-            if len(gts)==len(preds):            
+            if len(gts) == len(preds):
                 ground_truths.extend(gts)
                 predictions.extend(preds)
             else:
                 logging.error("Ignoring predictions for document")
-                
+
         assert len(ground_truths) == len(
             predictions
         ), "len(ground_truths)==len(predictions)"
@@ -220,7 +222,7 @@ class LayoutEvaluator:
         for label, count in pred_labels.items():
             logging.info(f" => {label}: {count}")
         """
-        
+
         intersection_labels: List[DocItemLabel] = []
         for label, count in true_labels.items():
             if label in pred_labels:
@@ -336,5 +338,5 @@ class LayoutEvaluator:
             predictions
         ), f"len(ground_truths)==len(predictions) => {len(ground_truths)}=={len(predictions)}"
         """
-        
+
         return ground_truths, predictions

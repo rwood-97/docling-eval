@@ -53,7 +53,7 @@ class DatasetStatistics(BaseModel):
     def to_table(self) -> Tuple[List[List[str]], List[str]]:
 
         headers = ["x0<=TEDS", "TEDS<=x1", "%", "total"]
-        
+
         # Calculate bin widths
         bin_widths = [
             self.bins[i + 1] - self.bins[i] for i in range(len(self.bins) - 1)
@@ -90,13 +90,15 @@ class DatasetStatistics(BaseModel):
                 f"{i:02} [{self.bins[i]:.3f}, {self.bins[i+1]:.3f}]: {self.hist[i]}"
             )
         """
-        
+
         # Plot histogram
         plt.bar(bin_middle, self.hist, width=bin_widths, edgecolor="black")
 
         plt.xlabel("TEDS")
         plt.ylabel("Frequency")
-        plt.title(f"mean: {self.mean:.2f}, median: {self.median:.2f}, std: {self.std:.2f}, total: {self.total}")
+        plt.title(
+            f"mean: {self.mean:.2f}, median: {self.median:.2f}, std: {self.std:.2f}, total: {self.total}"
+        )
 
         logging.info(f"saving figure to {figname}")
         plt.savefig(figname)
