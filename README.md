@@ -102,6 +102,83 @@ The final result can be visualised as,
 ![DPBench_TEDS](./docs/evaluations/evaluation_DPBench_tableformer.png)
 </details>
 
+### OmniDocBench
+
+Using a single command,
+
+```sh
+poetry run python ./docs/examples/benchmark_omnidocbench.py
+```
+
+<details>
+<summary><b>Table evaluations for OmniDocBench</b></summary>
+<br>
+
+👉 Create the dataset,
+
+```sh
+poetry run evaluate -t create -m tableformer -b OmniDocBench -i <location-of-omnidocbench> -o ./benchmarks/omnidocbench-tableformer
+```
+
+👉 Evaluate the dataset,
+
+```sh
+poetry run evaluate -t evaluate -m tableformer -b OmniDocBench -i ./benchmarks/omnidocbench-tableformer -o ./benchmarks/omnidocbench-tableformer
+```
+
+👉 Visualise the dataset,
+
+```sh
+poetry run evaluate -t visualize -m tableformer -b OmniDocBench -i ./benchmarks/OmniDocBench-dataset/tableformer/ -o ./benchmarks/OmniDocBench-dataset/tableformer/
+```
+
+The final result can be visualised as,
+
+<table>
+  <tr>
+    <td>
+      <img src="./docs/evaluations/evaluation_OmniDocBench_tableformer.png" alt="OmniDocBench_TEDS" width="400">
+    </td>
+    <td>
+      <table>
+        <thead>
+          <tr>
+            <th>index</th>
+            <th>x0&lt;TEDS</th>
+            <th>TEDS&lt;x1</th>
+            <th>count</th>
+            <th>%</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>00</td><td>0</td><td>0.05</td><td>3</td><td>0.909</td></tr>
+          <tr><td>01</td><td>0.05</td><td>0.1</td><td>2</td><td>0.606</td></tr>
+          <tr><td>02</td><td>0.1</td><td>0.15</td><td>14</td><td>4.242</td></tr>
+          <tr><td>03</td><td>0.15</td><td>0.2</td><td>11</td><td>3.333</td></tr>
+          <tr><td>04</td><td>0.2</td><td>0.25</td><td>7</td><td>2.121</td></tr>
+          <tr><td>05</td><td>0.25</td><td>0.3</td><td>7</td><td>2.121</td></tr>
+          <tr><td>06</td><td>0.3</td><td>0.35</td><td>8</td><td>2.424</td></tr>
+          <tr><td>07</td><td>0.35</td><td>0.4</td><td>9</td><td>2.727</td></tr>
+          <tr><td>08</td><td>0.4</td><td>0.45</td><td>5</td><td>1.515</td></tr>
+          <tr><td>09</td><td>0.45</td><td>0.5</td><td>9</td><td>2.727</td></tr>
+          <tr><td>10</td><td>0.5</td><td>0.55</td><td>9</td><td>2.727</td></tr>
+          <tr><td>11</td><td>0.55</td><td>0.6</td><td>16</td><td>4.848</td></tr>
+          <tr><td>12</td><td>0.6</td><td>0.65</td><td>7</td><td>2.121</td></tr>
+          <tr><td>13</td><td>0.65</td><td>0.7</td><td>12</td><td>3.636</td></tr>
+          <tr><td>14</td><td>0.7</td><td>0.75</td><td>31</td><td>9.394</td></tr>
+          <tr><td>15</td><td>0.75</td><td>0.8</td><td>24</td><td>7.273</td></tr>
+          <tr><td>16</td><td>0.8</td><td>0.85</td><td>42</td><td>12.727</td></tr>
+          <tr><td>17</td><td>0.85</td><td>0.9</td><td>40</td><td>12.121</td></tr>
+          <tr><td>18</td><td>0.9</td><td>0.95</td><td>48</td><td>14.545</td></tr>
+          <tr><td>19</td><td>0.95</td><td>1</td><td>26</td><td>7.879</td></tr>
+        </tbody>
+      </table>
+    </td>
+  </tr>
+</table>
+</details>
+
+
 ## Contributing
 
 Please read [Contributing to Docling](https://github.com/DS4SD/docling/blob/main/CONTRIBUTING.md) for details.

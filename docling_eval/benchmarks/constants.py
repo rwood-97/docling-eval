@@ -28,7 +28,7 @@ class BenchMarkNames(str, Enum):
 
     # End-to-End
     DPBENCH = "DPBench"
-    OMNIDOCBENCH = "OmniDcoBench"
+    OMNIDOCBENCH = "OmniDocBench"
     WORDSCAPE = "WordScape"
 
     # Layout

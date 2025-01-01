@@ -11,9 +11,8 @@ from docling_eval.benchmarks.omnidocbench.create import (
     create_omnidocbench_layout_dataset,
     create_omnidocbench_tableformer_dataset,
 )
-from docling_eval.utils.repository import clone_repository, is_git_lfs_installed
+from docling_eval.utils.repository import is_git_lfs_installed, clone_repository
 
-"""
 from docling_eval.evaluators.layout_evaluator import (
     DatasetLayoutEvaluation,
     LayoutEvaluator,
@@ -22,7 +21,7 @@ from docling_eval.evaluators.table_evaluator import (
     DatasetTableEvaluation,
     TableEvaluator,
 )
-"""
+
 
 # Configure logging
 logging.basicConfig(
@@ -54,16 +53,48 @@ def main():
 
     image_scale = 1.0
 
-    """
-    create_omnidocbench_layout_dataset(
-        omnidocbench_dir=idir, output_dir=odir_lay, image_scale=image_scale
-    )
-    """
+    if False:
+        create_omnidocbench_layout_dataset(
+            omnidocbench_dir=idir, output_dir=odir_lay, image_scale=image_scale
+        )
 
-    create_omnidocbench_tableformer_dataset(
-        omnidocbench_dir=idir, output_dir=odir_tab, image_scale=image_scale
-    )
+        create_omnidocbench_tableformer_dataset(
+            omnidocbench_dir=idir, output_dir=odir_tab, image_scale=image_scale
+        )
 
+    if False:
+        save_fn = (
+            odir
+            / f"evaluation_{BenchMarkNames.OMNIDOCBENCH.value}_{EvaluationModality.LAYOUT.value}.json"
+        )
 
+        layout_evaluator = LayoutEvaluator()
+        layout_evaluation = layout_evaluator(odir_lay, split="test")
+
+        logging.info(f"writing results to {save_fn}")
+        with open(save_fn, "w") as fd:
+            json.dump(layout_evaluation.model_dump(), fd, indent=2, sort_keys=True)
+
+        results = layout_evaluation.to_table()
+        logging.info(f"mAP results for layout:\n\n{tabulate(results)}")
+
+    if True:
+        save_fn = (
+            odir
+            / f"evaluation_{BenchMarkNames.OMNIDOCBENCH.value}_{EvaluationModality.TABLEFORMER.value}.json"
+        )
+
+        table_evaluator = TableEvaluator()
+        table_evaluation = table_evaluator(odir_tab, split="test")
+
+        logging.info(f"writing results to {save_fn}")
+        with open(save_fn, "w") as fd:
+            json.dump(table_evaluation.model_dump(), fd, indent=2, sort_keys=True)
+
+        results = table_evaluation.TEDS.to_table()
+        md = tabulate(results, headers=["x0 <= TEDS", "TEDS <= x1", "%", "count"])
+        logging.info(f"TEDS results for TableFormer:\n\n{md}")
+
+    
 if __name__ == "__main__":
     main()
