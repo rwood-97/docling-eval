@@ -276,7 +276,7 @@ def create_omnidocbench_e2e_dataset(
         jpg_path = page_tuple[0]
         pdf_path = page_tuple[1]
 
-        logging.info(f"file: {pdf_path}")
+        # logging.info(f"file: {pdf_path}")
         if not os.path.basename(jpg_path) in gt:
             logging.error(f"did not find ground-truth for {os.path.basename(jpg_path)}")
             continue

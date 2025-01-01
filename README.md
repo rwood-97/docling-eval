@@ -82,19 +82,19 @@ poetry run evaluate -t evaluate -m layout -b DPBench -i ./benchmarks/dpbench-lay
 👉 Create the dataset,
 
 ```sh
-poetry run evaluate -t create -m tableformer -b DPBench -i <location-of-dpbench> -o ./benchmarks/dpbench-tableformer
+poetry run evaluate -t create -m tableformer -b DPBench -i ./benchmarks/dpbench-original -o ./benchmarks/dpbench-dataset/tableformer
 ```
 
 👉 Evaluate the dataset,
 
 ```sh
-poetry run evaluate -t evaluate -m tableformer -b DPBench -i ./benchmarks/dpbench-tableformer -o ./benchmarks/dpbench-tableformer
+poetry run evaluate -t evaluate -m tableformer -b DPBench -i ./benchmarks/dpbench-dataset/tableformer -o ./benchmarks/dpbench-dataset/tableformer
 ```
 
 👉 Visualise the dataset,
 
 ```sh
-poetry run evaluate -t visualize -m tableformer -b DPBench -i ./benchmarks/dpbench-tableformer -o ./benchmarks/dpbench-tableformer
+poetry run evaluate -t visualize -m tableformer -b DPBench -i ./benchmarks/dpbench-dataset/tableformer -o ./benchmarks/dpbench-dataset/tableformer
 ```
 
 The final result can be visualised as,
@@ -111,25 +111,60 @@ poetry run python ./docs/examples/benchmark_omnidocbench.py
 ```
 
 <details>
+<summary><b>Layout evaluation for OmniDocBench</b></summary>
+<br>
+
+👉 Create the dataset,
+
+```sh
+poetry run evaluate -t create -m layout -b OmniDocBench -i ./benchmarks/omnidocbench-original -o ./benchmarks/omnidocbench-dataset/layout
+```
+
+👉 Evaluate the dataset,
+
+```sh
+poetry run evaluate -t evaluate -m layout -b OmniDocBench -i ./benchmarks/omnidocbench-dataset/layout -o ./benchmarks/omnidocbench-dataset/layout
+```
+
+👉 Visualise the dataset,
+
+```sh
+poetry run evaluate -t visualize -m tableformer -b OmniDocBench -i ./benchmarks/OmniDocBench-dataset/layout -o ./benchmarks/OmniDocBench-dataset/layout
+```
+
+|   index | label          |   Class mAP[0.5:0.95] |
+|---------|----------------|-----------------------|
+|      00 | picture        |                 0.293 |
+|      01 | section_header |                 0.131 |
+|      02 | text           |                 0.24  |
+|      03 | footnote       |                 0.025 |
+|      04 | caption        |                 0.107 |
+|      05 | table          |                 0.693 |
+|      06 | page_header    |                 0.1   |
+|      07 | page_footer    |                 0.161 |
+|      08 | formula        |                 0.038 |
+</details>
+
+<details>
 <summary><b>Table evaluations for OmniDocBench</b></summary>
 <br>
 
 👉 Create the dataset,
 
 ```sh
-poetry run evaluate -t create -m tableformer -b OmniDocBench -i <location-of-omnidocbench> -o ./benchmarks/omnidocbench-tableformer
+poetry run evaluate -t create -m tableformer -b OmniDocBench -i ./benchmarks/omnidocbench-original -o ./benchmarks/omnidocbench-dataset/tableformer
 ```
 
 👉 Evaluate the dataset,
 
 ```sh
-poetry run evaluate -t evaluate -m tableformer -b OmniDocBench -i ./benchmarks/omnidocbench-tableformer -o ./benchmarks/omnidocbench-tableformer
+poetry run evaluate -t evaluate -m tableformer -b OmniDocBench -i ./benchmarks/omnidocbench-dataset/tableformer -o ./benchmarks/omnidocbench-dataset/tableformer
 ```
 
 👉 Visualise the dataset,
 
 ```sh
-poetry run evaluate -t visualize -m tableformer -b OmniDocBench -i ./benchmarks/OmniDocBench-dataset/tableformer/ -o ./benchmarks/OmniDocBench-dataset/tableformer/
+poetry run evaluate -t visualize -m tableformer -b OmniDocBench -i ./benchmarks/OmniDocBench-dataset/tableformer -o ./benchmarks/OmniDocBench-dataset/tableformer
 ```
 
 The final result can be visualised as,

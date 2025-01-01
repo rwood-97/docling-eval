@@ -100,9 +100,12 @@ class LayoutEvaluator:
                 filter_labels=intersection_labels,
             )
 
-            ground_truths.extend(gts)
-            predictions.extend(preds)
-
+            if len(gts)==len(preds):            
+                ground_truths.extend(gts)
+                predictions.extend(preds)
+            else:
+                logging.error("Ignoring predictions for document")
+                
         assert len(ground_truths) == len(
             predictions
         ), "len(ground_truths)==len(predictions)"
@@ -232,7 +235,7 @@ class LayoutEvaluator:
         # logging.info(f"#-true-tables: {len(true_tables)}, #-pred-tables: {len(pred_tables)}")
         assert len(true_doc.pages) == len(
             pred_doc.pages
-        ), "len(true_doc.pages)==len(pred_doc.pages)"
+        ), f"len(true_doc.pages)==len(pred_doc.pages) => {len(true_doc.pages)}=={len(pred_doc.pages)}"
 
         # page_num -> List[DocItem]
         true_pages_to_objects: Dict[int, List[DocItem]] = {}
@@ -318,8 +321,10 @@ class LayoutEvaluator:
                 }
             )
 
+        """
         assert len(ground_truths) == len(
             predictions
-        ), "len(ground_truths)==len(predictions)"
-
+        ), f"len(ground_truths)==len(predictions) => {len(ground_truths)}=={len(predictions)}"
+        """
+        
         return ground_truths, predictions

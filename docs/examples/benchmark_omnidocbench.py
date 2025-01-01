@@ -53,7 +53,7 @@ def main():
 
     image_scale = 1.0
 
-    if False:
+    if True:
         create_omnidocbench_layout_dataset(
             omnidocbench_dir=idir, output_dir=odir_lay, image_scale=image_scale
         )
@@ -62,7 +62,7 @@ def main():
             omnidocbench_dir=idir, output_dir=odir_tab, image_scale=image_scale
         )
 
-    if False:
+    if True:
         save_fn = (
             odir
             / f"evaluation_{BenchMarkNames.OMNIDOCBENCH.value}_{EvaluationModality.LAYOUT.value}.json"

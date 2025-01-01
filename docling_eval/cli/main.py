@@ -124,7 +124,20 @@ def visualise(
         pass
 
     elif modality == EvaluationModality.LAYOUT:
-        pass
+        with open(filename, "r") as fd:
+            evaluation = DatasetLayoutEvaluation.parse_file(filename)
+
+        print(evaluation)
+            
+        table = []
+        for i in range(len(evaluation.evaluations)):
+            table.append([
+                f"{i:02}",
+                f"{evaluation.evaluations[i].label}",
+                #f"{evaluation.evaluations[i].name}",
+                f"{evaluation.evaluations[i].value:.3f}",
+            ])
+        logging.info("Class mAP[0.5:0.95] table: \n\n"+tabulate(table, headers=["index", "label", "Class mAP[0.5:0.95]"], tablefmt="github"))
 
     elif modality == EvaluationModality.TABLEFORMER:
 
@@ -150,18 +163,10 @@ def visualise(
                 f"{evaluation.TEDS.hist[i]}",
                 f"{100.0*evaluation.TEDS.hist[i]/float(evaluation.TEDS.total):.3f}"
             ])
-
-            """
-            logging.info(
-                f"{i:02} [{evaluation.TEDS.bins[i]:.3f}, {evaluation.TEDS.bins[i+1]:.3f}]: {evaluation.TEDS.hist[i]}"
-            )
-            """
-
-        logging.info("table: \n\n"+tabulate(table, headers=["index", "x0<TEDS", "TEDS<x1", "count", "%"], tablefmt="github"))
+        logging.info("TEDS table: \n\n"+tabulate(table, headers=["index", "x0<TEDS", "TEDS<x1", "count", "%"], tablefmt="github"))
             
         # Plot histogram
         plt.bar(bin_middle, evaluation.TEDS.hist, width=bin_widths, edgecolor="black")
-        # width=(evaluation.TEDS.bins[1] - evaluation.TEDS.bins[0]),
 
         plt.xlabel("TEDS")
         plt.ylabel("Frequency")
