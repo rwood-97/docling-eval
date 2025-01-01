@@ -120,7 +120,7 @@ background-color: LightGray;
 </head>"""
 
 
-HTML_COMPARISON_PAGE_v1="""<!DOCTYPE html>
+HTML_COMPARISON_PAGE_v1 = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -158,7 +158,7 @@ HTML_COMPARISON_PAGE_v1="""<!DOCTYPE html>
 """
 
 
-HTML_COMPARISON_PAGE="""<!DOCTYPE html>
+HTML_COMPARISON_PAGE = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">

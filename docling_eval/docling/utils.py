@@ -19,7 +19,7 @@ from docling_core.types.doc.document import (
     TableItem,
 )
 from docling_core.types.doc.labels import DocItemLabel
-from PIL import Image as PILImage
+from PIL import Image  # as PILImage
 from pydantic import AnyUrl
 
 from docling_eval.docling.constants import HTML_DEFAULT_HEAD
@@ -58,21 +58,24 @@ def map_to_records(item: Dict):
     return df.to_dict(orient="records")
 
 
-def from_pil_to_base64(img:PILImage) -> str:
+def from_pil_to_base64(img: Image.Image) -> str:
     # Convert the image to a base64 str
     buffered = io.BytesIO()
     img.save(buffered, format="PNG")  # Specify the format (e.g., JPEG, PNG, etc.)
     image_bytes = buffered.getvalue()
-    
+
     # Encode the bytes to a Base64 string
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+    return image_base64
 
-def from_pil_to_base64uri(img:PILImage) -> AnyUrl:
+
+def from_pil_to_base64uri(img: Image.Image) -> AnyUrl:
 
     image_base64 = from_pil_to_base64(img)
     uri = AnyUrl(f"data:image/png;base64,{image_base64}")
 
     return uri
+
 
 def to_base64(item: Dict[str, Any]) -> str:
     image_bytes = item["bytes"]
@@ -81,7 +84,7 @@ def to_base64(item: Dict[str, Any]) -> str:
     image_stream = BytesIO(image_bytes)
 
     # Open the image using PIL
-    image = PILImage.open(image_stream)
+    image = Image.open(image_stream)
 
     # Convert the image to a bytes object
     buffered = io.BytesIO()
@@ -102,7 +105,7 @@ def to_pil(uri):
     image_data = base64.b64decode(base64_string)
 
     # Step 2: Open the image using Pillow
-    image = PILImage.open(BytesIO(image_data))
+    image = Image.open(BytesIO(image_data))
 
     return image
 
@@ -216,7 +219,7 @@ def generate_dataset_info(
     dataset_info.save_to_disk(str(output_dir))
 
 
-def crop_bounding_box(page_image: PILImage.Image, page: PageItem, bbox: BoundingBox):
+def crop_bounding_box(page_image: Image.Image, page: PageItem, bbox: BoundingBox):
     """
     Crop a bounding box from a PIL image.
 

@@ -7,14 +7,12 @@ from pathlib import Path
 from tabulate import tabulate  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
-
-from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
-from docling_eval.utils.repository import is_git_lfs_installed, clone_repository
-
 from docling_eval.benchmarks.omnidocbench.create import (
     create_omnidocbench_layout_dataset,
     create_omnidocbench_tableformer_dataset,
 )
+from docling_eval.utils.repository import clone_repository, is_git_lfs_installed
+
 """
 from docling_eval.evaluators.layout_evaluator import (
     DatasetLayoutEvaluation,
@@ -61,11 +59,11 @@ def main():
         omnidocbench_dir=idir, output_dir=odir_lay, image_scale=image_scale
     )
     """
-    
+
     create_omnidocbench_tableformer_dataset(
         omnidocbench_dir=idir, output_dir=odir_tab, image_scale=image_scale
     )
-        
+
 
 if __name__ == "__main__":
-    main()        
+    main()

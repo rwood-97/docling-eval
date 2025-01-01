@@ -1,32 +1,33 @@
-import copy
-import json
-from pathlib import Path
-import io
 import base64
-from PIL import Image as PILImage
-from typing import Dict, List
+import copy
+import io
+import json
+import logging
+from pathlib import Path
+from typing import Dict, List, Set
+
 import pypdfium2 as pdfium
-
 from bs4 import BeautifulSoup  # type: ignore
-
-from docling_core.types.doc.labels import DocItemLabel
-
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
-
 from docling_core.types.doc.document import (
     DoclingDocument,
     ImageRef,
+    ImageRefMode,
     PageItem,
     PictureItem,
     ProvenanceItem,
     TableCell,
     TableData,
-    TableItem, ImageRefMode
+    TableItem,
 )
+from docling_core.types.doc.labels import DocItemLabel
+from PIL import Image  # as PILImage
 
 from docling_eval.benchmarks.constants import BenchMarkColumns, BenchMarkNames
-
-from docling_eval.docling.constants import HTML_DEFAULT_HEAD_FOR_COMP, HTML_COMPARISON_PAGE
+from docling_eval.docling.constants import (
+    HTML_COMPARISON_PAGE,
+    HTML_DEFAULT_HEAD_FOR_COMP,
+)
 
 
 def write_datasets_info(
@@ -61,13 +62,16 @@ def write_datasets_info(
     with open(output_dir / f"dataset_infos.json", "w") as fw:
         fw.write(json.dumps(dataset_infos, indent=2))
 
-def add_pages_to_true_doc(pdf_path:Path, true_doc:DoclingDocument, image_scale:float = 1.0):
+
+def add_pages_to_true_doc(
+    pdf_path: Path, true_doc: DoclingDocument, image_scale: float = 1.0
+):
 
     pdf = pdfium.PdfDocument(pdf_path)
     assert len(pdf) == 1, "len(pdf)==1"
 
     # add the pages
-    page_images: List[PILImage.Image] = []
+    page_images: List[Image.Image] = []
 
     pdf = pdfium.PdfDocument(pdf_path)
     for page_index in range(len(pdf)):
@@ -88,9 +92,7 @@ def add_pages_to_true_doc(pdf_path:Path, true_doc:DoclingDocument, image_scale:f
         image_ref = ImageRef(
             mimetype="image/png",
             dpi=round(72 * image_scale),
-            size=Size(
-                width=float(page_image.width), height=float(page_image.height)
-            ),
+            size=Size(width=float(page_image.width), height=float(page_image.height)),
             uri=Path(f"{BenchMarkColumns.PAGE_IMAGES}/{page_index}"),
         )
         page_item = PageItem(
@@ -100,10 +102,11 @@ def add_pages_to_true_doc(pdf_path:Path, true_doc:DoclingDocument, image_scale:f
         )
 
         true_doc.pages[page_index + 1] = page_item
-    
+
     return true_doc, page_images
 
-def yield_cells_from_html_table(table_html:str):
+
+def yield_cells_from_html_table(table_html: str):
     soup = BeautifulSoup(table_html, "html.parser")
     table = soup.find("table") or soup  # Ensure table context
     rows = table.find_all("tr")
@@ -113,7 +116,7 @@ def yield_cells_from_html_table(table_html:str):
         # cols = row.find_all(["td", "th"])
         # max_cols = max(max_cols, len(cols))  # Determine maximum columns
 
-        num_cols=0
+        num_cols = 0
         for cell in row.find_all(["td", "th"]):
             num_cols += int(cell.get("colspan", 1))
 
@@ -144,16 +147,17 @@ def yield_cells_from_html_table(table_html:str):
 
             col_idx += colspan  # Move to next column after colspan
 
-def convert_html_table_into_docling_tabledata(table_html:str) -> TableData:
+
+def convert_html_table_into_docling_tabledata(table_html: str) -> TableData:
 
     num_rows = -1
     num_cols = -1
 
     cells = []
-            
+
     try:
         for row_idx, col_idx, rowspan, colspan, text in yield_cells_from_html_table(
-                table_html=table_html
+            table_html=table_html
         ):
             cell = TableCell(
                 row_span=rowspan,
@@ -165,43 +169,54 @@ def convert_html_table_into_docling_tabledata(table_html:str) -> TableData:
                 text=text,
             )
             cells.append(cell)
-                    
+
             num_rows = max(row_idx + rowspan, num_rows)
             num_cols = max(col_idx + colspan, num_cols)
 
     except:
         logging.error("No table-structure identified")
-                
+
     return TableData(num_rows=num_rows, num_cols=num_cols, table_cells=cells)
 
-            
-def save_comparison_html(filename:Path, true_doc:DoclingDocument, pred_doc:DoclingDocument, page_image:PILImage, labels: List[DocItemLabel]):
 
-    true_doc_html = true_doc.export_to_html(image_mode = ImageRefMode.EMBEDDED,
-                                            html_head = HTML_DEFAULT_HEAD_FOR_COMP, labels=labels)
-    
-    pred_doc_html = pred_doc.export_to_html(image_mode = ImageRefMode.EMBEDDED,
-                                            html_head = HTML_DEFAULT_HEAD_FOR_COMP, labels=labels)
-    
+def save_comparison_html(
+    filename: Path,
+    true_doc: DoclingDocument,
+    pred_doc: DoclingDocument,
+    page_image: Image.Image,
+    labels: Set[DocItemLabel],
+):
+
+    true_doc_html = true_doc.export_to_html(
+        image_mode=ImageRefMode.EMBEDDED,
+        html_head=HTML_DEFAULT_HEAD_FOR_COMP,
+        labels=labels,
+    )
+
+    pred_doc_html = pred_doc.export_to_html(
+        image_mode=ImageRefMode.EMBEDDED,
+        html_head=HTML_DEFAULT_HEAD_FOR_COMP,
+        labels=labels,
+    )
+
     # since the string in srcdoc are wrapped by ', we need to replace all ' by it HTML convention
     true_doc_html = true_doc_html.replace("'", "&#39;")
     pred_doc_html = pred_doc_html.replace("'", "&#39;")
-            
+
     # Convert the image to a bytes object
     buffered = io.BytesIO()
-    page_image.save(buffered, format="PNG")  # Specify the format (e.g., JPEG, PNG, etc.)
+    page_image.save(
+        buffered, format="PNG"
+    )  # Specify the format (e.g., JPEG, PNG, etc.)
     image_bytes = buffered.getvalue()
-    
+
     # Encode the bytes to a Base64 string
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-    
+
     comparison_page = copy.deepcopy(HTML_COMPARISON_PAGE)
     comparison_page = comparison_page.replace("BASE64PAGE", image_base64)
     comparison_page = comparison_page.replace("TRUEDOC", true_doc_html)
     comparison_page = comparison_page.replace("PREDDOC", pred_doc_html)
-    
+
     with open(str(filename), "w") as fw:
         fw.write(comparison_page)
-
-
-

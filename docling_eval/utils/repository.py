@@ -35,7 +35,7 @@ def is_git_lfs_installed():
         return False
 
 
-def clone_repository(repo_url:str, target_directory:Path):
+def clone_repository(repo_url: str, target_directory: Path):
     """
     Clone a Git repository to the specified target directory.
     """

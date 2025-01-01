@@ -1,9 +1,10 @@
+import copy
 import glob
 import json
-import copy
+import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, List, Tuple
 
 import docling_ibm_models.tableformer.data_management.tf_predictor as tf_predictor
 import numpy as np
@@ -20,26 +21,20 @@ from docling_core.types.doc.document import (
 )
 from docling_ibm_models.tableformer.data_management.tf_predictor import TFPredictor
 from docling_ibm_models.tableformer.utils.app_profiler import AggProfiler
+from docling_parse.pdf_parsers import pdf_parser_v2
 from huggingface_hub import snapshot_download
 
 # import cv2
 from PIL import Image, ImageDraw
 
 from docling_eval.docling.models.tableformer.tf_constants import tf_config
-from docling_eval.docling.utils import map_to_records
-
-from docling_eval.docling.utils import (
-    crop_bounding_box,
-)
-
-from docling_parse.pdf_parsers import pdf_parser_v2
-
-import logging
+from docling_eval.docling.utils import crop_bounding_box, map_to_records
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
 
 def init_tf_model() -> dict:
     r"""
@@ -183,35 +178,40 @@ class TableFormerUpdater:
         self.tf_config = init_tf_model()
 
     def get_page_cells(self, filename: str):
-        
+
         parser = pdf_parser_v2("fatal")
-        
+
         try:
             key = "key"
             parser.load_document(key=key, filename=filename)
-            
+
             parsed_doc = parser.parse_pdf_from_key(key=key)
-            
+
             parser.unload_document(key)
             return parsed_doc
-        
+
         except Exception as exc:
             logging.error(exc)
 
         return None
-        
-    def replace_tabledata(self, pdf_path:Path, true_doc:DoclingDocument, true_page_images:List[Image.Image]) -> DoclingDocument:
+
+    def replace_tabledata(
+        self,
+        pdf_path: Path,
+        true_doc: DoclingDocument,
+        true_page_images: List[Image.Image],
+    ) -> Tuple[bool, DoclingDocument]:
 
         updated = False
 
         # deep copy of the true-document
         pred_doc = copy.deepcopy(true_doc)
-        
+
         parsed_doc = self.get_page_cells(str(pdf_path))
         if parsed_doc == None:
             logging.error("could not parse pdf-file")
             return False, pred_doc
-        
+
         # Replace the groundtruth tables with predictions from TableFormer
         for item, level in pred_doc.iterate_items():
             if isinstance(item, TableItem):
@@ -244,7 +244,7 @@ class TableFormerUpdater:
                     item.data = table_data
 
                     updated = True
-                    
+
                     # md = item.export_to_markdown()
                     # print("prediction from table-former: \n\n", md)
 
