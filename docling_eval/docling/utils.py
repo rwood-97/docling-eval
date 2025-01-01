@@ -58,6 +58,22 @@ def map_to_records(item: Dict):
     return df.to_dict(orient="records")
 
 
+def from_pil_to_base64(img:PILImage) -> str:
+    # Convert the image to a base64 str
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")  # Specify the format (e.g., JPEG, PNG, etc.)
+    image_bytes = buffered.getvalue()
+    
+    # Encode the bytes to a Base64 string
+    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+def from_pil_to_base64uri(img:PILImage) -> AnyUrl:
+
+    image_base64 = from_pil_to_base64(img)
+    uri = AnyUrl(f"data:image/png;base64,{image_base64}")
+
+    return uri
+
 def to_base64(item: Dict[str, Any]) -> str:
     image_bytes = item["bytes"]
 

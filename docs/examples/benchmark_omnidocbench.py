@@ -13,7 +13,7 @@ from docling_eval.utils.repository import is_git_lfs_installed, clone_repository
 
 from docling_eval.benchmarks.omnidocbench.create import (
     create_omnidocbench_layout_dataset,
-    #create_omnidocbench_tableformer_dataset,
+    create_omnidocbench_tableformer_dataset,
 )
 """
 from docling_eval.evaluators.layout_evaluator import (
@@ -56,10 +56,15 @@ def main():
 
     image_scale = 1.0
 
+    """
     create_omnidocbench_layout_dataset(
         omnidocbench_dir=idir, output_dir=odir_lay, image_scale=image_scale
     )
-
+    """
+    
+    create_omnidocbench_tableformer_dataset(
+        omnidocbench_dir=idir, output_dir=odir_tab, image_scale=image_scale
+    )
         
 
 if __name__ == "__main__":

@@ -1,12 +1,9 @@
-#
-# Copyright IBM Corp. 2024 - 2024
-# SPDX-License-Identifier: MIT
-#
 import glob
 import json
+import copy
 import os
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, List
 
 import docling_ibm_models.tableformer.data_management.tf_predictor as tf_predictor
 import numpy as np
@@ -31,6 +28,18 @@ from PIL import Image, ImageDraw
 from docling_eval.docling.models.tableformer.tf_constants import tf_config
 from docling_eval.docling.utils import map_to_records
 
+from docling_eval.docling.utils import (
+    crop_bounding_box,
+)
+
+from docling_parse.pdf_parsers import pdf_parser_v2
+
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 def init_tf_model() -> dict:
     r"""
@@ -165,3 +174,78 @@ def tf_predict(
     )
 
     return table_data
+
+
+class TableFormerUpdater:
+
+    def __init__(self):
+        # Init the TableFormer model
+        self.tf_config = init_tf_model()
+
+    def get_page_cells(self, filename: str):
+        
+        parser = pdf_parser_v2("fatal")
+        
+        try:
+            key = "key"
+            parser.load_document(key=key, filename=filename)
+            
+            parsed_doc = parser.parse_pdf_from_key(key=key)
+            
+            parser.unload_document(key)
+            return parsed_doc
+        
+        except Exception as exc:
+            logging.error(exc)
+
+        return None
+        
+    def replace_tabledata(self, pdf_path:Path, true_doc:DoclingDocument, true_page_images:List[Image.Image]) -> DoclingDocument:
+
+        updated = False
+
+        # deep copy of the true-document
+        pred_doc = copy.deepcopy(true_doc)
+        
+        parsed_doc = self.get_page_cells(str(pdf_path))
+        if parsed_doc == None:
+            logging.error("could not parse pdf-file")
+            return False, pred_doc
+        
+        # Replace the groundtruth tables with predictions from TableFormer
+        for item, level in pred_doc.iterate_items():
+            if isinstance(item, TableItem):
+                for prov in item.prov:
+
+                    # md = item.export_to_markdown()
+                    # print("groundtruth: \n\n", md)
+
+                    page_image = true_page_images[prov.page_no - 1]
+                    # page_image.show()
+
+                    table_image = crop_bounding_box(
+                        page_image=page_image,
+                        page=pred_doc.pages[prov.page_no],
+                        bbox=prov.bbox,
+                    )
+                    table_json = item.model_dump(
+                        mode="json", by_alias=True, exclude_none=True
+                    )
+                    # print(json.dumps(table_json, indent=2))
+                    # table_image.show()
+
+                    table_data = tf_predict(
+                        config=self.tf_config,
+                        page_image=page_image,
+                        parsed_page=parsed_doc["pages"][prov.page_no - 1],
+                        table_bbox=(prov.bbox.l, prov.bbox.b, prov.bbox.r, prov.bbox.t),
+                    )
+
+                    item.data = table_data
+
+                    updated = True
+                    
+                    # md = item.export_to_markdown()
+                    # print("prediction from table-former: \n\n", md)
+
+        return updated, pred_doc

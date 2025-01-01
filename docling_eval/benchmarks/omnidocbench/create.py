@@ -5,7 +5,11 @@ import logging
 import os
 from pathlib import Path
 from typing import Dict, List
+from pydantic import AnyUrl
 import glob
+import io
+import base64
+from PIL import Image as PILImage
 
 import pypdfium2 as pdfium
 from tqdm import tqdm  # type: ignore
@@ -25,8 +29,10 @@ from docling_core.types.doc.document import (
     TableItem, ImageRefMode
 )
 
+from docling_eval.docling.constants import HTML_DEFAULT_HEAD_FOR_COMP, HTML_COMPARISON_PAGE
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.utils import write_datasets_info
+from docling_eval.benchmarks.utils import write_datasets_info, save_comparison_html, convert_html_table_into_docling_tabledata, add_pages_to_true_doc
+
 from docling_eval.docling.conversion import create_converter
 
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
@@ -37,6 +43,11 @@ from docling_eval.docling.utils import (
     extract_images,
     get_binary,
     save_shard_to_disk,
+    from_pil_to_base64uri,
+)
+
+from docling_eval.docling.models.tableformer.tf_model_prediction import (
+    TableFormerUpdater
 )
 
 
@@ -44,6 +55,27 @@ from docling_eval.docling.utils import (
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+HTML_EXPORT_LABELS = {
+    DocItemLabel.TITLE,
+    DocItemLabel.DOCUMENT_INDEX,
+    DocItemLabel.SECTION_HEADER,
+    DocItemLabel.PARAGRAPH,
+    DocItemLabel.TABLE,
+    DocItemLabel.PICTURE,
+    DocItemLabel.FORMULA,
+    DocItemLabel.CHECKBOX_UNSELECTED,
+    DocItemLabel.CHECKBOX_SELECTED,
+    DocItemLabel.TEXT,
+    DocItemLabel.LIST_ITEM,
+    DocItemLabel.CODE,
+    DocItemLabel.REFERENCE,
+
+    # Additional
+    DocItemLabel.CAPTION,
+    DocItemLabel.PAGE_HEADER,
+    DocItemLabel.PAGE_FOOTER,
+}
 
 def get_filenames(omnidocbench_dir: Path):
 
@@ -65,55 +97,17 @@ def update_gt_into_map(gt):
 
     return result
 
-def parse_html_table(table_html):
-    soup = BeautifulSoup(table_html, "html.parser")
-    table = soup.find("table") or soup  # Ensure table context
-    rows = table.find_all("tr")
 
-    max_cols = 0
-    for row in rows:
-        cols = row.find_all(["td", "th"])
-        max_cols = max(max_cols, len(cols))  # Determine maximum columns
+def update_doc_with_gt(gt, true_doc, page, page_image:PILImage, page_width:float, page_height:float):   
 
-    # Create grid to track cell positions
-    grid = [[None for _ in range(max_cols * 2)] for _ in range(len(rows) * 2)]
-
-    for row_idx, row in enumerate(rows):
-        col_idx = 0  # Start from first column
-        for cell in row.find_all(["td", "th"]):
-            # Skip over filled grid positions (handle previous rowspan/colspan)
-            while grid[row_idx][col_idx] is not None:
-                col_idx += 1
-
-            # Get text, rowspan, and colspan
-            text = cell.get_text(strip=True)
-            rowspan = int(cell.get("rowspan", 1))
-            colspan = int(cell.get("colspan", 1))
-
-            # Fill grid positions and yield (row, column, text)
-            for r in range(rowspan):
-                for c in range(colspan):
-                    grid[row_idx + r][col_idx + c] = text
-
-            # print(f"Row: {row_idx + 1}, Col: {col_idx + 1}, Text: {text}")
-            yield row_idx, col_idx, rowspan, colspan, text
-
-            col_idx += colspan  # Move to next column after colspan
-
-def update_doc_with_gt(gt, true_doc, page_width:float, page_height:float):   
-
-    print(json.dumps(gt, indent=2))
-    
     gt_width = float(gt["page_info"]["width"])
     gt_height = float(gt["page_info"]["height"])
     
     for item in gt["layout_dets"]:
-
-        print(json.dumps(item, indent=2))
         
         label = item["category_type"]
 
-        text = ""
+        text = f"&lt;omitted text for {label}&gt;"
         if "text" in item:
             text = item["text"]
             
@@ -139,6 +133,9 @@ def update_doc_with_gt(gt, true_doc, page_width:float, page_height:float):
         )
 
         prov = ProvenanceItem(page_no=1, bbox=bbox, charspan=(0, len(text)))
+
+        img = crop_bounding_box(page_image=page_image, page=page, bbox=bbox)
+        # img.show()
         
         if label=="title":
             true_doc.add_heading(text=text, orig=text, level=1, prov=prov)
@@ -147,72 +144,51 @@ def update_doc_with_gt(gt, true_doc, page_width:float, page_height:float):
             true_doc.add_text(label=DocItemLabel.TEXT, text=text, orig=text, prov=prov)
 
         elif label=="text_mask":
-            pass
+            true_doc.add_text(label=DocItemLabel.TEXT, text=text, orig=text, prov=prov)
 
         elif label=="table":
 
-            num_rows = -1
-            num_cols = -1
-
-            cells = []
-            
-            if "html" in item:
-
-                for row_idx, col_idx, rowspan, colspan, text in parse_html_table(
-                        table_html=item["html"]
-                ):
-                    cell = TableCell(
-                        row_span=rowspan,
-                        col_span=colspan,
-                        start_row_offset_idx=row_idx,
-                        end_row_offset_idx=row_idx + rowspan,
-                        start_col_offset_idx=col_idx,
-                        end_col_offset_idx=col_idx + colspan,
-                        text=text,
-                    )
-                    cells.append(cell)
-                    
-                    num_rows = max(row_idx + rowspan, num_rows)
-                    num_cols = max(col_idx + colspan, num_cols)
-
-            else:
-                logging.error("No table-structure identified")
-                
-            table_data = TableData(num_rows=num_rows, num_cols=num_cols, table_cells=cells)
+            table_data = convert_html_table_into_docling_tabledata(table_html=item["html"])            
             true_doc.add_table(data=table_data, caption=None, prov=prov)
             
         elif label=="table_caption":
-            pass
+            true_doc.add_text(label=DocItemLabel.CAPTION, text=text, orig=text, prov=prov)
 
         elif label=="table_footnote":
-            pass
+            true_doc.add_text(label=DocItemLabel.FOOTNOTE, text=text, orig=text, prov=prov)
         
         elif label=="table_mask":
-            pass
+            true_doc.add_text(label=DocItemLabel.TEXT, text=text, orig=text, prov=prov)
         
         elif label=="figure":
-            true_doc.add_picture(prov=prov)
+
+            uri = from_pil_to_base64uri(img)
+            
+            imgref = ImageRef(mimetype="image/png", dpi=72, size=Size(width=img.width, height=img.height),
+                              uri=uri)
+
+            true_doc.add_picture(prov=prov, image=imgref)
         
         elif label=="figure_caption":
-            pass
+            true_doc.add_text(label=DocItemLabel.CAPTION, text=text, orig=text, prov=prov)
 
         elif label=="figure_footnote":
-            pass
+            true_doc.add_text(label=DocItemLabel.FOOTNOTE, text=text, orig=text, prov=prov)
 
         elif label=="equation_isolated":
             true_doc.add_text(label=DocItemLabel.FORMULA, text=text, orig=text, prov=prov)
 
         elif label=="equation_caption":
-            pass
+            true_doc.add_text(label=DocItemLabel.CAPTION, text=text, orig=text, prov=prov)
 
         elif label=="code_txt":
-            pass
+            true_doc.add_text(label=DocItemLabel.TEXT, text=text, orig=text, prov=prov)
         
         elif label=="abandon":
-            pass
+            true_doc.add_text(label=DocItemLabel.TEXT, text=text, orig=text, prov=prov)
 
         elif label=="need_mask":
-            pass                
+            true_doc.add_text(label=DocItemLabel.TEXT, text=text, orig=text, prov=prov)                
 
         elif label=="header":
             true_doc.add_text(label=DocItemLabel.PAGE_HEADER, text=text, orig=text, prov=prov)
@@ -221,17 +197,17 @@ def update_doc_with_gt(gt, true_doc, page_width:float, page_height:float):
             true_doc.add_text(label=DocItemLabel.PAGE_FOOTER, text=text, orig=text, prov=prov)
 
         elif label=="reference":
-            pass
+            true_doc.add_text(label=DocItemLabel.TEXT, text=text, orig=text, prov=prov)
 
         elif label=="page_footnote":
-            pass
-
+            true_doc.add_text(label=DocItemLabel.FOOTNOTE, text=text, orig=text, prov=prov)
+            
         elif label=="page_number":
-            pass
+            true_doc.add_text(label=DocItemLabel.PAGE_FOOTER, text=text, orig=text, prov=prov)
         
         else:
             logging.error(f"label {label} is not assigned!")
-    
+
     return true_doc
 
     
@@ -264,36 +240,42 @@ def create_omnidocbench_e2e_dataset(
         jpg_path = page_tuple[0]
         pdf_path = page_tuple[1]
         
-        logging.info(f"file: {pdf_path}")
-
+        logging.info(f"file: {pdf_path}")        
         if not os.path.basename(jpg_path) in gt:
             logging.error(f"did not find ground-truth for {os.path.basename(jpg_path)}")
             continue
-
-        gt_doc = gt[os.path.basename(jpg_path)]
         
+        gt_doc = gt[os.path.basename(jpg_path)]
+
+        # Create the predicted Document
         conv_results = doc_converter.convert(source=pdf_path, raises_on_error=True)
+        pred_doc = conv_results.document
 
-        conv_results.document.save_as_html(filename = viz_dir / f"{os.path.basename(pdf_path)}-pred.html",
-                                           image_mode = ImageRefMode.EMBEDDED)
+        # Create the groundtruth Document
+        true_doc = DoclingDocument(name=f"ground-truth {os.path.basename(jpg_path)}")
+        true_doc, true_page_images = add_pages_to_true_doc(pdf_path=pdf_path, true_doc=true_doc,
+                                                           image_scale=image_scale)
 
-        pred_doc, pictures, page_images = extract_images(
-            conv_results.document,
+        assert len(true_page_images)==1, "len(true_page_images)==1"
+        
+        page_width = (true_doc.pages[1].size.width)
+        page_height = (true_doc.pages[1].size.height)
+
+        true_doc = update_doc_with_gt(gt=gt_doc, true_doc=true_doc,
+                                      page=true_doc.pages[1], page_image=true_page_images[0],
+                                      page_width=page_width, page_height=page_height)
+
+        if True:
+            save_comparison_html(filename=viz_dir / f"{os.path.basename(pdf_path)}-comp.html",
+                                 true_doc=true_doc, pred_doc=pred_doc, page_image=true_page_images[0],
+                                 labels=HTML_EXPORT_LABELS)
+            
+        pred_doc, pred_pictures, pred_page_images = extract_images(
+            pred_doc, #conv_results.document,
             pictures_column=BenchMarkColumns.PICTURES.value,  # pictures_column,
             page_images_column=BenchMarkColumns.PAGE_IMAGES.value,  # page_images_column,
         )
-        
-        true_doc = DoclingDocument(name=f"ground-truth {os.path.basename(jpg_path)}")
-        true_doc.pages = pred_doc.pages
-
-        page_width = pred_doc.pages[1].size.width
-        page_height = pred_doc.pages[1].size.height
-
-        true_doc = update_doc_with_gt(gt_doc, true_doc, page_width=page_width, page_height=page_height)
-
-        true_doc.save_as_html(filename = viz_dir / f"{os.path.basename(pdf_path)}-true.html",
-                              image_mode = ImageRefMode.PLACEHOLDER)
-        
+                
         record = {
             BenchMarkColumns.DOCLING_VERSION: docling_version(),
             BenchMarkColumns.STATUS: "SUCCESS",
@@ -302,15 +284,10 @@ def create_omnidocbench_e2e_dataset(
             BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
             BenchMarkColumns.ORIGINAL: get_binary(pdf_path),
             BenchMarkColumns.MIMETYPE: "application/pdf",
-            BenchMarkColumns.PAGE_IMAGES: page_images,
-            BenchMarkColumns.PICTURES: pictures,
+            BenchMarkColumns.PAGE_IMAGES: pred_page_images,
+            BenchMarkColumns.PICTURES: pred_pictures,
         }
         records.append(record)
-
-        if cnt>=3:
-            break
-        else:
-            cnt += 1
         
     test_dir = output_dir / "test"
     os.makedirs(test_dir, exist_ok=True)
@@ -318,7 +295,7 @@ def create_omnidocbench_e2e_dataset(
     save_shard_to_disk(items=records, dataset_path=test_dir)
 
     write_datasets_info(
-        name="DPBench: end-to-end",
+        name="OmniDocBench: end-to-end",
         output_dir=output_dir,
         num_train_rows=0,
         num_test_rows=len(records),
@@ -336,9 +313,81 @@ def create_omnidocbench_layout_dataset(
 def create_omnidocbench_tableformer_dataset(
     omnidocbench_dir: Path, output_dir: Path, image_scale: float = 1.0
 ):
-    logger.error("Not implemented")
-    exit(-1)
+    # Init the TableFormer model
+    tf_updater = TableFormerUpdater()
+    
+    # load the groundtruth
+    with open(omnidocbench_dir / f"OmniDocBench.json", "r") as fr:
+        gt = json.load(fr)
 
+    gt = update_gt_into_map(gt)
+        
+    viz_dir = output_dir / "vizualisations"
+    os.makedirs(viz_dir, exist_ok=True)
+
+    records = []
+        
+    page_tuples = get_filenames(omnidocbench_dir)
+    
+    for page_tuple in tqdm(page_tuples, total=len(page_tuples), ncols=128, desc="Processing files for OmniDocBench with end-to-end"):
+
+        jpg_path = page_tuple[0]
+        pdf_path = page_tuple[1]
+        
+        # logging.info(f"file: {pdf_path}")        
+        if not os.path.basename(jpg_path) in gt:
+            logging.error(f"did not find ground-truth for {os.path.basename(jpg_path)}")
+            continue
+        
+        gt_doc = gt[os.path.basename(jpg_path)]
+
+        # Create the groundtruth Document
+        true_doc = DoclingDocument(name=f"ground-truth {os.path.basename(jpg_path)}")
+        true_doc, true_page_images = add_pages_to_true_doc(pdf_path=pdf_path, true_doc=true_doc,
+                                                           image_scale=image_scale)
+
+        assert len(true_page_images)==1, "len(true_page_images)==1"
+        
+        page_width = (true_doc.pages[1].size.width)
+        page_height = (true_doc.pages[1].size.height)
+
+        true_doc = update_doc_with_gt(gt=gt_doc, true_doc=true_doc,
+                                      page=true_doc.pages[1], page_image=true_page_images[0],
+                                      page_width=page_width, page_height=page_height)
+        
+        updated, pred_doc = tf_updater.replace_tabledata(pdf_path=pdf_path, true_doc=true_doc, true_page_images=true_page_images)
+
+        if updated:
+
+            if True:
+                save_comparison_html(filename=viz_dir / f"{os.path.basename(pdf_path)}-comp.html",
+                                     true_doc=true_doc, pred_doc=pred_doc, page_image=true_page_images[0],
+                                     labels=HTML_EXPORT_LABELS)
+            
+            record = {
+                BenchMarkColumns.DOCLING_VERSION: docling_version(),
+                BenchMarkColumns.STATUS: "SUCCESS",
+                BenchMarkColumns.DOC_ID: str(os.path.basename(jpg_path)),
+                BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
+                BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
+                BenchMarkColumns.ORIGINAL: get_binary(pdf_path),
+                BenchMarkColumns.MIMETYPE: "application/pdf",
+                BenchMarkColumns.PAGE_IMAGES: true_page_images,
+                BenchMarkColumns.PICTURES: [] #pred_pictures,
+            }
+            records.append(record)
+
+    test_dir = output_dir / "test"
+    os.makedirs(test_dir, exist_ok=True)
+
+    save_shard_to_disk(items=records, dataset_path=test_dir)
+
+    write_datasets_info(
+        name="OmniDocBench: tableformer",
+        output_dir=output_dir,
+        num_train_rows=0,
+        num_test_rows=len(records),
+    )            
 
 def parse_arguments():
     """Parse arguments for DP-Bench parsing."""
