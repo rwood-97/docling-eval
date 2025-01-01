@@ -184,19 +184,20 @@ def save_comparison_html(
     true_doc: DoclingDocument,
     pred_doc: DoclingDocument,
     page_image: Image.Image,
-    labels: Set[DocItemLabel],
+    true_labels: Set[DocItemLabel],
+    pred_labels: Set[DocItemLabel],
 ):
 
     true_doc_html = true_doc.export_to_html(
         image_mode=ImageRefMode.EMBEDDED,
         html_head=HTML_DEFAULT_HEAD_FOR_COMP,
-        labels=labels,
+        labels=true_labels,
     )
 
     pred_doc_html = pred_doc.export_to_html(
         image_mode=ImageRefMode.EMBEDDED,
         html_head=HTML_DEFAULT_HEAD_FOR_COMP,
-        labels=labels,
+        labels=pred_labels,
     )
 
     # since the string in srcdoc are wrapped by ', we need to replace all ' by it HTML convention

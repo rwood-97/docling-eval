@@ -28,80 +28,72 @@ from docling_core.types.doc.document import (
 )
 from docling_core.types.doc.labels import DocItemLabel
 from docling_parse.pdf_parsers import pdf_parser_v2
-from PIL import Image as PILImage
+from PIL import Image # as PILImage
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.utils import write_datasets_info
-from docling_eval.docling.conversion import create_converter
-from docling_eval.docling.models.tableformer.tf_model_prediction import (
-    init_tf_model,
-    tf_predict,
+from docling_eval.benchmarks.utils import (
+    add_pages_to_true_doc,
+    convert_html_table_into_docling_tabledata,
+    save_comparison_html,
+    write_datasets_info,
 )
+from docling_eval.docling.conversion import create_converter
+
 from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
     get_binary,
     save_shard_to_disk,
+    from_pil_to_base64uri,
 )
 
+from docling_eval.docling.models.tableformer.tf_model_prediction import (
+    TableFormerUpdater,
+)
 
-def get_page_cells(filename: str):
+TRUE_HTML_EXPORT_LABELS = {
+    DocItemLabel.TITLE,
+    DocItemLabel.DOCUMENT_INDEX,
+    DocItemLabel.SECTION_HEADER,
+    DocItemLabel.PARAGRAPH,
+    DocItemLabel.TABLE,
+    DocItemLabel.PICTURE,
+    DocItemLabel.FORMULA,
+    DocItemLabel.CHECKBOX_UNSELECTED,
+    DocItemLabel.CHECKBOX_SELECTED,
+    DocItemLabel.TEXT,
+    DocItemLabel.LIST_ITEM,
+    DocItemLabel.CODE,
+    DocItemLabel.REFERENCE,
+    # Additional
+    DocItemLabel.CAPTION,
+    DocItemLabel.PAGE_HEADER,
+    DocItemLabel.PAGE_FOOTER,
+    DocItemLabel.FOOTNOTE,
+}
 
-    parser = pdf_parser_v2("fatal")
+PRED_HTML_EXPORT_LABELS = {
+    DocItemLabel.TITLE,
+    DocItemLabel.DOCUMENT_INDEX,
+    DocItemLabel.SECTION_HEADER,
+    DocItemLabel.PARAGRAPH,
+    DocItemLabel.TABLE,
+    DocItemLabel.PICTURE,
+    DocItemLabel.FORMULA,
+    DocItemLabel.CHECKBOX_UNSELECTED,
+    DocItemLabel.CHECKBOX_SELECTED,
+    DocItemLabel.TEXT,
+    DocItemLabel.LIST_ITEM,
+    DocItemLabel.CODE,
+    DocItemLabel.REFERENCE,
+    # Additional
+    DocItemLabel.PAGE_HEADER,
+    DocItemLabel.PAGE_FOOTER,
+    DocItemLabel.FOOTNOTE,
+}
 
-    try:
-        key = "key"
-        parser.load_document(key=key, filename=filename)
-
-        parsed_doc = parser.parse_pdf_from_key(key=key)
-
-        parser.unload_document(key)
-        return parsed_doc
-
-    except Exception as exc:
-        logging.error(exc)
-
-    return None
-
-
-def parse_html_table(table_html):
-    soup = BeautifulSoup(table_html, "html.parser")
-    table = soup.find("table") or soup  # Ensure table context
-    rows = table.find_all("tr")
-
-    max_cols = 0
-    for row in rows:
-        cols = row.find_all(["td", "th"])
-        max_cols = max(max_cols, len(cols))  # Determine maximum columns
-
-    # Create grid to track cell positions
-    grid = [[None for _ in range(max_cols * 2)] for _ in range(len(rows) * 2)]
-
-    for row_idx, row in enumerate(rows):
-        col_idx = 0  # Start from first column
-        for cell in row.find_all(["td", "th"]):
-            # Skip over filled grid positions (handle previous rowspan/colspan)
-            while grid[row_idx][col_idx] is not None:
-                col_idx += 1
-
-            # Get text, rowspan, and colspan
-            text = cell.get_text(strip=True)
-            rowspan = int(cell.get("rowspan", 1))
-            colspan = int(cell.get("colspan", 1))
-
-            # Fill grid positions and yield (row, column, text)
-            for r in range(rowspan):
-                for c in range(colspan):
-                    grid[row_idx + r][col_idx + c] = text
-
-            # print(f"Row: {row_idx + 1}, Col: {col_idx + 1}, Text: {text}")
-            yield row_idx, col_idx, rowspan, colspan, text
-
-            col_idx += colspan  # Move to next column after colspan
-
-
-def update(doc: DoclingDocument, annots: Dict, page_width: float, page_height: float):
+def update(doc: DoclingDocument, annots: Dict, page, page_image: Image.Image, page_width: float, page_height: float):
 
     label = annots["category"]
 
@@ -118,7 +110,7 @@ def update(doc: DoclingDocument, annots: Dict, page_width: float, page_height: f
         min_y = min(min_y, coor["y"])
         max_y = max(max_y, coor["y"])
 
-    text = annots["content"]["text"]
+    text = annots["content"]["text"].replace("\n", " ")
     html = annots["content"]["html"]
 
     bbox = BoundingBox(
@@ -131,6 +123,8 @@ def update(doc: DoclingDocument, annots: Dict, page_width: float, page_height: f
 
     prov = ProvenanceItem(page_no=1, bbox=bbox, charspan=(0, len(text)))
 
+    img = crop_bounding_box(page_image=page_image, page=page, bbox=bbox)
+    
     if label == "Header":
         doc.add_text(label=DocItemLabel.PAGE_HEADER, text=text, orig=text, prov=prov)
 
@@ -142,6 +136,8 @@ def update(doc: DoclingDocument, annots: Dict, page_width: float, page_height: f
 
     elif label == "Index":
 
+        # FIXME: ultra approximate solution
+        text = annots["content"]["text"]        
         rows = text.split("\n")
 
         num_rows = len(rows)
@@ -185,8 +181,8 @@ def update(doc: DoclingDocument, annots: Dict, page_width: float, page_height: f
         )
 
     elif label == "List":
-        # doc.add_list_item(text=text, orig=text, prov=prov)
-        doc.add_text(label=DocItemLabel.TEXT, text=text, orig=text, prov=prov)
+        doc.add_list_item(text=text, orig=text, prov=prov)
+        # doc.add_text(label=DocItemLabel.TEXT, text=text, orig=text, prov=prov)
 
     elif label == "Caption":
         doc.add_text(label=DocItemLabel.CAPTION, text=text, orig=text, prov=prov)
@@ -195,36 +191,38 @@ def update(doc: DoclingDocument, annots: Dict, page_width: float, page_height: f
         doc.add_text(label=DocItemLabel.FORMULA, text=text, orig=text, prov=prov)
 
     elif label == "Figure":
-        doc.add_picture(prov=prov)
+        uri = from_pil_to_base64uri(img)
+        
+        imgref = ImageRef(
+            mimetype="image/png",
+            dpi=72,
+            size=Size(width=img.width, height=img.height),
+            uri=uri,
+        )
+
+        doc.add_picture(prov=prov, image=imgref)
 
     elif label == "Table":
 
-        num_rows = 0
-        num_cols = 0
-
-        cells = []
-        for row_idx, col_idx, rowspan, colspan, text in parse_html_table(
+        table_data = convert_html_table_into_docling_tabledata(
             table_html=html
-        ):
-            cell = TableCell(
-                row_span=rowspan,
-                col_span=colspan,
-                start_row_offset_idx=row_idx,
-                end_row_offset_idx=row_idx + rowspan,
-                start_col_offset_idx=col_idx,
-                end_col_offset_idx=col_idx + colspan,
-                text=text,
-            )
-            cells.append(cell)
-
-            num_rows = max(row_idx + rowspan, num_rows)
-            num_cols = max(col_idx + colspan, num_cols)
-
-        table_data = TableData(num_rows=num_rows, num_cols=num_cols, table_cells=cells)
+        )
+        
         doc.add_table(data=table_data, caption=None, prov=prov)
 
     elif label == "Chart":
-        doc.add_picture(prov=prov)
+        uri = from_pil_to_base64uri(img)
+        
+        imgref = ImageRef(
+            mimetype="image/png",
+            dpi=72,
+            size=Size(width=img.width, height=img.height),
+            uri=uri,
+        )
+
+        doc.add_picture(prov=prov, image=imgref)
+        
+        #doc.add_picture(prov=prov)
 
     elif label == "Footnote":
         doc.add_text(label=DocItemLabel.FOOTNOTE, text=text, orig=text, prov=prov)
@@ -249,6 +247,9 @@ def create_dpbench_e2e_dataset(
     with open(dpbench_dir / f"dataset/reference.json", "r") as fr:
         gt = json.load(fr)
 
+    viz_dir = output_dir / "vizualisations"
+    os.makedirs(viz_dir, exist_ok=True)
+        
     records = []
 
     for filename, annots in tqdm(
@@ -259,27 +260,45 @@ def create_dpbench_e2e_dataset(
     ):
 
         pdf_path = dpbench_dir / f"dataset/pdfs/{filename}"
-        # logging.info(f"\n\n===============================\n\nfile: {pdf_path}\n\n")
 
+        # Create the predicted Document
         conv_results = doc_converter.convert(source=pdf_path, raises_on_error=True)
+        pred_doc = conv_results.document
+        
+        # Create the groundtruth Document
+        true_doc = DoclingDocument(name=f"ground-truth {os.path.basename(pdf_path)}")
+        true_doc, true_page_images = add_pages_to_true_doc(
+            pdf_path=pdf_path, true_doc=true_doc, image_scale=image_scale
+        )
 
+        assert len(true_page_images) == 1, "len(true_page_images)==1"
+
+        page_width = true_doc.pages[1].size.width
+        page_height = true_doc.pages[1].size.height
+        
+        for elem in annots["elements"]:
+            update(true_doc, elem,
+                   page=true_doc.pages[1],
+                   page_image=true_page_images[0],
+                   page_width=page_width,
+                   page_height=page_height)
+        
+        if True:
+            save_comparison_html(
+                filename=viz_dir / f"{os.path.basename(pdf_path)}-comp.html",
+                true_doc=true_doc,
+                pred_doc=pred_doc,
+                page_image=true_page_images[0],
+                true_labels=TRUE_HTML_EXPORT_LABELS,
+                pred_labels=PRED_HTML_EXPORT_LABELS,
+            )
+        
         pred_doc, pictures, page_images = extract_images(
-            conv_results.document,
+            pred_doc,
             pictures_column=BenchMarkColumns.PICTURES.value,  # pictures_column,
             page_images_column=BenchMarkColumns.PAGE_IMAGES.value,  # page_images_column,
         )
-
-        true_doc = DoclingDocument(name=f"ground-truth {filename}")
-        true_doc.pages = pred_doc.pages
-
-        page_width = pred_doc.pages[1].size.width
-        page_height = pred_doc.pages[1].size.height
-
-        # logging.info(f"w={page_width}, h={page_height}")
-
-        for elem in annots["elements"]:
-            update(true_doc, elem, page_width=page_width, page_height=page_height)
-
+            
         record = {
             BenchMarkColumns.DOCLING_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
@@ -317,13 +336,16 @@ def create_dpbench_layout_dataset(
 def create_dpbench_tableformer_dataset(
     dpbench_dir: Path, output_dir: Path, image_scale: float = 1.0
 ):
-
-    tf_config = init_tf_model()
+    # Init the TableFormer model
+    tf_updater = TableFormerUpdater()
 
     # load the groundtruth
     with open(dpbench_dir / f"dataset/reference.json", "r") as fr:
         gt = json.load(fr)
 
+    viz_dir = output_dir / "vizualisations"
+    os.makedirs(viz_dir, exist_ok=True)
+        
     records = []
 
     for filename, annots in tqdm(
@@ -334,146 +356,55 @@ def create_dpbench_tableformer_dataset(
     ):
 
         pdf_path = dpbench_dir / f"dataset/pdfs/{filename}"
-        # logging.info(f"\n\n===============================\n\nfile: {pdf_path}\n\n")
 
-        parsed_doc = get_page_cells(str(pdf_path))
-        if parsed_doc == None:
-            logging.error("could not parse pdf-file")
-            continue
+        # Create the groundtruth Document
+        true_doc = DoclingDocument(name=f"ground-truth {os.path.basename(pdf_path)}")
+        true_doc, true_page_images = add_pages_to_true_doc(
+            pdf_path=pdf_path, true_doc=true_doc, image_scale=image_scale
+        )
 
-        true_doc = DoclingDocument(name=f"ground-truth {filename}")
+        assert len(true_page_images) == 1, "len(true_page_images)==1"
 
-        pdf = pdfium.PdfDocument(pdf_path)
-        assert len(pdf) == 1, "len(pdf)==1"
-
-        # Get page dimensions
-        page = pdf.get_page(0)
-        page_width, page_height = page.get_width(), page.get_height()
-
-        # add the elements
+        page_width = true_doc.pages[1].size.width
+        page_height = true_doc.pages[1].size.height
+        
         for elem in annots["elements"]:
-            update(true_doc, elem, page_width=page_width, page_height=page_height)
+            update(true_doc, elem,
+                   page=true_doc.pages[1],
+                   page_image=true_page_images[0],
+                   page_width=page_width,
+                   page_height=page_height)
 
-        # add the pages
-        page_images: List[PILImage.Image] = []
+        # Create the updated Document
+        updated, pred_doc = tf_updater.replace_tabledata(
+            pdf_path=pdf_path, true_doc=true_doc, true_page_images=true_page_images
+        )
 
-        pdf = pdfium.PdfDocument(pdf_path)
-        for page_index in range(len(pdf)):
-            # Get the page
-            page = pdf.get_page(page_index)
+        if updated:
 
-            # Get page dimensions
-            width, height = page.get_width(), page.get_height()
+            if True:
+                save_comparison_html(
+                    filename=viz_dir / f"{os.path.basename(pdf_path)}-comp.html",
+                    true_doc=true_doc,
+                    pred_doc=pred_doc,
+                    page_image=true_page_images[0],
+                    true_labels=TRUE_HTML_EXPORT_LABELS,
+                    pred_labels=PRED_HTML_EXPORT_LABELS,
+                )
 
-            # Render the page to an image
-            image_scale = 1.0  # Adjust scale if needed
-            page_image = page.render(scale=image_scale).to_pil()
-
-            page_images.append(page_image)
-
-            # Close the page to free resources
-            page.close()
-
-            image_ref = ImageRef(
-                mimetype="image/png",
-                dpi=round(72 * image_scale),
-                size=Size(
-                    width=float(page_image.width), height=float(page_image.height)
-                ),
-                uri=Path(f"{BenchMarkColumns.PAGE_IMAGES}/{page_index}"),
-            )
-            page_item = PageItem(
-                page_no=page_index + 1,
-                size=Size(width=float(width), height=float(height)),
-                image=image_ref,
-            )
-
-            true_doc.pages[page_index + 1] = page_item
-
-        # add the pictures
-        pictures: List[PILImage.Image] = []
-        for item, level in true_doc.iterate_items():
-            if isinstance(item, PictureItem):
-                for prov in item.prov:
-                    page_image = page_images[prov.page_no - 1]
-                    # page_image.show()
-
-                    picture_image = crop_bounding_box(
-                        page_image=page_image,
-                        page=true_doc.pages[prov.page_no],
-                        bbox=prov.bbox,
-                    )
-                    # picture_image.show()
-
-                    image_ref = ImageRef(
-                        mimetype="image/png",
-                        dpi=round(72 * image_scale),
-                        size=Size(
-                            width=float(picture_image.width),
-                            height=float(picture_image.height),
-                        ),
-                        uri=Path(f"{BenchMarkColumns.PICTURES}/{len(pictures)}"),
-                    )
-                    item.image = image_ref
-
-                    picture_json = item.model_dump(
-                        mode="json", by_alias=True, exclude_none=True
-                    )
-                    # print(json.dumps(picture_json, indent=2))
-                    pictures.append(picture_image)
-
-        # deep copy of the true-document
-        pred_doc = copy.deepcopy(true_doc)
-
-        # replace the groundtruth tables with predictions from TableFormer
-        for item, level in pred_doc.iterate_items():
-            if isinstance(item, TableItem):
-                for prov in item.prov:
-
-                    # md = item.export_to_markdown()
-                    # print("groundtruth: \n\n", md)
-
-                    page_image = page_images[prov.page_no - 1]
-                    # page_image.show()
-
-                    table_image = crop_bounding_box(
-                        page_image=page_image,
-                        page=pred_doc.pages[prov.page_no],
-                        bbox=prov.bbox,
-                    )
-                    table_json = item.model_dump(
-                        mode="json", by_alias=True, exclude_none=True
-                    )
-                    # print(json.dumps(table_json, indent=2))
-                    # table_image.show()
-
-                    table_data = tf_predict(
-                        config=tf_config,
-                        page_image=page_image,
-                        parsed_page=parsed_doc["pages"][prov.page_no - 1],
-                        table_bbox=(prov.bbox.l, prov.bbox.b, prov.bbox.r, prov.bbox.t),
-                    )
-
-                    item.data = table_data
-
-                    # md = item.export_to_markdown()
-                    # print("prediction from table-former: \n\n", md)
-
-                    # input("continue")
-
-        record = {
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
-            BenchMarkColumns.STATUS: "SUCCESS",
-            BenchMarkColumns.DOC_ID: str(filename),
-            BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
-            BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
-            BenchMarkColumns.ORIGINAL: get_binary(pdf_path),
-            BenchMarkColumns.MIMETYPE: "application/pdf",
-            BenchMarkColumns.PAGE_IMAGES: page_images,
-            BenchMarkColumns.PICTURES: pictures,
-        }
-        records.append(record)
-
+            record = {
+                BenchMarkColumns.DOCLING_VERSION: docling_version(),
+                BenchMarkColumns.STATUS: "SUCCESS",
+                BenchMarkColumns.DOC_ID: str(os.path.basename(pdf_path)),
+                BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
+                BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
+                BenchMarkColumns.ORIGINAL: get_binary(pdf_path),
+                BenchMarkColumns.MIMETYPE: "application/pdf",
+                BenchMarkColumns.PAGE_IMAGES: true_page_images,
+                BenchMarkColumns.PICTURES: [],  # pred_pictures,
+            }
+            records.append(record)
+        
     test_dir = output_dir / "test"
     os.makedirs(test_dir, exist_ok=True)
 

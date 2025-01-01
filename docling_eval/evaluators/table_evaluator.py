@@ -14,6 +14,7 @@ from docling_core.types.doc.document import DoclingDocument, TableItem
 from lxml import html
 from pydantic import BaseModel, ValidationError, model_validator
 from tqdm import tqdm  # type: ignore
+from docling_core.types.doc.labels import DocItemLabel
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.utils.teds import TEDScorer
@@ -52,7 +53,7 @@ class DatasetStatistics(BaseModel):
 
     def to_table(self) -> Tuple[List[List[str]], List[str]]:
 
-        headers = ["x0<=TEDS", "TEDS<=x1", "%", "total"]
+        headers = ["x0<=TEDS", "TEDS<=x1", "prob [%]", "acc [%]", "1-acc [%]", "total"]
 
         # Calculate bin widths
         bin_widths = [
@@ -62,6 +63,8 @@ class DatasetStatistics(BaseModel):
             (self.bins[i + 1] + self.bins[i]) / 2.0 for i in range(len(self.bins) - 1)
         ]
 
+        cumsum=0
+        
         table = []
         for i in range(len(self.bins) - 1):
             table.append(
@@ -69,9 +72,12 @@ class DatasetStatistics(BaseModel):
                     f"{self.bins[i+0]:.3f}",
                     f"{self.bins[i+1]:.3f}",
                     f"{100.0*float(self.hist[i])/float(self.total):.2f}",
+                    f"{100.0*cumsum:.2f}",
+                    f"{100.0*(1.0-cumsum):.2f}",
                     f"{self.hist[i]}",
                 ]
             )
+            cumsum += float(self.hist[i])/float(self.total)
 
         return table, headers
 
@@ -241,6 +247,11 @@ class TableEvaluator:
 
         for table_id in range(len(true_tables)):  # , len(pred_tables)):
 
+            # Avoid items of type DocItemLabel.DOCUMENT_INDEX
+            if true_tables[table_id].label!=DocItemLabel.TABLE:
+                logging.warning(f"Skipping table with label {true_tables[table_id].label}")
+                continue
+            
             try:
                 true_table = true_tables[table_id]
                 pred_table = pred_tables[table_id]
