@@ -127,54 +127,23 @@ def visualise(
         with open(filename, "r") as fd:
             evaluation = DatasetLayoutEvaluation.parse_file(filename)
 
-        print(evaluation)
-            
-        table = []
-        for i in range(len(evaluation.evaluations)):
-            table.append([
-                f"{i:02}",
-                f"{evaluation.evaluations[i].label}",
-                #f"{evaluation.evaluations[i].name}",
-                f"{evaluation.evaluations[i].value:.3f}",
-            ])
-        logging.info("Class mAP[0.5:0.95] table: \n\n"+tabulate(table, headers=["index", "label", "Class mAP[0.5:0.95]"], tablefmt="github"))
+        table, headers = evaluation.to_table()
+        
+        logging.info("Class mAP[0.5:0.95] table: \n\n"+tabulate(table, headers=headers, tablefmt="github"))
 
     elif modality == EvaluationModality.TABLEFORMER:
 
         with open(filename, "r") as fd:
             evaluation = DatasetTableEvaluation.parse_file(filename)
 
-        # Calculate bin widths
-        bin_widths = [
-            evaluation.TEDS.bins[i + 1] - evaluation.TEDS.bins[i]
-            for i in range(len(evaluation.TEDS.bins) - 1)
-        ]
-        bin_middle = [
-            (evaluation.TEDS.bins[i + 1] + evaluation.TEDS.bins[i]) / 2.0
-            for i in range(len(evaluation.TEDS.bins) - 1)
-        ]
-
-        table = []
-        for i in range(len(evaluation.TEDS.bins) - 1):
-            table.append([
-                f"{i:02}",
-                f"{evaluation.TEDS.bins[i+0]:.3f}",
-                f"{evaluation.TEDS.bins[i+1]:.3f}",
-                f"{evaluation.TEDS.hist[i]}",
-                f"{100.0*evaluation.TEDS.hist[i]/float(evaluation.TEDS.total):.3f}"
-            ])
-        logging.info("TEDS table: \n\n"+tabulate(table, headers=["index", "x0<TEDS", "TEDS<x1", "count", "%"], tablefmt="github"))
+        table, headers = evaluation.to_table()        
+        logging.info("TEDS table: \n\n"+tabulate(table, headers=headers, tablefmt="github"))
             
-        # Plot histogram
-        plt.bar(bin_middle, evaluation.TEDS.hist, width=bin_widths, edgecolor="black")
-
-        plt.xlabel("TEDS")
-        plt.ylabel("Frequency")
-        plt.title(f"benchmark: {benchmark.value}, modality: {modality.value}")
-
         figname = odir / f"evaluation_{benchmark.value}_{modality.value}.png"
         logging.info(f"saving figure to {figname}")
-        plt.savefig(figname)
+        
+        evaluation.save_histogram(figname)
+
 
     elif modality == EvaluationModality.CODEFORMER:
         pass

@@ -50,7 +50,10 @@ class DatasetStatistics(BaseModel):
             raise ValueError("`bins` must have exactly one more element than `hist`.")
         return values
 
-    def to_table(self) -> List[List[str]]:
+    def to_table(self) -> Tuple[List[List[str]], List[str]]:
+
+        headers = ["x0<=TEDS", "TEDS<=x1", "%", "total"]
+        
         # Calculate bin widths
         bin_widths = [
             self.bins[i + 1] - self.bins[i] for i in range(len(self.bins) - 1)
@@ -65,12 +68,12 @@ class DatasetStatistics(BaseModel):
                 [
                     f"{self.bins[i+0]:.3f}",
                     f"{self.bins[i+1]:.3f}",
-                    f"{float(self.hist[i])/float(self.total):.3f}",
+                    f"{100.0*float(self.hist[i])/float(self.total):.2f}",
                     f"{self.hist[i]}",
                 ]
             )
 
-        return table
+        return table, headers
 
     def save_histogram(self, figname: Path):
         # Calculate bin widths
@@ -81,20 +84,20 @@ class DatasetStatistics(BaseModel):
             (self.bins[i + 1] + self.bins[i]) / 2.0 for i in range(len(self.bins) - 1)
         ]
 
+        """
         for i in range(len(self.bins) - 1):
             logging.info(
                 f"{i:02} [{self.bins[i]:.3f}, {self.bins[i+1]:.3f}]: {self.hist[i]}"
             )
-
+        """
+        
         # Plot histogram
         plt.bar(bin_middle, self.hist, width=bin_widths, edgecolor="black")
-        # width=(evaluation.TEDS.bins[1] - evaluation.TEDS.bins[0]),
 
         plt.xlabel("TEDS")
         plt.ylabel("Frequency")
-        # plt.title(f"benchmark: {benchmark.value}, modality: {modality.value}")
+        plt.title(f"mean: {self.mean:.2f}, median: {self.median:.2f}, std: {self.std:.2f}, total: {self.total}")
 
-        # figname = odir / f"evaluation_{benchmark.value}_{modality.value}.png"
         logging.info(f"saving figure to {figname}")
         plt.savefig(figname)
 

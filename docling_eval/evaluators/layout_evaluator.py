@@ -33,13 +33,21 @@ class DatasetLayoutEvaluation(BaseModel):
 
     evaluations: List[LayoutEvaluation]
 
-    def to_table(self) -> List[List[str]]:
+    def to_table(self) -> Tuple[List[List[str]], List[str]]:
+
+        headers=["label", "Class mAP[0.5:0.95]"]
+
+        self.evaluations = sorted(self.evaluations, key=lambda x: x.value, reverse=True)
+        
         table = []
-        for _ in self.evaluations:
-            table.append([_.name, "" if _.label is None else _.label, f"{_.value:.3f}"])
+        for i in range(len(self.evaluations)):
+            table.append([
+                f"{self.evaluations[i].label}",
+                f"{100.0*self.evaluations[i].value:.2f}",
+            ])
 
-        return table
-
+        return table, headers
+        
 
 class LayoutEvaluator:
 
@@ -203,6 +211,7 @@ class LayoutEvaluator:
                         else:
                             pred_labels[item.label] = 1
 
+        """
         logging.info(f"True labels:")
         for label, count in true_labels.items():
             logging.info(f" => {label}: {count}")
@@ -210,7 +219,8 @@ class LayoutEvaluator:
         logging.info(f"Pred labels:")
         for label, count in pred_labels.items():
             logging.info(f" => {label}: {count}")
-
+        """
+        
         intersection_labels: List[DocItemLabel] = []
         for label, count in true_labels.items():
             if label in pred_labels:
