@@ -350,7 +350,6 @@ def create_omnidocbench_e2e_dataset(
                 pred_labels=PRED_HTML_EXPORT_LABELS,
             )
 
-            
         pred_doc, pred_pictures, pred_page_images = extract_images(
             pred_doc,  # conv_results.document,
             pictures_column=BenchMarkColumns.PICTURES.value,  # pictures_column,
@@ -462,7 +461,7 @@ def create_omnidocbench_tableformer_dataset(
                     pred_doc=pred_doc,
                     page_image=true_page_images[0],
                     true_labels=TRUE_HTML_EXPORT_LABELS,
-                    pred_labels=PRED_HTML_EXPORT_LABELS,                    
+                    pred_labels=PRED_HTML_EXPORT_LABELS,
                 )
 
             record = {

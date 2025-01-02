@@ -28,7 +28,7 @@ from docling_core.types.doc.document import (
 )
 from docling_core.types.doc.labels import DocItemLabel
 from docling_parse.pdf_parsers import pdf_parser_v2
-from PIL import Image # as PILImage
+from PIL import Image  # as PILImage
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.benchmarks.utils import (
@@ -39,18 +39,16 @@ from docling_eval.benchmarks.utils import (
     write_datasets_info,
 )
 from docling_eval.docling.conversion import create_converter
-
+from docling_eval.docling.models.tableformer.tf_model_prediction import (
+    TableFormerUpdater,
+)
 from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
+    from_pil_to_base64uri,
     get_binary,
     save_shard_to_disk,
-    from_pil_to_base64uri,
-)
-
-from docling_eval.docling.models.tableformer.tf_model_prediction import (
-    TableFormerUpdater,
 )
 
 TRUE_HTML_EXPORT_LABELS = {
@@ -94,7 +92,15 @@ PRED_HTML_EXPORT_LABELS = {
     DocItemLabel.FOOTNOTE,
 }
 
-def update(doc: DoclingDocument, annots: Dict, page, page_image: Image.Image, page_width: float, page_height: float):
+
+def update(
+    doc: DoclingDocument,
+    annots: Dict,
+    page,
+    page_image: Image.Image,
+    page_width: float,
+    page_height: float,
+):
 
     label = annots["category"]
 
@@ -125,7 +131,7 @@ def update(doc: DoclingDocument, annots: Dict, page, page_image: Image.Image, pa
     prov = ProvenanceItem(page_no=1, bbox=bbox, charspan=(0, len(text)))
 
     img = crop_bounding_box(page_image=page_image, page=page, bbox=bbox)
-    
+
     if label == "Header":
         doc.add_text(label=DocItemLabel.PAGE_HEADER, text=text, orig=text, prov=prov)
 
@@ -138,7 +144,7 @@ def update(doc: DoclingDocument, annots: Dict, page, page_image: Image.Image, pa
     elif label == "Index":
 
         # FIXME: ultra approximate solution
-        text = annots["content"]["text"]        
+        text = annots["content"]["text"]
         rows = text.split("\n")
 
         num_rows = len(rows)
@@ -193,7 +199,7 @@ def update(doc: DoclingDocument, annots: Dict, page, page_image: Image.Image, pa
 
     elif label == "Figure":
         uri = from_pil_to_base64uri(img)
-        
+
         imgref = ImageRef(
             mimetype="image/png",
             dpi=72,
@@ -205,15 +211,13 @@ def update(doc: DoclingDocument, annots: Dict, page, page_image: Image.Image, pa
 
     elif label == "Table":
 
-        table_data = convert_html_table_into_docling_tabledata(
-            table_html=html
-        )
-        
+        table_data = convert_html_table_into_docling_tabledata(table_html=html)
+
         doc.add_table(data=table_data, caption=None, prov=prov)
 
     elif label == "Chart":
         uri = from_pil_to_base64uri(img)
-        
+
         imgref = ImageRef(
             mimetype="image/png",
             dpi=72,
@@ -222,8 +226,8 @@ def update(doc: DoclingDocument, annots: Dict, page, page_image: Image.Image, pa
         )
 
         doc.add_picture(prov=prov, image=imgref)
-        
-        #doc.add_picture(prov=prov)
+
+        # doc.add_picture(prov=prov)
 
     elif label == "Footnote":
         doc.add_text(label=DocItemLabel.FOOTNOTE, text=text, orig=text, prov=prov)
@@ -250,7 +254,7 @@ def create_dpbench_e2e_dataset(
 
     viz_dir = output_dir / "vizualisations"
     os.makedirs(viz_dir, exist_ok=True)
-        
+
     records = []
 
     for filename, annots in tqdm(
@@ -265,7 +269,7 @@ def create_dpbench_e2e_dataset(
         # Create the predicted Document
         conv_results = doc_converter.convert(source=pdf_path, raises_on_error=True)
         pred_doc = conv_results.document
-        
+
         # Create the groundtruth Document
         true_doc = DoclingDocument(name=f"ground-truth {os.path.basename(pdf_path)}")
         true_doc, true_page_images = add_pages_to_true_doc(
@@ -276,14 +280,17 @@ def create_dpbench_e2e_dataset(
 
         page_width = true_doc.pages[1].size.width
         page_height = true_doc.pages[1].size.height
-        
+
         for elem in annots["elements"]:
-            update(true_doc, elem,
-                   page=true_doc.pages[1],
-                   page_image=true_page_images[0],
-                   page_width=page_width,
-                   page_height=page_height)
-        
+            update(
+                true_doc,
+                elem,
+                page=true_doc.pages[1],
+                page_image=true_page_images[0],
+                page_width=page_width,
+                page_height=page_height,
+            )
+
         if True:
             """
             save_comparison_html(
@@ -295,7 +302,7 @@ def create_dpbench_e2e_dataset(
                 pred_labels=PRED_HTML_EXPORT_LABELS,
             )
             """
-            
+
             save_comparison_html_with_clusters(
                 filename=viz_dir / f"{os.path.basename(pdf_path)}-clusters.html",
                 true_doc=true_doc,
@@ -305,14 +312,12 @@ def create_dpbench_e2e_dataset(
                 pred_labels=PRED_HTML_EXPORT_LABELS,
             )
 
-
-            
         pred_doc, pictures, page_images = extract_images(
             pred_doc,
             pictures_column=BenchMarkColumns.PICTURES.value,  # pictures_column,
             page_images_column=BenchMarkColumns.PAGE_IMAGES.value,  # page_images_column,
         )
-            
+
         record = {
             BenchMarkColumns.DOCLING_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
@@ -359,7 +364,7 @@ def create_dpbench_tableformer_dataset(
 
     viz_dir = output_dir / "vizualisations"
     os.makedirs(viz_dir, exist_ok=True)
-        
+
     records = []
 
     for filename, annots in tqdm(
@@ -381,13 +386,16 @@ def create_dpbench_tableformer_dataset(
 
         page_width = true_doc.pages[1].size.width
         page_height = true_doc.pages[1].size.height
-        
+
         for elem in annots["elements"]:
-            update(true_doc, elem,
-                   page=true_doc.pages[1],
-                   page_image=true_page_images[0],
-                   page_width=page_width,
-                   page_height=page_height)
+            update(
+                true_doc,
+                elem,
+                page=true_doc.pages[1],
+                page_image=true_page_images[0],
+                page_width=page_width,
+                page_height=page_height,
+            )
 
         # Create the updated Document
         updated, pred_doc = tf_updater.replace_tabledata(
@@ -418,7 +426,7 @@ def create_dpbench_tableformer_dataset(
                 BenchMarkColumns.PICTURES: [],  # pred_pictures,
             }
             records.append(record)
-        
+
     test_dir = output_dir / "test"
     os.makedirs(test_dir, exist_ok=True)
 
