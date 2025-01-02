@@ -230,6 +230,120 @@ def save_comparison_html(
         fw.write(comparison_page)
 
 
+def draw_clusters_with_reading_order(doc: DoclingDocument, page_image:Image.Image, labels: Set[DocItemLabel], page_no:int=1, reading_order:bool=True):
+
+    img = copy.deepcopy(page_image)
+    draw = ImageDraw.Draw(img)
+
+    # Load a font (adjust the font size and path as needed)
+    font = ImageFont.load_default()
+    try:
+        font = ImageFont.truetype("arial.ttf", size=15)
+    except IOError:
+        font = ImageFont.load_default()
+
+    x0, y0 = None, None
+    
+    for item, level in doc.iterate_items():
+        if isinstance(item, DocItem):  # and item.label in labels:
+            for prov in item.prov:
+
+                if page_no!=prov.page_no:
+                    continue
+                
+                bbox = prov.bbox.to_top_left_origin(
+                    page_height=doc.pages[prov.page_no].size.height
+                )
+                bbox = bbox.normalized(doc.pages[prov.page_no].size)
+
+                bbox.l = round(bbox.l * img.width)
+                bbox.r = round(bbox.r * img.width)
+                bbox.t = round(bbox.t * img.height)
+                bbox.b = round(bbox.b * img.height)
+
+                if bbox.b > bbox.t:
+                    bbox.b, bbox.t = bbox.t, bbox.b
+
+                if not reading_order:
+                    x0, y0 = None, None                    
+                elif x0 is None and y0 is None:
+                    x0 = (bbox.l + bbox.r) / 2.0
+                    y0 = (bbox.b + bbox.t) / 2.0
+                else:
+                    x1 = (bbox.l + bbox.r) / 2.0
+                    y1 = (bbox.b + bbox.t) / 2.0
+
+                    # Arrow parameters
+                    start_point = (x0, y0)  # Starting point of the arrow
+                    end_point = (x1, y1)  # Ending point of the arrow
+                    arrowhead_length = 20  # Length of the arrowhead
+                    arrowhead_width = 10  # Width of the arrowhead
+                    
+                    arrow_color = "red"
+                    line_width = 2
+                    
+                    # Draw the arrow shaft (line)
+                    draw.line(
+                        [start_point, end_point], fill=arrow_color, width=line_width
+                    )
+
+                    # Calculate the arrowhead points
+                    dx = end_point[0] - start_point[0]
+                    dy = end_point[1] - start_point[1]
+                    angle = (
+                        dx**2 + dy**2
+                    ) ** 0.5 + 0.01  # Length of the arrow shaft
+                    
+                    # Normalized direction vector for the arrow shaft
+                    ux, uy = dx / angle, dy / angle
+                    
+                    # Base of the arrowhead
+                    base_x = end_point[0] - ux * arrowhead_length
+                    base_y = end_point[1] - uy * arrowhead_length
+                    
+                    # Left and right points of the arrowhead
+                    left_x = base_x - uy * arrowhead_width
+                    left_y = base_y + ux * arrowhead_width
+                    right_x = base_x + uy * arrowhead_width
+                    right_y = base_y - ux * arrowhead_width
+                    
+                    # Draw the arrowhead (triangle)
+                    draw.polygon(
+                        [end_point, (left_x, left_y), (right_x, right_y)],
+                        fill=arrow_color,
+                    )
+
+                    x0, y0 = x1, y1
+
+                # Draw rectangle with only a border
+                rectangle_color = "blue"
+                border_width = 1
+                draw.rectangle(
+                    [bbox.l, bbox.b, bbox.r, bbox.t],
+                    outline=rectangle_color,
+                    width=border_width,
+                )
+
+                # Calculate label size using getbbox
+                text_bbox = font.getbbox(str(item.label))
+                label_width = text_bbox[2] - text_bbox[0]
+                label_height = text_bbox[3] - text_bbox[1]
+                label_x = bbox.l
+                label_y = (
+                    bbox.b - label_height
+                )  # - 5  # Place the label above the rectangle
+                
+                # Draw label text
+                draw.text(
+                    (label_x, label_y),
+                    str(item.label),
+                    fill=rectangle_color,
+                    font=font,
+                )
+
+    return img
+
+        
 def save_comparison_html_with_clusters(
     filename: Path,
     true_doc: DoclingDocument,
