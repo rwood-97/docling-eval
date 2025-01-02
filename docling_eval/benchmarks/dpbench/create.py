@@ -35,6 +35,7 @@ from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
     save_comparison_html,
+    save_comparison_html_with_clusters,
     write_datasets_info,
 )
 from docling_eval.docling.conversion import create_converter
@@ -284,6 +285,7 @@ def create_dpbench_e2e_dataset(
                    page_height=page_height)
         
         if True:
+            """
             save_comparison_html(
                 filename=viz_dir / f"{os.path.basename(pdf_path)}-comp.html",
                 true_doc=true_doc,
@@ -292,7 +294,19 @@ def create_dpbench_e2e_dataset(
                 true_labels=TRUE_HTML_EXPORT_LABELS,
                 pred_labels=PRED_HTML_EXPORT_LABELS,
             )
-        
+            """
+            
+            save_comparison_html_with_clusters(
+                filename=viz_dir / f"{os.path.basename(pdf_path)}-clusters.html",
+                true_doc=true_doc,
+                pred_doc=pred_doc,
+                page_image=true_page_images[0],
+                true_labels=TRUE_HTML_EXPORT_LABELS,
+                pred_labels=PRED_HTML_EXPORT_LABELS,
+            )
+
+
+            
         pred_doc, pictures, page_images = extract_images(
             pred_doc,
             pictures_column=BenchMarkColumns.PICTURES.value,  # pictures_column,

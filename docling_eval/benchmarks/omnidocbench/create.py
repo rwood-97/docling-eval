@@ -33,6 +33,7 @@ from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
     save_comparison_html,
+    save_comparison_html_with_clusters,
     write_datasets_info,
 )
 from docling_eval.docling.constants import (
@@ -57,7 +58,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-HTML_EXPORT_LABELS = {
+TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,
     DocItemLabel.DOCUMENT_INDEX,
     DocItemLabel.SECTION_HEADER,
@@ -75,6 +76,27 @@ HTML_EXPORT_LABELS = {
     DocItemLabel.CAPTION,
     DocItemLabel.PAGE_HEADER,
     DocItemLabel.PAGE_FOOTER,
+    DocItemLabel.FOOTNOTE,
+}
+
+PRED_HTML_EXPORT_LABELS = {
+    DocItemLabel.TITLE,
+    DocItemLabel.DOCUMENT_INDEX,
+    DocItemLabel.SECTION_HEADER,
+    DocItemLabel.PARAGRAPH,
+    DocItemLabel.TABLE,
+    DocItemLabel.PICTURE,
+    DocItemLabel.FORMULA,
+    DocItemLabel.CHECKBOX_UNSELECTED,
+    DocItemLabel.CHECKBOX_SELECTED,
+    DocItemLabel.TEXT,
+    DocItemLabel.LIST_ITEM,
+    DocItemLabel.CODE,
+    DocItemLabel.REFERENCE,
+    # Additional
+    DocItemLabel.PAGE_HEADER,
+    DocItemLabel.PAGE_FOOTER,
+    DocItemLabel.FOOTNOTE,
 }
 
 
@@ -308,14 +330,27 @@ def create_omnidocbench_e2e_dataset(
         )
 
         if True:
+            """
             save_comparison_html(
                 filename=viz_dir / f"{os.path.basename(pdf_path)}-comp.html",
                 true_doc=true_doc,
                 pred_doc=pred_doc,
                 page_image=true_page_images[0],
-                labels=HTML_EXPORT_LABELS,
+                true_labels=TRUE_HTML_EXPORT_LABELS,
+                pred_labels=PRED_HTML_EXPORT_LABELS,
+            )
+            """
+
+            save_comparison_html_with_clusters(
+                filename=viz_dir / f"{os.path.basename(pdf_path)}-clusters.html",
+                true_doc=true_doc,
+                pred_doc=pred_doc,
+                page_image=true_page_images[0],
+                true_labels=TRUE_HTML_EXPORT_LABELS,
+                pred_labels=PRED_HTML_EXPORT_LABELS,
             )
 
+            
         pred_doc, pred_pictures, pred_page_images = extract_images(
             pred_doc,  # conv_results.document,
             pictures_column=BenchMarkColumns.PICTURES.value,  # pictures_column,
@@ -426,7 +461,8 @@ def create_omnidocbench_tableformer_dataset(
                     true_doc=true_doc,
                     pred_doc=pred_doc,
                     page_image=true_page_images[0],
-                    labels=HTML_EXPORT_LABELS,
+                    true_labels=TRUE_HTML_EXPORT_LABELS,
+                    pred_labels=PRED_HTML_EXPORT_LABELS,                    
                 )
 
             record = {
