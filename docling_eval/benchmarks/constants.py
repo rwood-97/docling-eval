@@ -15,6 +15,7 @@ class BenchMarkColumns(str, Enum):
     PICTURES = "pictures"
 
     MIMETYPE = "mimetype"
+    TIMINGS = "timings"
 
 
 class EvaluationModality(str, Enum):

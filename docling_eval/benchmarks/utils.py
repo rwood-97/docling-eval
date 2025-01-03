@@ -230,7 +230,13 @@ def save_comparison_html(
         fw.write(comparison_page)
 
 
-def draw_clusters_with_reading_order(doc: DoclingDocument, page_image:Image.Image, labels: Set[DocItemLabel], page_no:int=1, reading_order:bool=True):
+def draw_clusters_with_reading_order(
+    doc: DoclingDocument,
+    page_image: Image.Image,
+    labels: Set[DocItemLabel],
+    page_no: int = 1,
+    reading_order: bool = True,
+):
 
     img = copy.deepcopy(page_image)
     draw = ImageDraw.Draw(img)
@@ -243,14 +249,14 @@ def draw_clusters_with_reading_order(doc: DoclingDocument, page_image:Image.Imag
         font = ImageFont.load_default()
 
     x0, y0 = None, None
-    
+
     for item, level in doc.iterate_items():
         if isinstance(item, DocItem):  # and item.label in labels:
             for prov in item.prov:
 
-                if page_no!=prov.page_no:
+                if page_no != prov.page_no:
                     continue
-                
+
                 bbox = prov.bbox.to_top_left_origin(
                     page_height=doc.pages[prov.page_no].size.height
                 )
@@ -265,7 +271,7 @@ def draw_clusters_with_reading_order(doc: DoclingDocument, page_image:Image.Imag
                     bbox.b, bbox.t = bbox.t, bbox.b
 
                 if not reading_order:
-                    x0, y0 = None, None                    
+                    x0, y0 = None, None
                 elif x0 is None and y0 is None:
                     x0 = (bbox.l + bbox.r) / 2.0
                     y0 = (bbox.b + bbox.t) / 2.0
@@ -278,10 +284,10 @@ def draw_clusters_with_reading_order(doc: DoclingDocument, page_image:Image.Imag
                     end_point = (x1, y1)  # Ending point of the arrow
                     arrowhead_length = 20  # Length of the arrowhead
                     arrowhead_width = 10  # Width of the arrowhead
-                    
+
                     arrow_color = "red"
                     line_width = 2
-                    
+
                     # Draw the arrow shaft (line)
                     draw.line(
                         [start_point, end_point], fill=arrow_color, width=line_width
@@ -290,23 +296,21 @@ def draw_clusters_with_reading_order(doc: DoclingDocument, page_image:Image.Imag
                     # Calculate the arrowhead points
                     dx = end_point[0] - start_point[0]
                     dy = end_point[1] - start_point[1]
-                    angle = (
-                        dx**2 + dy**2
-                    ) ** 0.5 + 0.01  # Length of the arrow shaft
-                    
+                    angle = (dx**2 + dy**2) ** 0.5 + 0.01  # Length of the arrow shaft
+
                     # Normalized direction vector for the arrow shaft
                     ux, uy = dx / angle, dy / angle
-                    
+
                     # Base of the arrowhead
                     base_x = end_point[0] - ux * arrowhead_length
                     base_y = end_point[1] - uy * arrowhead_length
-                    
+
                     # Left and right points of the arrowhead
                     left_x = base_x - uy * arrowhead_width
                     left_y = base_y + ux * arrowhead_width
                     right_x = base_x + uy * arrowhead_width
                     right_y = base_y - ux * arrowhead_width
-                    
+
                     # Draw the arrowhead (triangle)
                     draw.polygon(
                         [end_point, (left_x, left_y), (right_x, right_y)],
@@ -332,7 +336,7 @@ def draw_clusters_with_reading_order(doc: DoclingDocument, page_image:Image.Imag
                 label_y = (
                     bbox.b - label_height
                 )  # - 5  # Place the label above the rectangle
-                
+
                 # Draw label text
                 draw.text(
                     (label_x, label_y),
@@ -343,7 +347,7 @@ def draw_clusters_with_reading_order(doc: DoclingDocument, page_image:Image.Imag
 
     return img
 
-        
+
 def save_comparison_html_with_clusters(
     filename: Path,
     true_doc: DoclingDocument,

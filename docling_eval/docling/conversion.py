@@ -15,12 +15,14 @@ from docling.datamodel.pipeline_options import (
     TesseractCliOcrOptions,
     TesseractOcrOptions,
 )
+from docling.datamodel.settings import settings
 from docling.document_converter import DocumentConverter, PdfFormatOption
 
 warnings.filterwarnings(action="ignore", category=UserWarning, module="pydantic|torch")
 warnings.filterwarnings(action="ignore", category=FutureWarning, module="easyocr")
 
-_log = logging.getLogger(__name__)
+# Set logging level for the 'docling' package
+logging.getLogger("docling").setLevel(logging.WARNING)
 
 
 def create_converter(
@@ -29,6 +31,7 @@ def create_converter(
     do_ocr: bool = False,
     ocr_lang: List[str] = ["en"],
     ocr_engine: OcrEngine = OcrEngine.EASYOCR,
+    timings: bool = False,
 ):
 
     force_ocr: bool = True
@@ -67,5 +70,8 @@ def create_converter(
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
         }
     )
+
+    # Enable the profiling to measure the time spent
+    settings.debug.profile_pipeline_timings = True
 
     return doc_converter

@@ -1,23 +1,16 @@
+import copy
+import glob
 import json
 import logging
 import os
 import subprocess
 from pathlib import Path
-import glob
-import copy
 
-from tqdm import tqdm
-
-from docling_eval.docling.conversion import create_converter
-
-from docling_eval.docling.constants import (
-    HTML_INSPECTION,
-)
-from docling_core.types.doc.labels import DocItemLabel
+from docling.datamodel.base_models import ConversionStatus
 from docling_core.types.doc.document import (
     DoclingDocument,
     ImageRef,
-    ImageRefMode,    
+    ImageRefMode,
     PageItem,
     PictureItem,
     ProvenanceItem,
@@ -25,11 +18,13 @@ from docling_core.types.doc.document import (
     TableData,
     TableItem,
 )
+from docling_core.types.doc.labels import DocItemLabel
+from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.utils import (
-    draw_clusters_with_reading_order
-)
-
+from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.utils import draw_clusters_with_reading_order
+from docling_eval.docling.constants import HTML_INSPECTION
+from docling_eval.docling.conversion import create_converter
 from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
@@ -46,7 +41,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
-logger = logging.getLogger(__name__)
+MAX_RECORDS = 1000
 
 PRED_HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,
@@ -68,15 +63,82 @@ PRED_HTML_EXPORT_LABELS = {
     DocItemLabel.FOOTNOTE,
 }
 
-def parse_args():
 
-    name = "package-forms"
-    pdf_files = sorted(glob.glob("/Users/taa/Documents/projects/docling-scrape/downloaded_files/*.pdf"))
-    return name, pdf_files, 1.0
+import argparse
+import os
+
+
+def parse_arguments():
+    # Create argument parser
+    parser = argparse.ArgumentParser(description="Process arguments for parsing PDFs.")
+
+    # Add arguments
+    parser.add_argument(
+        "-n", "--name", required=True, type=str, help="The name of the process."
+    )
+    parser.add_argument(
+        "-d",
+        "--directory",
+        required=True,
+        type=str,
+        help="Path to the directory containing PDFs.",
+    )
+    parser.add_argument(
+        "-r",
+        "--recursive",
+        type=bool,
+        default=True,
+        help="Whether to search directories recursively (default: True).",
+    )
+    parser.add_argument(
+        "-s",
+        "--image_scale",
+        type=float,
+        default=1.0,
+        help="Scaling factor for images (default: 1.0).",
+    )
+    parser.add_argument(
+        "--ocr", type=bool, default=False, help="Do OCR (default: False)."
+    )
+
+    # Parse arguments
+    args = parser.parse_args()
+
+    # Validate the directory
+    if not os.path.isdir(args.directory):
+        raise ValueError(f"The specified directory '{args.directory}' does not exist.")
+
+    # Collect PDF files
+    pdf_files = []
+    if args.recursive:
+        for root, _, files in os.walk(args.directory):
+            pdf_files.extend(
+                [os.path.join(root, f) for f in files if f.lower().endswith(".pdf")]
+            )
+    else:
+        pdf_files = [
+            os.path.join(args.directory, f)
+            for f in os.listdir(args.directory)
+            if f.lower().endswith(".pdf")
+        ]
+
+    # Return parsed arguments and the PDF files
+    return (
+        args.name,
+        args.directory,
+        args.recursive,
+        args.image_scale,
+        pdf_files,
+        args.ocr,
+    )
+
 
 def main():
-    
-    name, pdf_files, image_scale = parse_args()
+
+    # Set logging level for the 'docling' package
+    # logging.getLogger('docling').setLevel(logging.WARNING)
+
+    name, directory, recursive, image_scale, pdf_files, do_ocr = parse_arguments()
 
     odir = Path(f"./benchmarks/{name}")
 
@@ -85,40 +147,60 @@ def main():
 
     os.makedirs(pqt_dir, exist_ok=True)
     os.makedirs(viz_dir, exist_ok=True)
-    
+
     # Create Converter
     doc_converter = create_converter(
-        artifacts_path=odir / "artifacts", page_image_scale=image_scale
+        artifacts_path=odir / "artifacts", page_image_scale=image_scale, do_ocr=do_ocr
     )
-    
+
+    records = []
+
+    tid, sid = 0, 0
+
     for pdf_file in tqdm(pdf_files, total=len(pdf_files), ncols=128):
 
+        # Create the predicted Document
         try:
-            # Create the predicted Document
             conv_results = doc_converter.convert(source=pdf_file, raises_on_error=True)
             pred_doc = conv_results.document
         except:
+            record = {
+                BenchMarkColumns.DOCLING_VERSION: docling_version(),
+                BenchMarkColumns.STATUS: str(ConversionStatus.FAILURE.value),
+                BenchMarkColumns.DOC_ID: str(os.path.basename(pdf_file)),
+                BenchMarkColumns.PREDICTION: json.dumps(None),
+                BenchMarkColumns.ORIGINAL: get_binary(pdf_file),
+                BenchMarkColumns.MIMETYPE: "application/pdf",
+                BenchMarkColumns.TIMINGS: json.dumps(None),
+            }
+            records.append(record)
             continue
-            
+
+        timings = {}
+        for key, item in conv_results.timings.items():
+            timings[key] = json.loads(item.model_dump_json())
+
         html_doc = pred_doc.export_to_html(
             image_mode=ImageRefMode.EMBEDDED,
-            #html_head=HTML_DEFAULT_HEAD_FOR_COMP,
-            #labels=pred_labels,
+            # html_head=HTML_DEFAULT_HEAD_FOR_COMP,
+            # labels=pred_labels,
         )
 
         html_doc = html_doc.replace("'", "&#39;")
-        
+
         page_images = []
-        page_template = '<div class="image-wrapper"><img src="data:image/png;base64,BASE64PAGE" alt="Example Image"></div>' 
+        page_template = '<div class="image-wrapper"><img src="data:image/png;base64,BASE64PAGE" alt="Example Image"></div>'
         for page_no, page in pred_doc.pages.items():
             page_img = page.image.pil_image
 
-            page_img = draw_clusters_with_reading_order(doc=pred_doc,
-                                                        page_image=page_img,
-                                                        labels=PRED_HTML_EXPORT_LABELS,
-                                                        page_no=page_no,
-                                                        reading_order=True)
-            
+            page_img = draw_clusters_with_reading_order(
+                doc=pred_doc,
+                page_image=page_img,
+                labels=PRED_HTML_EXPORT_LABELS,
+                page_no=page_no,
+                reading_order=True,
+            )
+
             page_base64 = from_pil_to_base64(page_img)
             page_images.append(page_template.replace("BASE64PAGE", page_base64))
 
@@ -127,9 +209,42 @@ def main():
         page = page.replace("PAGE_IMAGES", "\n".join(page_images))
 
         filename = viz_dir / f"{os.path.basename(pdf_file)}.html"
-        logging.info(f"writing {filename}")
         with open(str(filename), "w") as fw:
             fw.write(page)
-    
+
+        record = {
+            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.STATUS: str(conv_results.status.value),
+            BenchMarkColumns.DOC_ID: str(os.path.basename(pdf_file)),
+            BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
+            BenchMarkColumns.ORIGINAL: get_binary(pdf_file),
+            BenchMarkColumns.MIMETYPE: "application/pdf",
+            BenchMarkColumns.TIMINGS: json.dumps(timings),
+        }
+        records.append(record)
+
+        if len(records) == MAX_RECORDS:
+            save_shard_to_disk(
+                items=records,
+                dataset_path=pqt_dir,
+                thread_id=tid,
+                shard_id=sid,
+                shard_format="parquet",
+            )
+            sid += 1
+            records = []
+
+    if len(records) > 0:
+        save_shard_to_disk(
+            items=records,
+            dataset_path=pqt_dir,
+            thread_id=tid,
+            shard_id=sid,
+            shard_format="parquet",
+        )
+        sid += 1
+        records = []
+
+
 if __name__ == "__main__":
     main()
