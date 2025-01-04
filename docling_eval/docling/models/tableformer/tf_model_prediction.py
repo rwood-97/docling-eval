@@ -1,3 +1,4 @@
+import os
 import copy
 import glob
 import json
@@ -10,6 +11,8 @@ import docling_ibm_models.tableformer.data_management.tf_predictor as tf_predict
 import numpy as np
 import pytest
 import torch
+
+from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
     DoclingDocument,
     ImageRef,
@@ -30,12 +33,26 @@ from PIL import Image, ImageDraw
 from docling_eval.docling.models.tableformer.tf_constants import tf_config
 from docling_eval.docling.utils import crop_bounding_box, map_to_records
 
+from pydantic import BaseModel
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+class PageToken(BaseModel):
+    bbox: BoundingBox
+    
+    text: str
+    id: int
 
+class PageTokens(BaseModel):
+    tokens: List[PageToken]
+    
+    height: float
+    width: float
+
+    
 def init_tf_model() -> dict:
     r"""
     Initialize the testing environment
@@ -170,6 +187,63 @@ def tf_predict(
 
     return table_data
 
+def tf_predict_with_page_tokens(
+    config,
+    page_image: Image.Image,
+    page_tokens: PageTokens,
+    table_bbox: Tuple[float, float, float, float],
+    viz: bool = True,
+    device: str = "cpu",
+    num_threads: int = 2,
+    image_scale: float = 1.0,
+):
+    r"""
+    Test the TFPredictor
+    """
+
+    table_bboxes = [[table_bbox[0], table_bbox[1], table_bbox[2], table_bbox[3]]]
+
+    ocr_page = page_tokens.dict()
+
+    ocr_page["image"] = to_np(page_image)
+    ocr_page["table_bboxes"] = table_bboxes
+
+    # Loop over the iocr_pages
+    predictor = TFPredictor(config, device=device, num_threads=num_threads)
+
+    tf_output = predictor.multi_table_predict(
+        ocr_page,
+        table_bboxes=table_bboxes,
+        do_matching=True,
+        correct_overlapping_cells=False,
+        sort_row_col_indexes=True,
+    )
+    # print("tf-output: ", json.dumps(tf_output, indent=2))
+
+    table_out = tf_output[0]
+
+    do_cell_matching = True
+
+    table_cells = []
+    for element in table_out["tf_responses"]:
+
+        tc = TableCell.model_validate(element)
+        if do_cell_matching and tc.bbox is not None:
+            tc.bbox = tc.bbox.scaled(1 / image_scale)
+        table_cells.append(tc)
+
+    # Retrieving cols/rows, after post processing:
+    num_rows = table_out["predict_details"]["num_rows"]
+    num_cols = table_out["predict_details"]["num_cols"]
+    otsl_seq = table_out["predict_details"]["prediction"]["rs_seq"]
+
+    table_data = TableData(
+        num_rows=num_rows, num_cols=num_cols, table_cells=table_cells
+    )
+
+    return table_data
+
+
 
 class TableFormerUpdater:
 
@@ -240,7 +314,6 @@ class TableFormerUpdater:
                         parsed_page=parsed_doc["pages"][prov.page_no - 1],
                         table_bbox=(prov.bbox.l, prov.bbox.b, prov.bbox.r, prov.bbox.t),
                     )
-
                     item.data = table_data
 
                     updated = True
@@ -249,3 +322,54 @@ class TableFormerUpdater:
                     # print("prediction from table-former: \n\n", md)
 
         return updated, pred_doc
+
+    def replace_tabledata_with_page_tokens(
+        self,
+        page_tokens: PageTokens,
+        true_doc: DoclingDocument,
+        true_page_images: List[Image.Image],
+    ) -> Tuple[bool, DoclingDocument]:
+
+        updated = False
+
+        # deep copy of the true-document
+        pred_doc = copy.deepcopy(true_doc)
+
+        # Replace the groundtruth tables with predictions from TableFormer
+        for item, level in pred_doc.iterate_items():
+            if isinstance(item, TableItem):
+                for prov in item.prov:
+
+                    # md = item.export_to_markdown()
+                    # print("groundtruth: \n\n", md)
+
+                    page_image = true_page_images[prov.page_no - 1]
+                    # page_image.show()
+
+                    table_image = crop_bounding_box(
+                        page_image=page_image,
+                        page=pred_doc.pages[prov.page_no],
+                        bbox=prov.bbox,
+                    )
+                    table_json = item.model_dump(
+                        mode="json", by_alias=True, exclude_none=True
+                    )
+                    # print(json.dumps(table_json, indent=2))
+                    # table_image.show()
+
+                    table_data = tf_predict_with_page_tokens(
+                        config=self.tf_config,
+                        page_image=page_image,
+                        page_tokens=page_tokens,
+                        table_bbox=(prov.bbox.l, prov.bbox.b, prov.bbox.r, prov.bbox.t),
+                    )
+                    item.data = table_data
+
+                    updated = True
+
+                    # md = item.export_to_markdown()
+                    # print("prediction from table-former: \n\n", md)
+
+        return updated, pred_doc
+
+    
