@@ -1,6 +1,5 @@
-import os
 import logging
-
+import os
 from pathlib import Path
 
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
@@ -15,7 +14,6 @@ logging.basicConfig(
 )
 
 
-
 def main():
 
     odir = Path("./benchmarks/fintabnet-dataset")
@@ -24,12 +22,9 @@ def main():
 
     for _ in [odir, odir_tab]:
         os.makedirs(_, exist_ok=True)
-    
-    create_fintabnet_tableformer_dataset(
-        output_dir=odir_tab
-    )
-    
 
-    
+    create_fintabnet_tableformer_dataset(output_dir=odir_tab)
+
+
 if __name__ == "__main__":
-    main()    
+    main()

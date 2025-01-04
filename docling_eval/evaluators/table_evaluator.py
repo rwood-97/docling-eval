@@ -272,7 +272,11 @@ class TableEvaluator:
                 true_html_obj = html.fromstring(true_html)
                 pred_html_obj = html.fromstring(pred_html)
 
-                teds = self._teds_scorer(gt_table=true_html_obj, pred_table=pred_html_obj, structure_only=structure_only)
+                teds = self._teds_scorer(
+                    gt_table=true_html_obj,
+                    pred_table=pred_html_obj,
+                    structure_only=structure_only,
+                )
                 # logging.info(f"teds: {teds}")
 
                 teds = round(teds, 3)

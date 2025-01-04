@@ -1,4 +1,3 @@
-import os
 import copy
 import glob
 import json
@@ -11,7 +10,6 @@ import docling_ibm_models.tableformer.data_management.tf_predictor as tf_predict
 import numpy as np
 import pytest
 import torch
-
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
     DoclingDocument,
@@ -29,30 +27,31 @@ from huggingface_hub import snapshot_download
 
 # import cv2
 from PIL import Image, ImageDraw
+from pydantic import BaseModel
 
 from docling_eval.docling.models.tableformer.tf_constants import tf_config
 from docling_eval.docling.utils import crop_bounding_box, map_to_records
-
-from pydantic import BaseModel
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 class PageToken(BaseModel):
     bbox: BoundingBox
-    
+
     text: str
     id: int
 
+
 class PageTokens(BaseModel):
     tokens: List[PageToken]
-    
+
     height: float
     width: float
 
-    
+
 def init_tf_model() -> dict:
     r"""
     Initialize the testing environment
@@ -187,6 +186,7 @@ def tf_predict(
 
     return table_data
 
+
 def tf_predict_with_page_tokens(
     config,
     page_image: Image.Image,
@@ -242,7 +242,6 @@ def tf_predict_with_page_tokens(
     )
 
     return table_data
-
 
 
 class TableFormerUpdater:
@@ -371,5 +370,3 @@ class TableFormerUpdater:
                     # print("prediction from table-former: \n\n", md)
 
         return updated, pred_doc
-
-    
