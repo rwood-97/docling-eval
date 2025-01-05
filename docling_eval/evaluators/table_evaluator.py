@@ -5,6 +5,7 @@ import statistics
 import time
 from pathlib import Path
 from typing import List, Optional, Tuple
+import random
 
 import datasets
 import matplotlib.pyplot as plt
@@ -81,7 +82,7 @@ class DatasetStatistics(BaseModel):
 
         return table, headers
 
-    def save_histogram(self, figname: Path):
+    def save_histogram(self, figname: Path, name:str=""):
         # Calculate bin widths
         bin_widths = [
             self.bins[i + 1] - self.bins[i] for i in range(len(self.bins) - 1)
@@ -90,20 +91,15 @@ class DatasetStatistics(BaseModel):
             (self.bins[i + 1] + self.bins[i]) / 2.0 for i in range(len(self.bins) - 1)
         ]
 
-        """
-        for i in range(len(self.bins) - 1):
-            logging.info(
-                f"{i:02} [{self.bins[i]:.3f}, {self.bins[i+1]:.3f}]: {self.hist[i]}"
-            )
-        """
-
         # Plot histogram
+        fignum = int(1000*random.random())
+        plt.figure(fignum)
         plt.bar(bin_middle, self.hist, width=bin_widths, edgecolor="black")
 
         plt.xlabel("TEDS")
         plt.ylabel("Frequency")
         plt.title(
-            f"mean: {self.mean:.2f}, median: {self.median:.2f}, std: {self.std:.2f}, total: {self.total}"
+            f"TEDS {name} (mean: {self.mean:.2f}, median: {self.median:.2f}, std: {self.std:.2f}, total: {self.total})"
         )
 
         logging.info(f"saving figure to {figname}")
@@ -114,10 +110,51 @@ class DatasetTableEvaluation(BaseModel):
     evaluations: list[TableEvaluation]
 
     TEDS: DatasetStatistics
+    TEDS_struct: DatasetStatistics
     TEDS_simple: DatasetStatistics
     TEDS_complex: DatasetStatistics
 
+    def save_histogram_delta_row_col(self, figname: Path):
 
+        delta_row = { i:0 for i in range(-10, 11)}
+        delta_col = { i:0 for i in range(-10, 11)}
+        
+        for _ in self.evaluations:
+            if _.true_nrows-_.pred_nrows in delta_row:
+                delta_row[_.true_nrows-_.pred_nrows] += 1                
+
+            if _.true_ncols-_.pred_ncols in delta_col:
+                delta_col[_.true_ncols-_.pred_ncols] += 1
+                
+        x_row, y_row = [], []
+        for k,v in delta_row.items():
+            x_row.append(k)
+            if v==0:
+                y_row.append(1.e-6)
+            else:
+                y_row.append(v/float(len(self.evaluations)))
+
+        x_col, y_col = [], []
+        for k,v in delta_col.items():
+            x_col.append(k)
+            if v==0:
+                y_col.append(1.e-6)
+            else:
+                y_col.append(v/float(len(self.evaluations)))
+            
+        fignum = int(1000*random.random())
+        plt.figure(fignum)
+
+        plt.semilogy(x_row, y_row, "k.-", label="rows_{true} - rows_{pred}")
+        plt.semilogy(x_col, y_col, "r.-", label="cols_{true} - cols_{pred}")
+
+        plt.xlabel("delta")
+        plt.ylabel("%")
+        plt.legend(loc="upper right")
+        
+        logging.info(f"saving figure to {figname}")
+        plt.savefig(figname)        
+                
 def compute_stats(values: List[float]) -> DatasetStatistics:
     total: int = len(values)
 
@@ -185,6 +222,7 @@ class TableEvaluator:
         logging.info(f"oveview of dataset: {ds}")
 
         table_evaluations = []
+        table_struct_evaluations = []
         # ds = datasets.load_from_disk(ds_path)
         if ds is not None:
             ds_selection: Dataset = ds[split]
@@ -203,10 +241,14 @@ class TableEvaluator:
             pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
 
             results = self._evaluate_tables_in_documents(
-                doc_id=data[BenchMarkColumns.DOC_ID], true_doc=gt_doc, pred_doc=pred_doc
+                doc_id=data[BenchMarkColumns.DOC_ID], true_doc=gt_doc, pred_doc=pred_doc, structure_only=False
             )
-
             table_evaluations.extend(results)
+
+            results = self._evaluate_tables_in_documents(
+                doc_id=data[BenchMarkColumns.DOC_ID], true_doc=gt_doc, pred_doc=pred_doc, structure_only=True
+            )
+            table_struct_evaluations.extend(results)
 
         # Compute TED statistics for the entire dataset
         teds_simple = []
@@ -220,9 +262,14 @@ class TableEvaluator:
             else:
                 teds_simple.append(te.TEDS)
 
+        teds_struct = []
+        for te in table_struct_evaluations:
+            teds_struct.append(te.TEDS)
+        
         dataset_evaluation = DatasetTableEvaluation(
             evaluations=table_evaluations,
             TEDS=compute_stats(teds_all),
+            TEDS_struct=compute_stats(teds_struct),
             TEDS_simple=compute_stats(teds_simple),
             TEDS_complex=compute_stats(teds_complex),
         )
