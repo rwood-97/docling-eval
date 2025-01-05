@@ -169,50 +169,79 @@ poetry run evaluate -t visualize -m tableformer -b OmniDocBench -i ./benchmarks/
 
 The final result can be visualised as,
 
-<table>
-  <tr>
-    <td>
-      <img src="./docs/evaluations/evaluation_OmniDocBench_tableformer.png" alt="OmniDocBench_TEDS" width="400">
-    </td>
-    <td>
-      <table>
-        <thead>
-          <tr>
-            <th>index</th>
-            <th>x0&lt;TEDS</th>
-            <th>TEDS&lt;x1</th>
-            <th>count</th>
-            <th>%</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>00</td><td>0</td><td>0.05</td><td>3</td><td>0.909</td></tr>
-          <tr><td>01</td><td>0.05</td><td>0.1</td><td>2</td><td>0.606</td></tr>
-          <tr><td>02</td><td>0.1</td><td>0.15</td><td>14</td><td>4.242</td></tr>
-          <tr><td>03</td><td>0.15</td><td>0.2</td><td>11</td><td>3.333</td></tr>
-          <tr><td>04</td><td>0.2</td><td>0.25</td><td>7</td><td>2.121</td></tr>
-          <tr><td>05</td><td>0.25</td><td>0.3</td><td>7</td><td>2.121</td></tr>
-          <tr><td>06</td><td>0.3</td><td>0.35</td><td>8</td><td>2.424</td></tr>
-          <tr><td>07</td><td>0.35</td><td>0.4</td><td>9</td><td>2.727</td></tr>
-          <tr><td>08</td><td>0.4</td><td>0.45</td><td>5</td><td>1.515</td></tr>
-          <tr><td>09</td><td>0.45</td><td>0.5</td><td>9</td><td>2.727</td></tr>
-          <tr><td>10</td><td>0.5</td><td>0.55</td><td>9</td><td>2.727</td></tr>
-          <tr><td>11</td><td>0.55</td><td>0.6</td><td>16</td><td>4.848</td></tr>
-          <tr><td>12</td><td>0.6</td><td>0.65</td><td>7</td><td>2.121</td></tr>
-          <tr><td>13</td><td>0.65</td><td>0.7</td><td>12</td><td>3.636</td></tr>
-          <tr><td>14</td><td>0.7</td><td>0.75</td><td>31</td><td>9.394</td></tr>
-          <tr><td>15</td><td>0.75</td><td>0.8</td><td>24</td><td>7.273</td></tr>
-          <tr><td>16</td><td>0.8</td><td>0.85</td><td>42</td><td>12.727</td></tr>
-          <tr><td>17</td><td>0.85</td><td>0.9</td><td>40</td><td>12.121</td></tr>
-          <tr><td>18</td><td>0.9</td><td>0.95</td><td>48</td><td>14.545</td></tr>
-          <tr><td>19</td><td>0.95</td><td>1</td><td>26</td><td>7.879</td></tr>
-        </tbody>
-      </table>
-    </td>
-  </tr>
-</table>
+|   x0<=TEDS |   TEDS<=x1 |   prob [%] |   acc [%] |   1-acc [%] |   total |
+|------------|------------|------------|-----------|-------------|---------|
+|       0    |       0.05 |       0.61 |      0    |      100    |       2 |
+|       0.05 |       0.1  |       0    |      0.61 |       99.39 |       0 |
+|       0.1  |       0.15 |       0.61 |      0.61 |       99.39 |       2 |
+|       0.15 |       0.2  |       0    |      1.21 |       98.79 |       0 |
+|       0.2  |       0.25 |       1.82 |      1.21 |       98.79 |       6 |
+|       0.25 |       0.3  |       1.82 |      3.03 |       96.97 |       6 |
+|       0.3  |       0.35 |       1.52 |      4.85 |       95.15 |       5 |
+|       0.35 |       0.4  |       1.21 |      6.36 |       93.64 |       4 |
+|       0.4  |       0.45 |       0.91 |      7.58 |       92.42 |       3 |
+|       0.45 |       0.5  |       0.61 |      8.48 |       91.52 |       2 |
+|       0.5  |       0.55 |       0.91 |      9.09 |       90.91 |       3 |
+|       0.55 |       0.6  |       2.42 |     10    |       90    |       8 |
+|       0.6  |       0.65 |       2.73 |     12.42 |       87.58 |       9 |
+|       0.65 |       0.7  |       4.24 |     15.15 |       84.85 |      14 |
+|       0.7  |       0.75 |       8.18 |     19.39 |       80.61 |      27 |
+|       0.75 |       0.8  |       9.39 |     27.58 |       72.42 |      31 |
+|       0.8  |       0.85 |      10.91 |     36.97 |       63.03 |      36 |
+|       0.85 |       0.9  |      11.21 |     47.88 |       52.12 |      37 |
+|       0.9  |       0.95 |      23.64 |     59.09 |       40.91 |      78 |
+|       0.95 |       1    |      17.27 |     82.73 |       17.27 |      57 |
 </details>
 
+### FinTabNet
+
+Using a single command (loading the dataset from Huggingface: [FinTabNet_OTSL](https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL)),
+
+```sh
+poetry run python ./docs/examples/benchmark_fintabnet.py
+```
+
+<details>
+<summary><b>Table evaluations for FinTabNet</b></summary>
+<br>
+
+👉 Evaluate the dataset,
+
+```sh
+poetry run evaluate -t evaluate -m tableformer -b FinTabNet -i ./benchmarks/fintabnet-dataset/tableformer -o ./benchmarks/fintabnet-dataset/tableformer
+```
+
+👉 Visualise the dataset,
+
+```sh
+poetry run evaluate -t visualize -m tableformer -b FinTabNet -i ./benchmarks/fintabnet-dataset/tableformer -o ./benchmarks/fintabnet-dataset/tableformer
+```
+
+The final result (struct only here) can be visualised as,
+
+|   x0<=TEDS |   TEDS<=x1 |   prob [%] |   acc [%] |   1-acc [%] |   total |
+|------------|------------|------------|-----------|-------------|---------|
+|       0    |       0.05 |       0    |      0    |      100    |       0 |
+|       0.05 |       0.1  |       0.01 |      0    |      100    |       1 |
+|       0.1  |       0.15 |       0.01 |      0.01 |       99.99 |       1 |
+|       0.15 |       0.2  |       0.02 |      0.02 |       99.98 |       2 |
+|       0.2  |       0.25 |       0    |      0.04 |       99.96 |       0 |
+|       0.25 |       0.3  |       0    |      0.04 |       99.96 |       0 |
+|       0.3  |       0.35 |       0    |      0.04 |       99.96 |       0 |
+|       0.35 |       0.4  |       0    |      0.04 |       99.96 |       0 |
+|       0.4  |       0.45 |       0.02 |      0.04 |       99.96 |       2 |
+|       0.45 |       0.5  |       0.1  |      0.06 |       99.94 |      10 |
+|       0.5  |       0.55 |       0.1  |      0.15 |       99.85 |      10 |
+|       0.55 |       0.6  |       0.24 |      0.25 |       99.75 |      25 |
+|       0.6  |       0.65 |       0.47 |      0.49 |       99.51 |      49 |
+|       0.65 |       0.7  |       1.04 |      0.96 |       99.04 |     108 |
+|       0.7  |       0.75 |       2.44 |      2    |       98    |     254 |
+|       0.75 |       0.8  |       4.65 |      4.44 |       95.56 |     483 |
+|       0.8  |       0.85 |      13.71 |      9.09 |       90.91 |    1425 |
+|       0.85 |       0.9  |      21.2  |     22.8  |       77.2  |    2204 |
+|       0.9  |       0.95 |      28.48 |     43.99 |       56.01 |    2961 |
+|       0.95 |       1    |      27.53 |     72.47 |       27.53 |    2862 |
+</details>
 
 ## Contributing
 
