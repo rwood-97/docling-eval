@@ -138,9 +138,11 @@ def visualise(
         with open(filename, "r") as fd:
             table_evaluation = DatasetTableEvaluation.parse_file(filename)
 
-        figname = odir / f"evaluation_{benchmark.value}_{modality.value}-delta_row_col.png"
+        figname = (
+            odir / f"evaluation_{benchmark.value}_{modality.value}-delta_row_col.png"
+        )
         table_evaluation.save_histogram_delta_row_col(figname=figname)
-            
+
         data, headers = table_evaluation.TEDS.to_table()
         logging.info(
             "TEDS table: \n\n" + tabulate(data, headers=headers, tablefmt="github")
@@ -153,10 +155,12 @@ def visualise(
         logging.info(
             "TEDS table: \n\n" + tabulate(data, headers=headers, tablefmt="github")
         )
-        
-        figname = odir / f"evaluation_{benchmark.value}_{modality.value}-struct-only.png"
+
+        figname = (
+            odir / f"evaluation_{benchmark.value}_{modality.value}-struct-only.png"
+        )
         table_evaluation.TEDS_struct.save_histogram(figname=figname, name="struct")
-        
+
     elif modality == EvaluationModality.CODEFORMER:
         pass
 
