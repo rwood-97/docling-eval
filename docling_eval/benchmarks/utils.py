@@ -238,7 +238,8 @@ def draw_clusters_with_reading_order(
     reading_order: bool = True,
 ):
 
-    img = copy.deepcopy(page_image)
+    img = page_image.copy()
+    
     draw = ImageDraw.Draw(img)
 
     # Load a font (adjust the font size and path as needed)
@@ -322,12 +323,13 @@ def draw_clusters_with_reading_order(
                 # Draw rectangle with only a border
                 rectangle_color = "blue"
                 border_width = 1
+                
                 draw.rectangle(
                     [bbox.l, bbox.b, bbox.r, bbox.t],
                     outline=rectangle_color,
                     width=border_width,
                 )
-
+            
                 # Calculate label size using getbbox
                 text_bbox = font.getbbox(str(item.label))
                 label_width = text_bbox[2] - text_bbox[0]

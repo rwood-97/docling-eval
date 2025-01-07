@@ -143,13 +143,13 @@ def insert_images(
     # Save page images
     for pic_no, picture in enumerate(document.pictures):
         if picture.image is not None:
-            b64 = to_base64(pictures[pic_no])
+            b64 = to_base64(pictures[pic_no-1])
             picture.image.uri = AnyUrl(f"data:image/png;base64,{b64}")
 
     # Save page images
     for page_no, page in document.pages.items():
         if page.image is not None:
-            b64 = to_base64(page_images[page_no])
+            b64 = to_base64(page_images[page_no-1])
             page.image.uri = AnyUrl(f"data:image/png;base64,{b64}")
 
     return document
