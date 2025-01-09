@@ -361,7 +361,7 @@ def create_dpbench_tableformer_dataset(
         pdf_path = dpbench_dir / f"dataset/pdfs/{filename}"
 
         # Create the groundtruth Document
-        true_doc = DoclingDocument(name=f"ground-truth {os.path.basename(pdf_path)}")
+        true_doc = DoclingDocument(name=f"{os.path.basename(pdf_path)}")
         true_doc, true_page_images = add_pages_to_true_doc(
             pdf_path=pdf_path, true_doc=true_doc, image_scale=image_scale
         )

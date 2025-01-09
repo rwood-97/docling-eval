@@ -24,6 +24,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.docling.constants import (
+    HTML_INSPECTION,
     HTML_COMPARISON_PAGE,
     HTML_COMPARISON_PAGE_WITH_CLUSTERS,
     HTML_DEFAULT_HEAD_FOR_COMP,
@@ -257,7 +258,8 @@ def draw_clusters_with_reading_order(
     reading_order: bool = True,
 ):
 
-    img = copy.deepcopy(page_image)
+    #img = copy.deepcopy(page_image)
+    img = page_image.copy()
     draw = ImageDraw.Draw(img)
 
     # Load a font (adjust the font size and path as needed)
@@ -514,3 +516,34 @@ def save_comparison_html_with_clusters(
 
     with open(str(filename), "w") as fw:
         fw.write(comparison_page)
+
+
+def save_inspection_html(filename: Path,
+                         doc:DoclingDocument,
+                         labels: Set[DocItemLabel]):
+
+    html_doc = doc.export_to_html(image_mode=ImageRefMode.EMBEDDED, labels=labels)
+    html_doc = html_doc.replace("'", "&#39;")
+
+    page_images = []
+    page_template = '<div class="image-wrapper"><img src="data:image/png;base64,BASE64PAGE" alt="Example Image"></div>'
+    for page_no, page in doc.pages.items():
+        page_img = page.image.pil_image
+
+        page_img = draw_clusters_with_reading_order(
+            doc=doc,
+            page_image=page_img,
+            labels=labels,
+            page_no=page_no,
+            reading_order=True,
+        )
+
+        page_base64 = from_pil_to_base64(page_img)
+        page_images.append(page_template.replace("BASE64PAGE", page_base64))
+
+    html_viz = copy.deepcopy(HTML_INSPECTION)
+    html_viz = html_viz.replace("PREDDOC", html_doc)
+    html_viz = html_viz.replace("PAGE_IMAGES", "\n".join(page_images))
+    
+    with open(str(filename), "w") as fw:
+        fw.write(html_viz)
