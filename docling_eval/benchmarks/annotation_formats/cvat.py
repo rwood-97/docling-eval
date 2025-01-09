@@ -384,6 +384,35 @@ def find_table_data(doc:DoclingDocument, prov:BoundingBox, iou_cutoff:float=0.90
     table_data = TableData(num_rows=-1, num_cols=-1, table_cells=[])
     return table_data
 
+"""
+def crop_text_from_pdf(pdf_height:float, bbox:BoundingBox, parser:pdf_parser_v2, parsed_page:dict):
+    
+    assert pdf_height-prov.bbox.b<pdf_height-prov.bbox.t # verify we are topleft                            
+
+    pdf_text = parser.sanitize_cells_in_bbox(
+        page=parsed_page,
+        bbox=[bbox.l, pdf_height-bbox.b, bbox.r, pdf_height-bbox.t],
+        cell_overlap=0.9,
+        horizontal_cell_tolerance=1.0,
+        enforce_same_font=False,
+        space_width_factor_for_merge=1.5,
+        space_width_factor_for_merge_with_space=0.33,
+    )
+    
+    text = ""
+    try:
+        texts = []
+        for row in pdf_text["data"]:
+            texts.append(row[pdf_text["header"].index("text")])
+            
+            text = " ".join(texts)
+    except:
+        text = ""
+
+    text = text.replace("  ", " ")
+        
+    return text
+"""    
     
 def from_cvat_to_docling_document(annotation_filenames:List[Path],
                                   img_to_pdf_file: Path,
@@ -403,9 +432,10 @@ def from_cvat_to_docling_document(annotation_filenames:List[Path],
         annot_data = xmltodict.parse(xml_data)        
 
         for image_annot in annot_data["annotations"]["image"]:
-
-            doc_name, keep, boxes, lines, reading_order, to_captions, to_footnotes, next_text = parse_annotations(image_annot)
-
+            
+            doc_name, keep, boxes, lines, reading_order, to_captions, to_footnotes, next_texts = parse_annotations(image_annot)
+            logging.info(f"analyzing {doc_name}")
+            
             if not keep:
                 continue
 
@@ -432,7 +462,7 @@ def from_cvat_to_docling_document(annotation_filenames:List[Path],
             pdf_file:Path = Path(img_to_pdf[doc_name]["pdf_file"])
             assert os.path.exists(pdf_file)
             
-            logging.info(f"img: {img_file} => pdf: {pdf_file}")
+            #logging.info(f"img: {img_file} => pdf: {pdf_file}")
 
             # Init the parser to extract the text-cells
             parser = pdf_parser_v2(level="fatal")
@@ -460,21 +490,72 @@ def from_cvat_to_docling_document(annotation_filenames:List[Path],
                 image=image_ref,
             )
             true_doc.pages[page_no] = page_item
+
+            to_be_skipped = []
             
             for boxid in reading_order["boxids"]:
 
+                if boxid in to_be_skipped:
+                    logging.warning(f"{boxid} is already added: {to_be_skipped}")
+                    continue
+
+                """
                 box = boxes[boxid]
+                label = DocItemLabel(box["@label"])
                 
                 prov, bbox = create_prov(box=box, page_no=page_no,
                                          img_width=page_image.width,
                                          img_height=page_image.height,
                                          pdf_width=pdf_width,
                                          pdf_height=pdf_height)
-                
-                label = DocItemLabel(box["@label"])
 
-                assert pdf_height-prov.bbox.b<pdf_height-prov.bbox.t
-                        
+                text = crop_text_from_pdf(pdf_height=pdf_height, bbox, parser=parser, parsed_page=parsed_page)
+                prov.charspan = (0, len(text))
+                """
+
+                label, prov, text = get_label_prov_and_text(box=boxes[boxid], page_no=page_no,
+                                                            img_width=img_width, img_height=img_height,
+                                                            pdf_width=pdf_width, pdf_height=pdf_height,
+                                                            parser=parser, parsed_page=parsed_doc["pages"][0])
+                
+                next_provs = []
+                for next_text in next_texts:
+                    if len(next_text["boxids"])>1 and next_text["boxids"][0]==boxid:
+
+                        for l in range(1, len(next_text["boxids"])):
+                            boxid_ = next_text["boxids"][l]
+                            to_be_skipped.append(boxid_)
+
+                            """
+                            box_ = boxes[boxid_]
+                            assert label==DocItemLabel(box_["@label"])
+                            
+                            prov_, bbox_ = create_prov(box=box_, page_no=page_no,
+                                                       img_width=page_image.width,
+                                                       img_height=page_image.height,
+                                                       pdf_width=pdf_width,
+                                                       pdf_height=pdf_height)
+
+                            text_ = crop_text_from_pdf(pdf_height=pdf_height, bbox, parser=parser, parsed_page=parsed_page)
+                            """
+
+                            label_, prov_, text_ = get_label_prov_and_text(box=boxes[boxid_], page_no=page_no,
+                                                                           img_width=img_width, img_height=img_height,
+                                                                           pdf_width=pdf_width, pdf_height=pdf_height,
+                                                                           parser=parser, parsed_page=parsed_doc["pages"][0])
+
+                            prov_.charspan = (len(text)+1, len(text_))
+
+                            text = text + " " + text_
+                            
+                            next_provs.append(prov_)
+                            #texts.append(text_)
+
+
+
+                """
+                assert pdf_height-prov.bbox.b<pdf_height-prov.bbox.t # verify we are topleft
+                
                 pdf_text = parser.sanitize_cells_in_bbox(
                     page=parsed_doc["pages"][page_no-1],
                     bbox=[prov.bbox.l, pdf_height-prov.bbox.b, prov.bbox.r, pdf_height-prov.bbox.t],
@@ -495,9 +576,14 @@ def from_cvat_to_docling_document(annotation_filenames:List[Path],
                     text = " ".join(texts)
                 except:
                     text = ""
+                """
 
+                            
                 if label==DocItemLabel.TEXT:
-                    true_doc.add_text(label=label, prov=prov, text=text)
+                    current_item = true_doc.add_text(label=label, prov=prov, text=text)
+
+                    for next_prov in next_provs:
+                        current_item.prov.append(next_prov)
                     
                 elif label==DocItemLabel.PARAGRAPH:
                     true_doc.add_text(label=label, prov=prov, text=text)
@@ -517,8 +603,7 @@ def from_cvat_to_docling_document(annotation_filenames:List[Path],
                 elif label==DocItemLabel.DOCUMENT_INDEX:
 
                     table_data = find_table_data(doc=orig_doc, prov=prov)
-                    
-                    #table_data = TableData(num_rows=-1, num_cols=-1, table_cells=[])
+
                     true_doc.add_table(label=DocItemLabel.DOCUMENT_INDEX, data=table_data, prov=prov)
                     
                 elif label==DocItemLabel.TABLE:
@@ -530,37 +615,45 @@ def from_cvat_to_docling_document(annotation_filenames:List[Path],
 
                     for to_caption in to_captions:
                         if to_caption["boxids"][0]==boxid:
-                            caption_box = boxes[to_caption["boxids"][1]]
+                            for l in range(1, len(to_caption["boxids"])):
+                                boxid_ = to_caption["boxids"][l]
+                                to_be_skipped.append(boxid_)
+                                
+                                caption_box = boxes[boxid_]
                             
-                            label, prov, text = get_label_prov_and_text(box=caption_box, page_no=page_no,
-                                                                        img_width=img_width, img_height=img_height,
-                                                                        pdf_width=pdf_width, pdf_height=pdf_height,
-                                                                        parser=parser, parsed_page=parsed_doc["pages"][0])
+                                label, prov, text = get_label_prov_and_text(box=caption_box, page_no=page_no,
+                                                                            img_width=img_width, img_height=img_height,
+                                                                            pdf_width=pdf_width, pdf_height=pdf_height,
+                                                                            parser=parser, parsed_page=parsed_doc["pages"][0])
 
-                            caption_ref = true_doc.add_text(label=DocItemLabel.CAPTION, prov=prov, text=text)
-                            table_item.captions.append(caption_ref.get_ref())
+                                caption_ref = true_doc.add_text(label=DocItemLabel.CAPTION, prov=prov, text=text)
+                                table_item.captions.append(caption_ref.get_ref())
 
-                            if label!=DocItemLabel.CAPTION:
-                                logging.error(f"{label}!=DocItemLabel.CAPTION for {doc_name}")                            
+                                if label!=DocItemLabel.CAPTION:
+                                    logging.error(f"{label}!=DocItemLabel.CAPTION for {doc_name}")
                             
                     for to_footnote in to_footnotes:
                         if to_footnote["boxids"][0]==boxid:
-                            footnote_box = boxes[to_footnote["boxids"][1]]
+                            for l in range(1, len(to_footnote["boxids"])):
+                                boxid_ = to_footnote["boxids"][l]
+                                to_be_skipped.append(boxid_)                                
+                                
+                                footnote_box = boxes[boxid_]
                             
-                            label, prov, text = get_label_prov_and_text(box=footnote_box, page_no=page_no,
-                                                                        img_width=img_width, img_height=img_height,
-                                                                        pdf_width=pdf_width, pdf_height=pdf_height,
-                                                                        parser=parser, parsed_page=parsed_doc["pages"][0])
-
-                            footnote_ref = true_doc.add_text(label=DocItemLabel.FOOTNOTE, prov=prov, text=text)
-                            table_item.footnotes.append(footnote_ref.get_ref())
-                            
-                            if label!=DocItemLabel.FOOTNOTE:
-                                logging.error(f"{label}!=DocItemLabel.FOOTNOTE for {doc_name}")                                   
+                                label, prov, text = get_label_prov_and_text(box=footnote_box, page_no=page_no,
+                                                                            img_width=img_width, img_height=img_height,
+                                                                            pdf_width=pdf_width, pdf_height=pdf_height,
+                                                                            parser=parser, parsed_page=parsed_doc["pages"][0])
+                                
+                                footnote_ref = true_doc.add_text(label=DocItemLabel.FOOTNOTE, prov=prov, text=text)
+                                table_item.footnotes.append(footnote_ref.get_ref())
+                                
+                                if label!=DocItemLabel.FOOTNOTE:
+                                    logging.error(f"{label}!=DocItemLabel.FOOTNOTE for {doc_name}")                                   
                             
                 elif label==DocItemLabel.PICTURE:
 
-                    pic = crop_bounding_box(page_image=page_image, page=true_doc.pages[page_no], bbox=bbox)
+                    pic = crop_bounding_box(page_image=page_image, page=true_doc.pages[page_no], bbox=prov.bbox)
 
                     uri = from_pil_to_base64uri(pic)
                     
@@ -575,33 +668,41 @@ def from_cvat_to_docling_document(annotation_filenames:List[Path],
 
                     for to_caption in to_captions:
                         if to_caption["boxids"][0]==boxid:
-                            caption_box = boxes[to_caption["boxids"][1]]
-
-                            label, prov, text = get_label_prov_and_text(box=caption_box, page_no=page_no,
-                                                                        img_width=img_width, img_height=img_height,
-                                                                        pdf_width=pdf_width, pdf_height=pdf_height,
-                                                                        parser=parser, parsed_page=parsed_doc["pages"][0])
-
-                            caption_ref = true_doc.add_text(label=DocItemLabel.CAPTION, prov=prov, text=text)
-                            picture_item.captions.append(caption_ref.get_ref())
-                            
-                            if label!=DocItemLabel.CAPTION:
-                                logging.error(f"{label}!=DocItemLabel.CAPTION for {doc_name}")
+                            for l in range(1, len(to_caption["boxids"])):
+                                boxid_ = to_caption["boxids"][l]
+                                to_be_skipped.append(boxid_)
                                 
+                                caption_box = boxes[boxid_]
+                            
+                                label, prov, text = get_label_prov_and_text(box=caption_box, page_no=page_no,
+                                                                            img_width=img_width, img_height=img_height,
+                                                                            pdf_width=pdf_width, pdf_height=pdf_height,
+                                                                            parser=parser, parsed_page=parsed_doc["pages"][0])
+
+                                caption_ref = true_doc.add_text(label=DocItemLabel.CAPTION, prov=prov, text=text)
+                                picture_item.captions.append(caption_ref.get_ref())
+
+                                if label!=DocItemLabel.CAPTION:
+                                    logging.error(f"{label}!=DocItemLabel.CAPTION for {doc_name}")
+                            
                     for to_footnote in to_footnotes:
                         if to_footnote["boxids"][0]==boxid:
-                            footnote_box = boxes[to_footnote["boxids"][1]]
+                            for l in range(1, len(to_footnote["boxids"])):
+                                boxid_ = to_footnote["boxids"][l]
+                                to_be_skipped.append(boxid_)                                
+                                
+                                footnote_box = boxes[boxid_]
                             
-                            label, prov, text = get_label_prov_and_text(box=footnote_box, page_no=page_no,
-                                                                        img_width=img_width, img_height=img_height,
-                                                                        pdf_width=pdf_width, pdf_height=pdf_height,
-                                                                        parser=parser, parsed_page=parsed_doc["pages"][0])
-
-                            footnote_ref = true_doc.add_text(label=DocItemLabel.FOOTNOTE, prov=prov, text=text)
-                            picture_item.footnotes.append(footnote_ref.get_ref())
-
-                            if label!=DocItemLabel.FOOTNOTE:
-                                logging.error(f"{label}!=DocItemLabel.FOOTNOTE for {doc_name}")                            
+                                label, prov, text = get_label_prov_and_text(box=footnote_box, page_no=page_no,
+                                                                            img_width=img_width, img_height=img_height,
+                                                                            pdf_width=pdf_width, pdf_height=pdf_height,
+                                                                            parser=parser, parsed_page=parsed_doc["pages"][0])
+                                
+                                footnote_ref = true_doc.add_text(label=DocItemLabel.FOOTNOTE, prov=prov, text=text)
+                                picture_item.footnotes.append(footnote_ref.get_ref())
+                                
+                                if label!=DocItemLabel.FOOTNOTE:
+                                    logging.error(f"{label}!=DocItemLabel.FOOTNOTE for {doc_name}")                                   
                                 
                 elif label==DocItemLabel.SECTION_HEADER:
                     true_doc.add_text(label=label, prov=prov, text=text)                            
