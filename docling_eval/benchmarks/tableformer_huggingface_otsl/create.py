@@ -210,8 +210,10 @@ def create_huggingface_otsl_tableformer_dataset(
                 BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
                 BenchMarkColumns.ORIGINAL: item["image"],
                 BenchMarkColumns.MIMETYPE: "image/png",
-                BenchMarkColumns.PAGE_IMAGES: true_page_images,
-                BenchMarkColumns.PICTURES: [],  # pred_pictures,
+                BenchMarkColumns.PREDICTION_PAGE_IMAGES: pred_page_images,
+                BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
+                BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
+                BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
             }
             records.append(record)
         else:
@@ -223,8 +225,10 @@ def create_huggingface_otsl_tableformer_dataset(
                 BenchMarkColumns.PREDICTION: json.dumps(None),
                 BenchMarkColumns.ORIGINAL: item["image"],
                 BenchMarkColumns.MIMETYPE: "image/png",
-                BenchMarkColumns.PAGE_IMAGES: true_page_images,
-                BenchMarkColumns.PICTURES: [],  # pred_pictures,
+                BenchMarkColumns.PREDICTION_PAGE_IMAGES: pred_page_images,
+                BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
+                BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
+                BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
             }
             records.append(record)
 

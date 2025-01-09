@@ -29,9 +29,13 @@ from docling_eval.docling.constants import (
     HTML_COMPARISON_PAGE_WITH_CLUSTERS,
     HTML_DEFAULT_HEAD_FOR_COMP,
 )
-from docling_eval.docling.utils import from_pil_to_base64
+from docling_eval.docling.utils import from_pil_to_base64, from_pil_to_base64uri
+
+from datasets import Features, Value, Sequence
+from datasets import Image as Features_Image
 
 
+"""
 def write_datasets_info(
     name: str, output_dir: Path, num_train_rows: int, num_test_rows: int
 ):
@@ -44,8 +48,10 @@ def write_datasets_info(
         {"name": BenchMarkColumns.PREDICTION, "type": "string"},
         {"name": BenchMarkColumns.ORIGINAL, "type": "string"},
         {"name": BenchMarkColumns.MIMETYPE, "type": "string"},
-        {"name": BenchMarkColumns.PICTURES, "type": {"list": {"item": "Image"}}},
-        {"name": BenchMarkColumns.PAGE_IMAGES, "type": {"list": {"item": "Image"}}},
+        {"name": BenchMarkColumns.PREDICTION_PICTURES, "type": {"list": {"item": "Image"}}},
+        {"name": BenchMarkColumns.PREDICTION_PAGE_IMAGES, "type": {"list": {"item": "Image"}}},
+        {"name": BenchMarkColumns.GROUNDTRUTH_PICTURES, "type": {"list": {"item": "Image"}}},
+        {"name": BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES, "type": {"list": {"item": "Image"}}},
     ]
 
     dataset_infos = {
@@ -63,7 +69,42 @@ def write_datasets_info(
 
     with open(output_dir / f"dataset_infos.json", "w") as fw:
         fw.write(json.dumps(dataset_infos, indent=2))
+"""
 
+def write_datasets_info(name: str, output_dir: Path, num_train_rows: int, num_test_rows: int):
+    features = Features({
+        BenchMarkColumns.DOCLING_VERSION: Value("string"),
+        BenchMarkColumns.STATUS: Value("string"),
+        BenchMarkColumns.DOC_ID: Value("string"),
+        BenchMarkColumns.GROUNDTRUTH: Value("string"),
+        BenchMarkColumns.PREDICTION: Value("string"),
+        BenchMarkColumns.ORIGINAL: Value("string"),
+        BenchMarkColumns.MIMETYPE: Value("string"),
+        BenchMarkColumns.PREDICTION_PICTURES: Sequence(Features_Image()),
+        BenchMarkColumns.PREDICTION_PAGE_IMAGES: Sequence(Features_Image()),
+        BenchMarkColumns.GROUNDTRUTH_PICTURES: Sequence(Features_Image()),
+        BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: Sequence(Features_Image()),
+    })
+    
+    schema = features.to_dict()
+    print(json.dumps(schema, indent=2))
+    
+    dataset_infos = {
+        "train": {
+            "description": f"Training split of {name}",
+            "schema": schema,
+            "num_rows": num_train_rows,
+        },
+        "test": {
+            "description": f"Test split of {name}",
+            "schema": schema,
+            "num_rows": num_test_rows,
+        },
+    }
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with open(output_dir / "dataset_infos.json", "w") as fw:
+        json.dump(dataset_infos, fw, indent=2)
 
 def get_input_document(file: Path):
     return InputDocument(
@@ -102,7 +143,8 @@ def add_pages_to_true_doc(
                     size=Size(
                         width=float(page_image.width), height=float(page_image.height)
                     ),
-                    uri=Path(f"{BenchMarkColumns.PAGE_IMAGES}/{page_no}"),
+                    #uri=Path(f"{BenchMarkColumns.PAGE_IMAGES}/{page_no}"),
+                    uri=from_pil_to_base64uri(page_image)
                 )
                 page_item = PageItem(
                     page_no=page_no + 1,
@@ -111,9 +153,12 @@ def add_pages_to_true_doc(
                 )
 
                 true_doc.pages[page_no + 1] = page_item
-
+                #page_image.show()
+            else:
+                logging.warning("did not get image for page `add_pages_to_true_doc`")
+                
             page._backend.unload()
-
+            
     return true_doc, page_images
 
 

@@ -880,12 +880,12 @@ def export_to_preannotations():
         pred_doc_dict = data[BenchMarkColumns.PREDICTION]
         pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
 
-        page_images = data[BenchMarkColumns.PAGE_IMAGES]
-        pics_images = data[BenchMarkColumns.PICTURES]
+        page_images = data[BenchMarkColumns.PREDICTION_PAGE_IMAGES]
+        pics_images = data[BenchMarkColumns.PREDICTION_PICTURES]
 
         insert_images(pred_doc,
-                      page_images=data[BenchMarkColumns.PAGE_IMAGES],
-                      pictures=data[BenchMarkColumns.PICTURES])
+                      page_images=page_images,
+                      pictures=pics_images)
 
         # Get the groundtruth document (to cherry pick table structure later ...)
         true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
