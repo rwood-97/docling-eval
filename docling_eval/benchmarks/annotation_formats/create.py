@@ -33,10 +33,24 @@ from docling_core.types.doc.document import (
 )
 
 from docling_eval.docling.utils import from_pil_to_base64uri, crop_bounding_box
-from docling_eval.docling.utils import insert_images
+from docling_eval.docling.utils import (
+    insert_images,
+    extract_images,
+    docling_version,
+    get_binary,
+    save_shard_to_disk
+)
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.utils import draw_clusters_with_reading_order, save_inspection_html
+from docling_eval.benchmarks.utils import (
+    draw_clusters_with_reading_order,
+    save_inspection_html,
+    save_comparison_html_with_clusters,
+    write_datasets_info,
+
+)
+
+from docling_eval.docling.conversion import create_converter
 
 # Configure logging
 logging.basicConfig(
@@ -669,6 +683,131 @@ TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.FOOTNOTE,
 }
 
+PRED_HTML_EXPORT_LABELS = {
+    DocItemLabel.TITLE,
+    DocItemLabel.DOCUMENT_INDEX,
+    DocItemLabel.SECTION_HEADER,
+    DocItemLabel.PARAGRAPH,
+    DocItemLabel.TABLE,
+    DocItemLabel.PICTURE,
+    DocItemLabel.FORMULA,
+    DocItemLabel.CHECKBOX_UNSELECTED,
+    DocItemLabel.CHECKBOX_SELECTED,
+    DocItemLabel.TEXT,
+    DocItemLabel.LIST_ITEM,
+    DocItemLabel.CODE,
+    DocItemLabel.REFERENCE,
+    # Additional
+    DocItemLabel.PAGE_HEADER,
+    DocItemLabel.PAGE_FOOTER,
+    DocItemLabel.FOOTNOTE,
+}
+
+def create_layout_dataset_from_annotations(input_dir:Path, annot_file:Path):
+
+    output_dir = input_dir / "layout" 
+    
+    imgs_dir = input_dir / "imgs"
+    page_imgs_dir = input_dir / "page_imgs"
+    pdfs_dir = input_dir / "pdfs"
+
+    json_true_dir = input_dir / "json-groundtruth"
+    json_pred_dir = input_dir / "json-predictions"
+    json_anno_dir = input_dir / "json-annotations"
+
+    html_anno_dir = input_dir / "html-annotations"
+    html_viz_dir = input_dir / "html-annotatations-viz"
+
+    overview_file = input_dir / "overview_map.json"
+
+    with open(overview_file, "r") as fr:
+        overview = json.load(fr)
+
+    for _ in [input_dir, output_dir,
+              imgs_dir, page_imgs_dir, pdfs_dir,
+              json_true_dir, json_pred_dir, json_anno_dir,
+              html_anno_dir, html_viz_dir]:
+        os.makedirs(_, exist_ok=True)
+
+    image_scale = 2.0
+        
+    # Create Converter
+    doc_converter = create_converter(page_image_scale=image_scale)
+
+    records = []
+    for desc, true_doc in tqdm(from_cvat_to_docling_document(annotation_filenames = [annot_file],
+                                                             overview=overview,
+                                                             pdfs_dir=pdfs_dir,
+                                                             imgs_dir=imgs_dir),
+                               total=len(overview),
+                               ncols=128,
+                               desc="Creating documents from annotations"):
+
+        basename = desc["basename"]
+        
+        """
+        save_inspection_html(filename=str(html_viz_dir / f"{basename}.html"), doc = true_doc,
+                             labels=TRUE_HTML_EXPORT_LABELS)
+        """
+
+        pdf_file = desc["pdf_file"]
+        
+        # Create the predicted Document
+        conv_results = doc_converter.convert(source=pdf_file, raises_on_error=True)
+        pred_doc = conv_results.document
+
+        true_doc, true_pictures, true_page_images = extract_images(
+            document=true_doc,
+            pictures_column=BenchMarkColumns.GROUNDTRUTH_PICTURES.value,  # pictures_column,
+            page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES.value,  # page_images_column,
+        )
+            
+        pred_doc, pred_pictures, pred_page_images = extract_images(
+            document=pred_doc,
+            pictures_column=BenchMarkColumns.PREDICTION_PICTURES.value,  # pictures_column,
+            page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES.value,  # page_images_column,
+        )
+        
+        if True:
+            save_comparison_html_with_clusters(
+                filename=html_viz_dir / f"{basename}-clusters.html",
+                true_doc=true_doc,
+                pred_doc=pred_doc,
+                page_image=true_page_images[0],
+                true_labels=TRUE_HTML_EXPORT_LABELS,
+                pred_labels=PRED_HTML_EXPORT_LABELS,
+            )
+
+        record = {
+            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.STATUS: str(conv_results.status),
+            BenchMarkColumns.DOC_ID: str(basename),
+
+            BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
+            BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
+            BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
+
+            BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
+            BenchMarkColumns.PREDICTION_PAGE_IMAGES: pred_page_images,
+            BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
+
+            BenchMarkColumns.ORIGINAL: get_binary(pdf_file),
+            BenchMarkColumns.MIMETYPE: "application/pdf",
+        }
+        records.append(record)
+
+    test_dir = output_dir / "test"
+    os.makedirs(test_dir, exist_ok=True)
+
+    save_shard_to_disk(items=records, dataset_path=test_dir)
+
+    write_datasets_info(
+        name="DPBench: end-to-end",
+        output_dir=output_dir,
+        num_train_rows=0,
+        num_test_rows=len(records),
+    )
+
 def main():
 
     input_dir, preannot_file = parse_args()
@@ -692,6 +831,11 @@ def main():
     for _ in [input_dir, imgs_dir, page_imgs_dir, pdfs_dir, json_true_dir, json_pred_dir, json_anno_dir, html_anno_dir, html_viz_dir]:
         os.makedirs(_, exist_ok=True)
 
+    image_scale = 2.0
+        
+    # Create Converter
+    doc_converter = create_converter(page_image_scale=image_scale)
+        
     for desc, true_doc in tqdm(from_cvat_to_docling_document(annotation_filenames = [preannot_file],
                                                              overview=overview,
                                                              pdfs_dir=pdfs_dir,
@@ -701,10 +845,15 @@ def main():
                                desc="Creating documents from annotations"):
 
         basename = desc["basename"]
+        
 
         save_inspection_html(filename=str(html_viz_dir / f"{basename}.html"), doc = true_doc,
                              labels=TRUE_HTML_EXPORT_LABELS)
 
 
 if __name__ == "__main__":
-    main()
+    #main()
+
+    input_dir, annot_file = parse_args()
+
+    create_layout_dataset_from_annotations(input_dir=input_dir, annot_file=annot_file)    
