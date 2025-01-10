@@ -997,7 +997,14 @@ def import_from_cvat():
                              labels=TRUE_HTML_EXPORT_LABELS)
 
     logging.info(f"dumped all output here: {html_inspections_dir}")
-        
+
+def parse_arguments():
+    """Parse arguments for CVAT annotations."""
+
+    parser = argparse.ArgumentParser(
+        description="Process DP-Bench benchmark from directory into HF dataset."
+    )
+    
 def main():        
     # export_to_preannotations()
 

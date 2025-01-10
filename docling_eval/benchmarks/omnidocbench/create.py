@@ -348,7 +348,7 @@ def create_omnidocbench_e2e_dataset(
             BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
             BenchMarkColumns.ORIGINAL: get_binary(pdf_path),
             BenchMarkColumns.MIMETYPE: "application/pdf",
-            BenchMarkColumns.PAGE_IMAGES: pred_page_images,
+            # BenchMarkColumns.PAGE_IMAGES: pred_page_images,
             BenchMarkColumns.PREDICTION_PAGE_IMAGES: pred_page_images,
             BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
@@ -440,7 +440,19 @@ def create_omnidocbench_tableformer_dataset(
                     true_labels=TRUE_HTML_EXPORT_LABELS,
                     pred_labels=PRED_HTML_EXPORT_LABELS,
                 )
-
+                
+            true_doc, true_pictures, true_page_images = extract_images(
+                true_doc,  # conv_results.document,
+                pictures_column=BenchMarkColumns.GROUNDTRUTH_PICTURES,  # pictures_column,
+                page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES,  # page_images_column,
+            )
+            
+            pred_doc, pred_pictures, pred_page_images = extract_images(
+                pred_doc,  # conv_results.document,
+                pictures_column=BenchMarkColumns.PREDICTION_PICTURES,  # pictures_column,
+                page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES,  # page_images_column,
+            )
+                
             record = {
                 BenchMarkColumns.DOCLING_VERSION: docling_version(),
                 BenchMarkColumns.STATUS: "SUCCESS",
