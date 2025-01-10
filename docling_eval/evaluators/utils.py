@@ -27,7 +27,7 @@ class DatasetStatistics(BaseModel):
 
     def to_table(self) -> Tuple[List[List[str]], List[str]]:
 
-        headers = ["x0<=TEDS", "TEDS<=x1", "prob [%]", "acc [%]", "1-acc [%]", "total"]
+        headers = ["[x0, x1]", "prob [%]", "acc [%]", "1-acc [%]", "total"]
 
         # Calculate bin widths
         bin_widths = [
@@ -43,8 +43,7 @@ class DatasetStatistics(BaseModel):
         for i in range(len(self.bins) - 1):
             table.append(
                 [
-                    f"{self.bins[i+0]:.3f}",
-                    f"{self.bins[i+1]:.3f}",
+                    f"[{self.bins[i+0]:.3f}, {self.bins[i+1]:.3f}]",
                     f"{100.0*float(self.hist[i])/float(self.total):.2f}",
                     f"{100.0*cumsum:.2f}",
                     f"{100.0*(1.0-cumsum):.2f}",

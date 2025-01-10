@@ -541,8 +541,8 @@ def create_true_document(basename:str, annot: dict, desc: dict):
         elif label in [DocItemLabel.TABLE, DocItemLabel.DOCUMENT_INDEX]:
 
             table_data = find_table_data(doc=orig_doc, prov=prov)
-
-            table_item = true_doc.add_table(label=DocItemLabel.TABLE, data=table_data, prov=prov)
+            
+            table_item = true_doc.add_table(label=label, data=table_data, prov=prov)
 
             true_doc, already_added = add_captions_to_item(to_captions = to_captions,
                                                            item = table_item,
