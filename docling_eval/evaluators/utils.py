@@ -1,13 +1,13 @@
+import logging
+import random
+import statistics
 from pathlib import Path
 from typing import Dict, List, Tuple
-from pydantic import BaseModel, model_validator
-import numpy as np
-import statistics
+
 import matplotlib.pyplot as plt
+import numpy as np
+from pydantic import BaseModel, model_validator
 
-import random
-
-import logging
 
 class DatasetStatistics(BaseModel):
     total: int
@@ -93,5 +93,3 @@ def compute_stats(values: List[float]) -> DatasetStatistics:
     return DatasetStatistics(
         total=total, mean=mean, median=median, std=std, hist=hist, bins=bins
     )
-
-

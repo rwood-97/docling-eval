@@ -6,6 +6,9 @@ from typing import Dict, List, Optional, Set
 
 import pypdfium2 as pdfium
 from bs4 import BeautifulSoup  # type: ignore
+from datasets import Features
+from datasets import Image as Features_Image
+from datasets import Sequence, Value
 from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend
 from docling.datamodel.base_models import InputFormat, Page
 from docling.datamodel.document import InputDocument
@@ -24,16 +27,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.docling.constants import (
-    HTML_INSPECTION,
     HTML_COMPARISON_PAGE,
     HTML_COMPARISON_PAGE_WITH_CLUSTERS,
     HTML_DEFAULT_HEAD_FOR_COMP,
+    HTML_INSPECTION,
 )
 from docling_eval.docling.utils import from_pil_to_base64, from_pil_to_base64uri
-
-from datasets import Features, Value, Sequence
-from datasets import Image as Features_Image
-
 
 """
 def write_datasets_info(
@@ -71,24 +70,29 @@ def write_datasets_info(
         fw.write(json.dumps(dataset_infos, indent=2))
 """
 
-def write_datasets_info(name: str, output_dir: Path, num_train_rows: int, num_test_rows: int):
-    features = Features({
-        BenchMarkColumns.DOCLING_VERSION: Value("string"),
-        BenchMarkColumns.STATUS: Value("string"),
-        BenchMarkColumns.DOC_ID: Value("string"),
-        BenchMarkColumns.GROUNDTRUTH: Value("string"),
-        BenchMarkColumns.PREDICTION: Value("string"),
-        BenchMarkColumns.ORIGINAL: Value("string"),
-        BenchMarkColumns.MIMETYPE: Value("string"),
-        BenchMarkColumns.PREDICTION_PICTURES: Sequence(Features_Image()),
-        BenchMarkColumns.PREDICTION_PAGE_IMAGES: Sequence(Features_Image()),
-        BenchMarkColumns.GROUNDTRUTH_PICTURES: Sequence(Features_Image()),
-        BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: Sequence(Features_Image()),
-    })
-    
+
+def write_datasets_info(
+    name: str, output_dir: Path, num_train_rows: int, num_test_rows: int
+):
+    features = Features(
+        {
+            BenchMarkColumns.DOCLING_VERSION: Value("string"),
+            BenchMarkColumns.STATUS: Value("string"),
+            BenchMarkColumns.DOC_ID: Value("string"),
+            BenchMarkColumns.GROUNDTRUTH: Value("string"),
+            BenchMarkColumns.PREDICTION: Value("string"),
+            BenchMarkColumns.ORIGINAL: Value("string"),
+            BenchMarkColumns.MIMETYPE: Value("string"),
+            BenchMarkColumns.PREDICTION_PICTURES: Sequence(Features_Image()),
+            BenchMarkColumns.PREDICTION_PAGE_IMAGES: Sequence(Features_Image()),
+            BenchMarkColumns.GROUNDTRUTH_PICTURES: Sequence(Features_Image()),
+            BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: Sequence(Features_Image()),
+        }
+    )
+
     schema = features.to_dict()
     print(json.dumps(schema, indent=2))
-    
+
     dataset_infos = {
         "train": {
             "description": f"Training split of {name}",
@@ -105,6 +109,7 @@ def write_datasets_info(name: str, output_dir: Path, num_train_rows: int, num_te
     output_dir.mkdir(parents=True, exist_ok=True)
     with open(output_dir / "dataset_infos.json", "w") as fw:
         json.dump(dataset_infos, fw, indent=2)
+
 
 def get_input_document(file: Path):
     return InputDocument(
@@ -143,8 +148,8 @@ def add_pages_to_true_doc(
                     size=Size(
                         width=float(page_image.width), height=float(page_image.height)
                     ),
-                    #uri=Path(f"{BenchMarkColumns.PAGE_IMAGES}/{page_no}"),
-                    uri=from_pil_to_base64uri(page_image)
+                    # uri=Path(f"{BenchMarkColumns.PAGE_IMAGES}/{page_no}"),
+                    uri=from_pil_to_base64uri(page_image),
                 )
                 page_item = PageItem(
                     page_no=page_no + 1,
@@ -153,12 +158,12 @@ def add_pages_to_true_doc(
                 )
 
                 true_doc.pages[page_no + 1] = page_item
-                #page_image.show()
+                # page_image.show()
             else:
                 logging.warning("did not get image for page `add_pages_to_true_doc`")
-                
+
             page._backend.unload()
-            
+
     return true_doc, page_images
 
 
@@ -303,7 +308,7 @@ def draw_clusters_with_reading_order(
     reading_order: bool = True,
 ):
 
-    #img = copy.deepcopy(page_image)
+    # img = copy.deepcopy(page_image)
     img = page_image.copy()
     draw = ImageDraw.Draw(img)
 
@@ -563,9 +568,9 @@ def save_comparison_html_with_clusters(
         fw.write(comparison_page)
 
 
-def save_inspection_html(filename: Path,
-                         doc:DoclingDocument,
-                         labels: Set[DocItemLabel]):
+def save_inspection_html(
+    filename: Path, doc: DoclingDocument, labels: Set[DocItemLabel]
+):
 
     html_doc = doc.export_to_html(image_mode=ImageRefMode.EMBEDDED, labels=labels)
     html_doc = html_doc.replace("'", "&#39;")
@@ -589,6 +594,6 @@ def save_inspection_html(filename: Path,
     html_viz = copy.deepcopy(HTML_INSPECTION)
     html_viz = html_viz.replace("PREDDOC", html_doc)
     html_viz = html_viz.replace("PAGE_IMAGES", "\n".join(page_images))
-    
+
     with open(str(filename), "w") as fw:
         fw.write(html_viz)

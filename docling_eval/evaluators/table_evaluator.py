@@ -15,9 +15,8 @@ from pydantic import BaseModel, model_validator
 from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.utils.teds import TEDScorer
-
 from docling_eval.evaluators.utils import DatasetStatistics, compute_stats
+from docling_eval.utils.teds import TEDScorer
 
 _log = logging.getLogger(__name__)
 
@@ -33,6 +32,7 @@ class TableEvaluation(BaseModel):
 
     true_nrows: int = -1
     pred_nrows: int = -1
+
 
 """
 class DatasetStatistics(BaseModel):
@@ -105,6 +105,7 @@ class DatasetStatistics(BaseModel):
         plt.savefig(figname)
 """
 
+
 class DatasetTableEvaluation(BaseModel):
     evaluations: list[TableEvaluation]
 
@@ -154,6 +155,7 @@ class DatasetTableEvaluation(BaseModel):
         logging.info(f"saving figure to {figname}")
         plt.savefig(figname)
 
+
 """
 def compute_stats(values: List[float]) -> DatasetStatistics:
     total: int = len(values)
@@ -171,6 +173,7 @@ def compute_stats(values: List[float]) -> DatasetStatistics:
         total=total, mean=mean, median=median, std=std, hist=hist, bins=bins
     )
 """
+
 
 def is_complex_table(table: TableItem) -> bool:
     r"""
