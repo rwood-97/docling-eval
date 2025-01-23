@@ -29,6 +29,15 @@ class ImageLayoutEvaluation(BaseModel):
     name: str
     value: float
 
+    map_val: float
+    map_50: float
+    map_75: float
+
+    average_iou_50: float
+    average_iou_75: float
+    average_iou_90: float
+    average_iou_95: float
+    
 
 class DatasetLayoutEvaluation(BaseModel):
     true_labels: Dict[str, int]
@@ -144,16 +153,16 @@ class LayoutEvaluator:
         # Compute mAP and other metrics per class
         result = metric.compute()
 
-        evaluations: List[ClassLayoutEvaluation] = []
+        evaluations_per_class: List[ClassLayoutEvaluation] = []
         for key, value in result.items():
             if isinstance(value, float):
-                evaluations.append(
+                evaluations_per_class.append(
                     ClassLayoutEvaluation(name=key, value=value, label=None)
                 )
 
         if "map_per_class" in result:
             for label_idx, class_map in enumerate(result["map_per_class"]):
-                evaluations.append(
+                evaluations_per_class.append(
                     ClassLayoutEvaluation(
                         name="Class mAP[0.5:0.95]",
                         label=intersection_labels[label_idx].value,
@@ -167,8 +176,9 @@ class LayoutEvaluator:
         evaluations_per_image: List[ImageLayoutEvaluation] = []
         for doc_id, pred, gt in zip(doc_ids, predictions, ground_truths):
             # Reset the metric for the next image
-            metric.reset()
-
+            #metric.reset()
+            metric = MeanAveragePrecision(iou_type="bbox", class_metrics=True)
+            
             # Update with single image
             metric.update([pred], [gt])
 
@@ -177,14 +187,40 @@ class LayoutEvaluator:
 
             # Extract mAP for this image
             map_value = float(result["map"].item())
+            map_50 = float(result["map_50"].item())
+            map_75 = float(result["map_75"].item())
 
+            result = self._compute_average_iou_with_labels_across_iou(
+                pred_boxes=pred["boxes"],
+                pred_labels=pred["labels"],
+                gt_boxes=gt["boxes"],
+                gt_labels=gt["labels"]
+            )            
+            average_iou_50 = result["average_iou_50"]
+            average_iou_75 = result["average_iou_75"]
+            average_iou_90 = result["average_iou_90"]
+            average_iou_95 = result["average_iou_95"]
+            
             map_values.append(map_value)
             evaluations_per_image.append(
-                ImageLayoutEvaluation(name=doc_id, value=map_value)
+                ImageLayoutEvaluation(
+                    name=doc_id,
+                    value=average_iou_50,
+                    map_val=map_value,
+                    map_50=map_50,
+                    map_75=map_75,
+                    average_iou_50=average_iou_50,
+                    average_iou_75=average_iou_75,
+                    average_iou_90=average_iou_90,
+                    average_iou_95=average_iou_95,                    
+                )
             )
 
+        evaluations_per_class = sorted(evaluations_per_class, key = lambda x: -x.value)
+        evaluations_per_image = sorted(evaluations_per_image, key = lambda x: -x.value)
+            
         return DatasetLayoutEvaluation(
-            evaluations_per_class=evaluations,
+            evaluations_per_class=evaluations_per_class,
             evaluations_per_image=evaluations_per_image,
             mAP_stats=compute_stats(map_values),
             true_labels=true_labels,
@@ -192,6 +228,75 @@ class LayoutEvaluator:
             intersecting_labels=[_.value for _ in intersection_labels],
         )
 
+    def _compute_iou(self, box1, box2):
+        """Compute IoU between two bounding boxes."""
+        x1 = torch.max(box1[0], box2[0])
+        y1 = torch.max(box1[1], box2[1])
+        x2 = torch.min(box1[2], box2[2])
+        y2 = torch.min(box1[3], box2[3])
+
+        intersection = torch.max(x2 - x1, torch.tensor(0.0)) * torch.max(y2 - y1, torch.tensor(0.0))
+        box1_area = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        box2_area = (box2[2] - box2[0]) * (box2[3] - box2[1])
+        union = box1_area + box2_area - intersection
+
+        return intersection / union if union > 0 else 0
+
+    def _compute_average_iou_with_labels(self, pred_boxes, pred_labels, gt_boxes, gt_labels, iou_thresh=0.5):
+        """
+        Compute the average IoU for matched detections, considering labels.
+        
+        Args:
+            pred_boxes (torch.Tensor): Predicted bounding boxes (N x 4).
+            pred_labels (torch.Tensor): Labels for predicted boxes (N).
+            gt_boxes (torch.Tensor): Ground truth bounding boxes (M x 4).
+            gt_labels (torch.Tensor): Labels for ground truth boxes (M).
+            iou_thresh (float): IoU threshold for a match.
+
+        Returns:
+            dict: Average IoU and unmatched ground truth information.
+        """
+        matched_gt = set()
+        ious = []
+        weights = []
+        weights_sum = 0.0
+        
+        for pred_box, pred_label in zip(pred_boxes, pred_labels):
+            weight = abs((pred_box[2]-pred_box[0])*(pred_box[3]-pred_box[1]))
+
+            weights.append(weight)
+            weights_sum += weight
+            
+            for i, (gt_box, gt_label) in enumerate(zip(gt_boxes, gt_labels)):
+                if i not in matched_gt and pred_label == gt_label:
+                    iou = self._compute_iou(pred_box, gt_box)
+                    if iou >= iou_thresh:
+                        matched_gt.add(i)
+                        ious.append(iou.item())
+                        break
+
+        avg_iou = 0.0
+        for w,v in zip(weights, ious):
+            avg_iou += w*v/weights_sum
+        
+        unmatched_gt = len(gt_boxes) - len(matched_gt)  # Ground truth boxes not matched
+
+        return {"average_iou": avg_iou, "unmatched_gt": unmatched_gt, "matched_gt": len(ious)}
+
+    def _compute_average_iou_with_labels_across_iou(self, pred_boxes, pred_labels, gt_boxes, gt_labels):
+        
+        res_50 = self._compute_average_iou_with_labels(pred_boxes, pred_labels, gt_boxes, gt_labels, iou_thresh=0.50)
+        res_75 = self._compute_average_iou_with_labels(pred_boxes, pred_labels, gt_boxes, gt_labels, iou_thresh=0.75)
+        res_90 = self._compute_average_iou_with_labels(pred_boxes, pred_labels, gt_boxes, gt_labels, iou_thresh=0.90)
+        res_95 = self._compute_average_iou_with_labels(pred_boxes, pred_labels, gt_boxes, gt_labels, iou_thresh=0.95)
+
+        return {
+            "average_iou_50": res_50["average_iou"],
+            "average_iou_75": res_75["average_iou"],
+            "average_iou_90": res_90["average_iou"],
+            "average_iou_95": res_95["average_iou"],
+        }
+    
     def _find_intersecting_labels(
         self, ds: Dataset
     ) -> tuple[dict[str, int], dict[str, int], list[DocItemLabel]]:
