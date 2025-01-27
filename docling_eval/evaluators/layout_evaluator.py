@@ -33,10 +33,12 @@ class ImageLayoutEvaluation(BaseModel):
     map_50: float
     map_75: float
 
-    average_iou_50: float
-    average_iou_75: float
-    average_iou_90: float
-    average_iou_95: float
+    # Weighted average IoU for the page bboxes with matching labels (between GT and pred)
+    # The weight is the bbox size and each measurement corresponds to a different IoU threshold
+    avg_weighted_label_matched_iou_50: float
+    avg_weighted_label_matched_iou_75: float
+    avg_weighted_label_matched_iou_90: float
+    avg_weighted_label_matched_iou_95: float
 
 
 class DatasetLayoutEvaluation(BaseModel):
@@ -209,10 +211,10 @@ class LayoutEvaluator:
                     map_val=map_value,
                     map_50=map_50,
                     map_75=map_75,
-                    average_iou_50=average_iou_50,
-                    average_iou_75=average_iou_75,
-                    average_iou_90=average_iou_90,
-                    average_iou_95=average_iou_95,
+                    avg_weighted_label_matched_iou_50=average_iou_50,
+                    avg_weighted_label_matched_iou_75=average_iou_75,
+                    avg_weighted_label_matched_iou_90=average_iou_90,
+                    avg_weighted_label_matched_iou_95=average_iou_95,
                 )
             )
 
