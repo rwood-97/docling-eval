@@ -28,7 +28,7 @@ docling-eval % poetry run evaluate --help
 ╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ *  --task        -t      [create|evaluate|visualize]                                                                Evaluation task [default: None] [required]                                                                              │
 │ *  --modality    -m      [end-to-end|layout|tableformer|codeformer]                                                 Evaluation modality [default: None] [required]                                                                          │
-│ *  --benchmark   -b      [DPBench|OmniDcoBench|WordScape|PubLayNet|DocLayNet|Pub1M|PubTabNet|FinTabNet|WikiTabNet]  Benchmark name [default: None] [required]                                                                               │
+│ *  --benchmark   -b      [DPBench|OmniDcoBench|WordScape|PubLayNet|DocLayNetV1|Pub1M|PubTabNet|FinTabNet|WikiTabNet]  Benchmark name [default: None] [required]                                                                               │
 │ *  --input-dir   -i      PATH                                                                                       Input directory [default: None] [required]                                                                              │
 │ *  --output-dir  -o      PATH                                                                                       Output directory [default: None] [required]                                                                             │
 │    --help                                                                                                           Show this message and exit.                                                                                             │
@@ -84,6 +84,27 @@ poetry run evaluate \
 [TEDS struct with text report](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-with-text.txt)
 
 </details>
+
+### DocLayNet v1
+
+Using a single command,
+
+```sh
+poetry run python ./docs/examples/benchmark_doclaynet_v1.py
+```
+
+This command downloads the DocLayNet v1.1 dataset, runs the evaluations and produces the following files:
+
+<details>
+<summary><b>Layout evaluation</b></summary>
+<br>
+
+- [Layout evaluation json](docs/evaluations/DocLayNetV1/evaluation_DocLayNetV1_layout.json)
+- [mAP[0.5:0.95] report](docs/evaluations/DocLayNetV1/evaluation_DocLayNetV1_layout_mAP_0.5_0.95.txt)
+- [mAP[0.5:0.95] plot](docs/evaluations/DocLayNetV1/evaluation_DocLayNetV1_layout_mAP_0.5_0.95.png)
+
+</details>
+=======
 
 
 ### Pub1M

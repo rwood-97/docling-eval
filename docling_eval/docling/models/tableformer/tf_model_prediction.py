@@ -2,7 +2,7 @@ import copy
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from docling.datamodel.base_models import Cluster, LayoutPrediction, Page, Table
@@ -120,26 +120,23 @@ def to_np(pil_image: Image.Image):
 
 class TableFormerUpdater:
 
-    def __init__(self, mode: TableFormerMode, num_threads: int = 16):
+    def __init__(
+        self,
+        mode: TableFormerMode,
+        num_threads: int = 16,
+        artifacts_path: Optional[Path] = None,
+    ):
         r""" """
-        # Download models from HF
-        download_path = StandardPdfPipeline.download_models_hf()
-
         # Init the TableFormer model
         table_structure_options = TableStructureOptions(mode=mode)
         accelerator_options = AcceleratorOptions(
             num_threads=num_threads, device=AcceleratorDevice.AUTO
         )
-        pdf_pipeline_opts = PdfPipelineOptions(
-            do_table_structure=True,
-            table_structure_options=table_structure_options,
-            accelerator_options=accelerator_options,
-        )
         self._docling_tf_model = TableStructureModel(
             enabled=True,
-            artifacts_path=download_path / StandardPdfPipeline._table_model_path,
-            options=pdf_pipeline_opts.table_structure_options,
-            accelerator_options=pdf_pipeline_opts.accelerator_options,
+            artifacts_path=artifacts_path,
+            options=table_structure_options,
+            accelerator_options=accelerator_options,
         )
         log.info("Initialize %s", mode)
 

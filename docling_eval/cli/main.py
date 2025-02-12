@@ -3,12 +3,13 @@ import logging
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Optional
 
 import typer
 from tabulate import tabulate  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
+from docling_eval.benchmarks.doclaynet_v1.create import create_dlnv1_e2e_dataset
 from docling_eval.benchmarks.dpbench.create import (
     create_dpbench_e2e_dataset,
     create_dpbench_tableformer_dataset,
@@ -102,46 +103,63 @@ def log_and_save_stats(
 def create(
     modality: EvaluationModality,
     benchmark: BenchMarkNames,
-    idir: Path,
     odir: Path,
+    idir: Optional[Path] = None,
     image_scale: float = 1.0,
+    artifacts_path: Optional[Path] = None,
+    split: str = "test",
+    max_items: int = 1000,
 ):
     r""""""
-    if not os.path.exists(idir):
-        log.error(f"Benchmark directory not found: {idir}")
-        return
-
     if odir is None:
         odir = Path("./benchmarks") / benchmark.value / modality.value
 
     if benchmark == BenchMarkNames.DPBENCH:
+        if idir is None:
+            log.error("The input dir for %s must be provided", BenchMarkNames.DPBENCH)
+        assert idir is not None
+
         if (
             modality == EvaluationModality.END2END
             or modality == EvaluationModality.LAYOUT
         ):
+            # No support for max_items
             create_dpbench_e2e_dataset(
                 dpbench_dir=idir, output_dir=odir, image_scale=image_scale
             )
 
         elif modality == EvaluationModality.TABLEFORMER:
+            # No support for max_items
             create_dpbench_tableformer_dataset(
-                dpbench_dir=idir, output_dir=odir, image_scale=image_scale
+                dpbench_dir=idir,
+                output_dir=odir,
+                image_scale=image_scale,
+                artifacts_path=artifacts_path,
             )
 
         else:
             log.error(f"{modality} is not yet implemented for {benchmark}")
 
     elif benchmark == BenchMarkNames.OMNIDOCBENCH:
+        if idir is None:
+            log.error("The input dir for %s must be provided", BenchMarkNames.DPBENCH)
+        assert idir is not None
+
         if (
             modality == EvaluationModality.END2END
             or modality == EvaluationModality.LAYOUT
         ):
+            # No support for max_items
             create_omnidocbench_e2e_dataset(
                 omnidocbench_dir=idir, output_dir=odir, image_scale=image_scale
             )
         elif modality == EvaluationModality.TABLEFORMER:
+            # No support for max_items
             create_omnidocbench_tableformer_dataset(
-                omnidocbench_dir=idir, output_dir=odir, image_scale=image_scale
+                omnidocbench_dir=idir,
+                output_dir=odir,
+                image_scale=image_scale,
+                artifacts_path=artifacts_path,
             )
         else:
             log.error(f"{modality} is not yet implemented for {benchmark}")
@@ -150,7 +168,10 @@ def create(
         if modality == EvaluationModality.TABLEFORMER:
             log.info("Create the tableformer converted PubTabNet dataset")
             create_pubtabnet_tableformer_dataset(
-                output_dir=odir, max_items=1000, do_viz=True
+                output_dir=odir,
+                max_items=max_items,
+                do_viz=True,
+                artifacts_path=artifacts_path,
             )
         else:
             log.error(f"{modality} is not yet implemented for {benchmark}")
@@ -159,7 +180,10 @@ def create(
         if modality == EvaluationModality.TABLEFORMER:
             log.info("Create the tableformer converted FinTabNet dataset")
             create_fintabnet_tableformer_dataset(
-                output_dir=odir, max_items=1000, do_viz=True
+                output_dir=odir,
+                max_items=max_items,
+                do_viz=True,
+                artifacts_path=artifacts_path,
             )
         else:
             log.error(f"{modality} is not yet implemented for {benchmark}")
@@ -167,7 +191,29 @@ def create(
     elif benchmark == BenchMarkNames.PUB1M:
         if modality == EvaluationModality.TABLEFORMER:
             log.info("Create the tableformer converted Pub1M dataset")
-            create_p1m_tableformer_dataset(output_dir=odir, max_items=1000, do_viz=True)
+            create_p1m_tableformer_dataset(
+                output_dir=odir,
+                max_items=max_items,
+                do_viz=True,
+                artifacts_path=artifacts_path,
+            )
+        else:
+            log.error(f"{modality} is not yet implemented for {benchmark}")
+
+    elif benchmark == BenchMarkNames.DOCLAYNETV1:
+        if idir is None:
+            log.error(
+                "The input dir for %s must be provided", BenchMarkNames.DOCLAYNETV1
+            )
+        assert idir is not None
+        if modality == EvaluationModality.LAYOUT:
+            create_dlnv1_e2e_dataset(
+                name="ds4sd/DocLayNet-v1.2",
+                split=split,
+                output_dir=odir,
+                do_viz=True,
+                max_items=max_items,
+            )
         else:
             log.error(f"{modality} is not yet implemented for {benchmark}")
 
@@ -342,15 +388,6 @@ def main(
             help="Benchmark name",
         ),
     ],
-    idir: Annotated[
-        Path,
-        typer.Option(
-            ...,
-            "-i",  # Short name
-            "--input-dir",  # Long name
-            help="Input directory",
-        ),
-    ],
     odir: Annotated[
         Path,
         typer.Option(
@@ -360,6 +397,15 @@ def main(
             help="Output directory",
         ),
     ],
+    idir: Annotated[
+        Optional[Path],
+        typer.Option(
+            ...,
+            "-i",  # Short name
+            "--input-dir",  # Long name
+            help="Input directory",
+        ),
+    ] = None,
     split: Annotated[
         str,
         typer.Option(
@@ -369,15 +415,43 @@ def main(
             help="Dataset split",
         ),
     ] = "test",
+    artifacts_path: Annotated[
+        Optional[Path],
+        typer.Option(
+            ...,
+            "-a",  # Short name
+            "--artifacts-path",  # Long name
+            help="Load artifacts from local path",
+        ),
+    ] = None,
+    max_items: Annotated[
+        int,
+        typer.Option(
+            ...,
+            "-n",  # Short name
+            "--max-items",  # Long name
+            help="How many items to load from the original dataset",
+        ),
+    ] = 1000,
 ):
     # Dispatch the command
     if task == EvaluationTask.CREATE:
-        create(modality, benchmark, idir, odir)
+        create(
+            modality,
+            benchmark,
+            odir,
+            idir=idir,
+            artifacts_path=artifacts_path,
+            split=split,
+            max_items=max_items,
+        )
 
     elif task == EvaluationTask.EVALUATE:
+        assert idir is not None
         evaluate(modality, benchmark, idir, odir, split)
 
     elif task == EvaluationTask.VISUALIZE:
+        assert idir is not None
         visualise(modality, benchmark, idir, odir, split)
 
     else:

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 from bs4 import BeautifulSoup  # type: ignore
 from docling.datamodel.pipeline_options import TableFormerMode
@@ -250,10 +251,13 @@ def create_omnidocbench_e2e_dataset(
     output_dir: Path,
     image_scale: float = 1.0,
     do_viz: bool = False,
+    artifacts_path: Optional[Path] = None,
 ):
 
     # Create Converter
-    doc_converter = create_converter(page_image_scale=image_scale)
+    doc_converter = create_converter(
+        page_image_scale=image_scale, artifacts_path=artifacts_path
+    )
 
     # load the groundtruth
     with open(omnidocbench_dir / f"OmniDocBench.json", "r") as fr:
@@ -379,9 +383,10 @@ def create_omnidocbench_tableformer_dataset(
     output_dir: Path,
     image_scale: float = 1.0,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
+    artifacts_path: Optional[Path] = None,
 ):
     # Init the TableFormer model
-    tf_updater = TableFormerUpdater(mode)
+    tf_updater = TableFormerUpdater(mode, artifacts_path=artifacts_path)
 
     # load the groundtruth
     with open(omnidocbench_dir / f"OmniDocBench.json", "r") as fr:
@@ -487,97 +492,3 @@ def create_omnidocbench_tableformer_dataset(
         num_train_rows=0,
         num_test_rows=len(records),
     )
-
-
-def parse_arguments():
-    """Parse arguments for DP-Bench parsing."""
-
-    parser = argparse.ArgumentParser(
-        description="Process DP-Bench benchmark from directory into HF dataset."
-    )
-    parser.add_argument(
-        "-i",
-        "--omnidocbench-directory",
-        help="input directory with documents",
-        required=True,
-    )
-    parser.add_argument(
-        "-o",
-        "--output-directory",
-        help="output directory with shards",
-        required=False,
-        default="./benchmarks/omnidocbench",
-    )
-    parser.add_argument(
-        "-s",
-        "--image-scale",
-        help="image-scale of the pages",
-        required=False,
-        default=1.0,
-    )
-    parser.add_argument(
-        "-m",
-        "--mode",
-        help="mode of dataset",
-        required=False,
-        choices=["end-2-end", "table", "formula", "all"],
-    )
-    args = parser.parse_args()
-
-    return (
-        Path(args.omnidocbench_directory),
-        Path(args.output_directory),
-        float(args.image_scale),
-        args.mode,
-    )
-
-
-def main():
-
-    omnidocbench_dir, output_dir, image_scale, mode = parse_arguments()
-
-    # Create the directory if it does not exist
-    os.makedirs(output_dir, exist_ok=True)
-
-    odir_e2e = Path(output_dir) / "end_to_end"
-    odir_tab = Path(output_dir) / "tables"
-    odir_eqn = Path(output_dir) / "formulas"
-
-    os.makedirs(odir_e2e, exist_ok=True)
-    os.makedirs(odir_tab, exist_ok=True)
-    # os.makedirs(odir_eqn, exist_ok=True)
-
-    for _ in ["test", "train"]:
-        os.makedirs(odir_e2e / _, exist_ok=True)
-        os.makedirs(odir_tab / _, exist_ok=True)
-
-    if mode == "end-2-end":
-        create_omnidocbench_e2e_dataset(
-            omnidocbench_dir=omnidocbench_dir,
-            output_dir=odir_e2e,
-            image_scale=image_scale,
-        )
-
-    elif mode == "table":
-        create_omnidocbench_tableformer_dataset(
-            omnidocbench_dir=omnidocbench_dir,
-            output_dir=odir_tab,
-            image_scale=image_scale,
-        )
-
-    elif mode == "all":
-        create_omnidocbench_e2e_dataset(
-            omnidocbench_dir=omnidocbench_dir,
-            output_dir=odir_e2e,
-            image_scale=image_scale,
-        )
-
-        create_omnidocbench_tableformer_dataset(
-            omnidocbench_dir=omnidocbench_dir,
-            output_dir=odir_tab,
-            image_scale=image_scale,
-        )
-
-
-if __name__ == "__main__":
-    main()
