@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Tuple, cast, Iterator
+from typing import Dict, Generator, Iterator, List, Optional, Tuple, cast
 
 import xmltodict  # type: ignore[import]
 from datasets import Dataset, load_dataset
