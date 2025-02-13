@@ -109,7 +109,8 @@ def find_box(boxes: List, point: Tuple[float, float]):
 def parse_annotation(image_annot: dict):
 
     basename: str = image_annot["@name"]
-
+    logging.info(f"parsing annotations for {basename}")
+    
     keep: bool = False
 
     boxes: List[dict] = []
@@ -125,6 +126,7 @@ def parse_annotation(image_annot: dict):
     group: List[dict] = []
 
     if "box" not in image_annot or "polyline" not in image_annot:
+        logging.warning("skipping because no `box` nor `polyline` is found")
         return (
             basename,
             keep,
@@ -708,10 +710,16 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
             true_doc.add_text(label=label, prov=prov, text=text)
 
         elif label == DocItemLabel.FORM:
-            true_doc.add_text(label=label, prov=prov, text=text)
+            logging.error(f"label: `{label}`")
+            # true_doc.add_text(label=label, prov=prov, text=text)
+            # FIXME
+            true_doc.add_text(label=DocItemLabel.TEXT, prov=prov, text=text)
 
         elif label == DocItemLabel.KEY_VALUE_REGION:
-            true_doc.add_text(label=label, prov=prov, text=text)
+            logging.error(f"label: `{label}`")
+            # true_doc.add_text(label=label, prov=prov, text=text)
+            # FIXME
+            true_doc.add_text(label=DocItemLabel.TEXT, prov=prov, text=text)
 
         elif label in [DocItemLabel.TABLE, DocItemLabel.DOCUMENT_INDEX]:
 
@@ -1059,20 +1067,20 @@ def get_annotation_files(benchmark_dirs):
     return xml_files
 
 
-# def main():
+def main():
 
-#     source_dir = parse_args()
+    source_dir = parse_args()
 
-#     benchmark_dirs = BenchMarkDirs()
-#     benchmark_dirs.set_up_directory_structure(source=source_dir, target=source_dir)
+    benchmark_dirs = BenchMarkDirs()
+    benchmark_dirs.set_up_directory_structure(source=source_dir, target=source_dir)
 
-#     # Get all annotation files
-#     annot_files = get_annotation_files(benchmark_dirs)
+    # Get all annotation files
+    annot_files = get_annotation_files(benchmark_dirs)
 
-#     create_layout_dataset_from_annotations(
-#         benchmark_dirs=benchmark_dirs, annot_files=annot_files
-#     )
+    create_layout_dataset_from_annotations(
+        benchmark_dirs=benchmark_dirs, annot_files=annot_files
+    )
 
 
-# if __name__ == "__main__":
-#     main()
+if __name__ == "__main__":
+    main()

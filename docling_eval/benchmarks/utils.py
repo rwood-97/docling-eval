@@ -14,7 +14,7 @@ from datasets import Sequence, Value
 from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend
 from docling.datamodel.base_models import BoundingBox, Cluster, InputFormat, Page
 from docling.datamodel.document import InputDocument
-# from docling.utils.visualization import draw_clusters
+from docling.utils.visualization import draw_clusters
 from docling_core.types.doc.base import Size
 from docling_core.types.doc.document import (
     DocItem,
