@@ -20,6 +20,7 @@ from docling_core.types.doc.document import (
     ProvenanceItem,
     TableData,
     TableItem,
+    GraphData,
 )
 from docling_core.types.doc.labels import (
     DocItemLabel,
@@ -72,7 +73,7 @@ logging.basicConfig(
 def find_box(boxes: List, point: Tuple[float, float]):
 
     index = -1
-    area = 1e6
+    area = 1e9
 
     for i, box in enumerate(boxes):
         assert box["l"] < box["r"]
@@ -84,9 +85,9 @@ def find_box(boxes: List, point: Tuple[float, float]):
             and box["t"] <= point[1]
             and point[1] <= box["b"]
         ):
-            # if abs(box["r"]-box["l"])*(box["b"]-box["t"])<area:
-            # area = abs(box["r"]-box["l"])*(box["b"]-box["t"])
-            index = i
+            if index==-1 or abs(box["r"]-box["l"])*(box["b"]-box["t"])<area:
+                area = abs(box["r"]-box["l"])*(box["b"]-box["t"])
+                index = i
 
     if index == -1:
         logging.error(f"point {point} is not in a bounding-box!")
@@ -176,6 +177,7 @@ def parse_annotation(image_annot: dict):
         )
 
     for i, box in enumerate(boxes):
+        # print(i, "\t", box)
         boxes[i]["b"] = float(box["@ybr"])
         boxes[i]["t"] = float(box["@ytl"])
         boxes[i]["l"] = float(box["@xtl"])
@@ -185,6 +187,8 @@ def parse_annotation(image_annot: dict):
 
     for i, line in enumerate(lines):
 
+        # print(line)
+        
         points = []
         for _ in line["@points"].split(";"):
             __ = _.split(",")
@@ -200,8 +204,13 @@ def parse_annotation(image_annot: dict):
         lines[i]["points"] = points
         lines[i]["boxids"] = boxids
 
-        # print(line["@label"], ": ", len(points), "\t", len(boxids))
-
+        """
+        for i in range(0, len(lines[i]["points"])):
+            print(i, "\t", points[i], "\t", boxids[i])
+        
+        print(line["@label"], ": ", len(points), "\t", len(boxids))
+        """
+        
     for i, line in enumerate(lines):
         if line["@label"] == "reading_order":
             assert len(reading_order) == 0  # you can only have 1 reading order
@@ -627,7 +636,7 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
 
     already_added: List[int] = []
     for boxid in reading_order["boxids"]:
-        # print(" => ", boxid, ": ", boxes[boxid])
+        # print("reading order => ", boxid, ": ", boxes[boxid])
 
         if boxid in already_added:
             logging.warning(f"{boxid} is already added: {already_added}")
@@ -636,7 +645,7 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
         # FIXME for later ...
         page_no = 1
 
-        if true_doc.pages[page_no] is None:
+        if (page_no not in true_doc.pages) or (true_doc.pages[page_no] is None):
             logging.error(f"Page item is None, skipping ...")
             continue
 
@@ -652,9 +661,7 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
         label, prov, text = get_label_prov_and_text(
             box=boxes[boxid],
             page_no=page_no,
-            # img_width=true_doc.pages[page_no].image.size.width,
             img_width=true_page_imageref.size.width,
-            # img_height=true_doc.pages[page_no].image.size.height,
             img_height=true_page_imageref.size.height,
             pdf_width=true_doc.pages[page_no].size.width,
             pdf_height=true_doc.pages[page_no].size.height,
@@ -707,13 +714,30 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
             true_doc.add_text(label=label, prov=prov, text=text)
 
         elif label == DocItemLabel.CODE:
-            true_doc.add_text(label=label, prov=prov, text=text)
+            #true_doc.add_text(label=label, prov=prov, text=text)
 
+            code_item = true_doc.add_code(text=text, prov=prov)
+
+            true_doc, already_added = add_captions_to_item(
+                basename=basename,
+                to_captions=to_captions,
+                item=code_item,
+                page_no=page_no,
+                boxid=boxid,
+                boxes=boxes,
+                already_added=already_added,
+                true_doc=true_doc,
+                parser=parser,
+                parsed_page=parsed_pages[page_no],
+            )
+            
         elif label == DocItemLabel.FORM:
-            true_doc.add_form_item(cells=[], links=[], prov=prov)
+            graph = GraphData(cells=[], links=[])
+            true_doc.add_form_item(graph=graph, prov=prov)
 
         elif label == DocItemLabel.KEY_VALUE_REGION:
-            true_doc.add_key_value_item(cells=[], links=[], prov=prov)
+            graph = GraphData(cells=[], links=[])
+            true_doc.add_key_value_item(graph=graph, prov=prov)
 
         elif label in [DocItemLabel.TABLE, DocItemLabel.DOCUMENT_INDEX]:
 
@@ -834,7 +858,13 @@ def from_cvat_to_docling_document(
         for image_annot in annot_data["annotations"]["image"]:
 
             basename = image_annot["@name"]
+            logging.info(basename)
 
+            """
+            if basename != "doc_5387a06d7e31d738c4bdb64b1936ac6fa09246b6a7e8506e1ee86691ff37155c_page_000001.png":
+                continue
+            """
+            
             if basename not in overview.img_annotations:
                 logging.warning(f"Skipping {basename}: not in overview_file")
                 yield basename, overview.img_annotations[basename], None
@@ -851,6 +881,8 @@ def from_cvat_to_docling_document(
                 )
                 yield basename, overview.img_annotations[basename], true_doc
 
+
+                
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -936,7 +968,7 @@ def create_layout_dataset_from_annotations(
             )
 
         """
-        save_inspection_html(filename=str(html_viz_dir / f"{basename}.html"), doc = true_doc,
+        save_inspection_html(filename=str(html_comp_dir / f"{basename}.html"), doc = true_doc,
                              labels=TRUE_HTML_EXPORT_LABELS)
         """
 
@@ -957,9 +989,9 @@ def create_layout_dataset_from_annotations(
             pictures_column=BenchMarkColumns.PREDICTION_PICTURES.value,  # pictures_column,
             page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES.value,  # page_images_column,
         )
-
+        
         if True:
-            vizname = benchmark_dirs.html_viz_dir / f"{basename}-clusters.html"
+            vizname = benchmark_dirs.html_comp_dir / f"{basename}-clusters.html"
             logging.info(f"creating visualization: {vizname}")
 
             save_comparison_html_with_clusters(
