@@ -710,16 +710,10 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
             true_doc.add_text(label=label, prov=prov, text=text)
 
         elif label == DocItemLabel.FORM:
-            logging.error(f"label: `{label}`")
-            # true_doc.add_text(label=label, prov=prov, text=text)
-            # FIXME
-            true_doc.add_text(label=DocItemLabel.TEXT, prov=prov, text=text)
+            true_doc.add_form_item(cells=[], links=[], prov=prov)
 
         elif label == DocItemLabel.KEY_VALUE_REGION:
-            logging.error(f"label: `{label}`")
-            # true_doc.add_text(label=label, prov=prov, text=text)
-            # FIXME
-            true_doc.add_text(label=DocItemLabel.TEXT, prov=prov, text=text)
+            true_doc.add_key_value_item(cells=[], links=[], prov=prov)
 
         elif label in [DocItemLabel.TABLE, DocItemLabel.DOCUMENT_INDEX]:
 
