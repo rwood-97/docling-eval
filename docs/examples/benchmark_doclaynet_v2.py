@@ -25,42 +25,47 @@ log = logging.getLogger(__name__)
 def main():
     idir = Path(f"./benchmarks/{BenchMarkNames.DOCLAYNETV2.value}-original")
     odir = Path(f"./benchmarks/{BenchMarkNames.DOCLAYNETV2.value}-dataset")
+    odir_lay = Path(odir) / "layout"
+    split = "test"
 
     os.makedirs(odir, exist_ok=True)
 
     if True:
         log.info("Create the end-to-end converted DocLayNetV2 dataset")
-        create_dlnv2_e2e_dataset(input_dir=idir, output_dir=odir)
+        create_dlnv2_e2e_dataset(
+            input_dir=idir, split=split, do_viz=True, output_dir=odir, max_items=3
+        )
 
         # Layout
         log.info("Evaluate the layout for the DocLayNet dataset")
         evaluate(
             modality=EvaluationModality.LAYOUT,
             benchmark=BenchMarkNames.DOCLAYNETV2,
-            idir=odir,
-            odir=odir,
+            idir=odir_lay,
+            odir=odir_lay,
         )
         log.info("Visualize the layout for the DocLayNet dataset")
         visualise(
             modality=EvaluationModality.LAYOUT,
             benchmark=BenchMarkNames.DOCLAYNETV2,
-            idir=odir,
-            odir=odir,
+            idir=odir_lay,
+            odir=odir_lay,
         )
-        # Reading order
-        log.info("Evaluate the reading-order for the DocLayNet dataset")
+
+        # Markdown text
+        log.info("Evaluate the markdown text for the DocLayNet dataset")
         evaluate(
-            modality=EvaluationModality.READING_ORDER,
+            modality=EvaluationModality.MARKDOWN_TEXT,
             benchmark=BenchMarkNames.DOCLAYNETV2,
-            idir=odir,
-            odir=odir,
+            idir=odir_lay,
+            odir=odir_lay,
         )
-        log.info("Visualize the reading-order for the DocLayNet dataset")
+        log.info("Visualize the markdown text for the DocLayNet dataset")
         visualise(
-            modality=EvaluationModality.READING_ORDER,
+            modality=EvaluationModality.MARKDOWN_TEXT,
             benchmark=BenchMarkNames.DOCLAYNETV2,
-            idir=odir,
-            odir=odir,
+            idir=odir_lay,
+            odir=odir_lay,
         )
 
 

@@ -1,33 +1,41 @@
-import base64
+import copy
 import hashlib
-import io
 import json
 import logging
-from importlib.metadata import version
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
-import pandas as pd
+import pypdfium2 as pdfium
 from bs4 import BeautifulSoup  # type: ignore
-from datasets import Dataset, Features
+from datasets import Features
 from datasets import Image as Features_Image
 from datasets import Sequence, Value
 from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend
-from docling.datamodel.base_models import InputFormat, Page
+from docling.datamodel.base_models import BoundingBox, Cluster, InputFormat, Page
 from docling.datamodel.document import InputDocument
-from docling_core.types.doc.base import BoundingBox, Size
+from docling.utils.visualization import draw_clusters
+from docling_core.types.doc.base import Size
 from docling_core.types.doc.document import (
+    DocItem,
     DoclingDocument,
     ImageRef,
+    ImageRefMode,
     PageItem,
     TableCell,
     TableData,
 )
-from PIL import Image
-from pydantic import AnyUrl
+from docling_core.types.doc.labels import DocItemLabel
+from PIL import Image, ImageDraw, ImageFont
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.docling.constants import (
+    HTML_COMPARISON_PAGE,
+    HTML_COMPARISON_PAGE_WITH_CLUSTERS,
+    HTML_DEFAULT_HEAD_FOR_COMP,
+    HTML_INSPECTION,
+)
+from docling_eval.docling.utils import from_pil_to_base64, from_pil_to_base64uri
 
 
 def get_binhash(binary_data: bytes) -> str:
@@ -47,7 +55,7 @@ def write_datasets_info(
 ):
     features = Features(
         {
-            BenchMarkColumns.CONVERTER_VERSION: Value("string"),
+            BenchMarkColumns.DOCLING_VERSION: Value("string"),
             BenchMarkColumns.STATUS: Value("string"),
             BenchMarkColumns.DOC_ID: Value("string"),
             BenchMarkColumns.DOC_PATH: Value("string"),
@@ -92,14 +100,6 @@ def get_input_document(file: Path | BytesIO) -> InputDocument:
         filename=file.name if isinstance(file, Path) else "foo",
         backend=DoclingParseV2DocumentBackend,
     )
-
-
-def from_pil_to_base64uri(img: Image.Image) -> AnyUrl:
-
-    image_base64 = from_pil_to_base64(img)
-    uri = AnyUrl(f"data:image/png;base64,{image_base64}")
-
-    return uri
 
 
 def add_pages_to_true_doc(
@@ -234,203 +234,381 @@ def convert_html_table_into_docling_tabledata(
     return TableData(num_rows=num_rows, num_cols=num_cols, table_cells=cells)
 
 
-def docling_version() -> str:
-    return version("docling")  # may raise PackageNotFoundError
+def save_comparison_html(
+    filename: Path,
+    true_doc: DoclingDocument,
+    pred_doc: DoclingDocument,
+    page_image: Image.Image,
+    true_labels: Set[DocItemLabel],
+    pred_labels: Set[DocItemLabel],
+):
 
+    true_doc_html = true_doc.export_to_html(
+        image_mode=ImageRefMode.EMBEDDED,
+        html_head=HTML_DEFAULT_HEAD_FOR_COMP,
+        labels=true_labels,
+    )
 
-def get_binary(file_path: Path):
-    """Read binary document into buffer."""
-    with open(file_path, "rb") as f:
-        return f.read()
+    pred_doc_html = pred_doc.export_to_html(
+        image_mode=ImageRefMode.EMBEDDED,
+        html_head=HTML_DEFAULT_HEAD_FOR_COMP,
+        labels=pred_labels,
+    )
 
+    # since the string in srcdoc are wrapped by ', we need to replace all ' by it HTML convention
+    true_doc_html = true_doc_html.replace("'", "&#39;")
+    pred_doc_html = pred_doc_html.replace("'", "&#39;")
 
-def map_to_records(item: Dict):
-    """Map cells from pdf-parser into a records."""
-    header = item["header"]
-    data = item["data"]
+    image_base64 = from_pil_to_base64(page_image)
 
-    # Create a DataFrame
-    df = pd.DataFrame(data, columns=header)
-    return df.to_dict(orient="records")
-
-
-def from_pil_to_base64(img: Image.Image) -> str:
-    # Convert the image to a base64 str
-    buffered = io.BytesIO()
-    img.save(buffered, format="PNG")  # Specify the format (e.g., JPEG, PNG, etc.)
-    image_bytes = buffered.getvalue()
-
-    # Encode the bytes to a Base64 string
-    image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-    return image_base64
-
-
-def to_base64(item: Dict[str, Any]) -> str:
-    image_bytes = item["bytes"]
-
-    # Wrap the bytes in a BytesIO object
-    image_stream = BytesIO(image_bytes)
-
-    # Open the image using PIL
-    image = Image.open(image_stream)
-
+    """
     # Convert the image to a bytes object
     buffered = io.BytesIO()
-    image.save(buffered, format="PNG")  # Specify the format (e.g., JPEG, PNG, etc.)
+    page_image.save(
+        buffered, format="PNG"
+    )  # Specify the format (e.g., JPEG, PNG, etc.)
     image_bytes = buffered.getvalue()
 
     # Encode the bytes to a Base64 string
     image_base64 = base64.b64encode(image_bytes).decode("utf-8")
-    return image_base64
+    """
+
+    comparison_page = copy.deepcopy(HTML_COMPARISON_PAGE)
+    comparison_page = comparison_page.replace("BASE64PAGE", image_base64)
+    comparison_page = comparison_page.replace("TRUEDOC", true_doc_html)
+    comparison_page = comparison_page.replace("PREDDOC", pred_doc_html)
+
+    with open(str(filename), "w") as fw:
+        fw.write(comparison_page)
 
 
-def to_pil(uri):
+def draw_arrow(
+    draw: ImageDraw.ImageDraw,
+    arrow_coords: tuple[float, float, float, float],
+    line_width: int = 2,
+    color: str = "red",
+):
+    r"""
+    Draw an arrow inside the given draw object
+    """
+    x0, y0, x1, y1 = arrow_coords
 
-    base64_string = str(uri)
-    base64_string = base64_string.split(",")[1]
+    # Arrow parameters
+    start_point = (x0, y0)  # Starting point of the arrow
+    end_point = (x1, y1)  # Ending point of the arrow
+    arrowhead_length = 20  # Length of the arrowhead
+    arrowhead_width = 10  # Width of the arrowhead
 
-    # Step 1: Decode the Base64 string
-    image_data = base64.b64decode(base64_string)
+    # Draw the arrow shaft (line)
+    draw.line([start_point, end_point], fill=color, width=line_width)
 
-    # Step 2: Open the image using Pillow
-    image = Image.open(BytesIO(image_data))
+    # Calculate the arrowhead points
+    dx = end_point[0] - start_point[0]
+    dy = end_point[1] - start_point[1]
+    angle = (dx**2 + dy**2) ** 0.5 + 0.01  # Length of the arrow shaft
 
-    return image
+    # Normalized direction vector for the arrow shaft
+    ux, uy = dx / angle, dy / angle
+
+    # Base of the arrowhead
+    base_x = end_point[0] - ux * arrowhead_length
+    base_y = end_point[1] - uy * arrowhead_length
+
+    # Left and right points of the arrowhead
+    left_x = base_x - uy * arrowhead_width
+    left_y = base_y + ux * arrowhead_width
+    right_x = base_x + uy * arrowhead_width
+    right_y = base_y - ux * arrowhead_width
+
+    # Draw the arrowhead (triangle)
+    draw.polygon(
+        [end_point, (left_x, left_y), (right_x, right_y)],
+        fill=color,
+    )
+    return draw
 
 
-def extract_images(
-    document: DoclingDocument,
-    pictures_column: str,
-    page_images_column: str,
+def draw_clusters_with_reading_order(
+    doc: DoclingDocument,
+    page_image: Image.Image,
+    labels: Set[DocItemLabel],
+    page_no: int = 1,
+    reading_order: bool = True,
 ):
 
-    pictures = []
-    page_images = []
+    # img = copy.deepcopy(page_image)
+    img = page_image.copy()
+    draw = ImageDraw.Draw(img)
 
-    # Save page images
-    for img_no, picture in enumerate(document.pictures):
-        if picture.image is not None:
-            # img = picture.image.pil_image
-            # pictures.append(to_pil(picture.image.uri))
-            pictures.append(picture.image.pil_image)
-            picture.image.uri = Path(f"{pictures_column}/{img_no}")
+    # Load a font (adjust the font size and path as needed)
+    font = ImageFont.load_default()
+    try:
+        font = ImageFont.truetype("arial.ttf", size=15)
+    except IOError:
+        font = ImageFont.load_default()
 
-    # Save page images
-    for page_no, page in document.pages.items():
-        if page.image is not None:
-            # img = page.image.pil_image
-            # img.show()
-            page_images.append(page.image.pil_image)
-            page.image.uri = Path(f"{page_images_column}/{page_no}")
+    x0, y0 = None, None
 
-    return document, pictures, page_images
+    for item, level in doc.iterate_items():
+        if isinstance(item, DocItem):  # and item.label in labels:
+            for prov in item.prov:
 
+                if page_no != prov.page_no:
+                    continue
 
-def insert_images(
-    document: DoclingDocument,
-    pictures: List[Dict[str, Any]],
-    page_images: List[Dict[str, Any]],
-):
+                bbox = prov.bbox.to_top_left_origin(
+                    page_height=doc.pages[prov.page_no].size.height
+                )
+                bbox = bbox.normalized(doc.pages[prov.page_no].size)
 
-    # Save page images
-    for pic_no, picture in enumerate(document.pictures):
-        if picture.image is not None:
-            if pic_no < len(pictures):
-                b64 = to_base64(pictures[pic_no])
+                bbox.l = round(bbox.l * img.width)
+                bbox.r = round(bbox.r * img.width)
+                bbox.t = round(bbox.t * img.height)
+                bbox.b = round(bbox.b * img.height)
 
-                image_ref = document.pictures[pic_no].image
-                if image_ref is not None:
-                    image_ref.uri = AnyUrl(f"data:image/png;base64,{b64}")
-                    document.pictures[pic_no].image = image_ref
+                if bbox.b > bbox.t:
+                    bbox.b, bbox.t = bbox.t, bbox.b
+
+                if not reading_order:
+                    x0, y0 = None, None
+                elif x0 is None and y0 is None:
+                    x0 = (bbox.l + bbox.r) / 2.0
+                    y0 = (bbox.b + bbox.t) / 2.0
                 else:
-                    logging.warning(f"image-ref is none for picture {pic_no}")
+                    assert x0 is not None
+                    assert y0 is not None
 
-                """
-                if document.pictures[pic_no].image is not None:                    
-                    document.pictures[pic_no].image.uri = AnyUrl(
-                        f"data:image/png;base64,{b64}"
+                    x1 = (bbox.l + bbox.r) / 2.0
+                    y1 = (bbox.b + bbox.t) / 2.0
+
+                    # Arrow parameters
+                    start_point = (x0, y0)  # Starting point of the arrow
+                    end_point = (x1, y1)  # Ending point of the arrow
+                    arrowhead_length = 20  # Length of the arrowhead
+                    arrowhead_width = 10  # Width of the arrowhead
+
+                    arrow_color = "red"
+                    line_width = 2
+
+                    # Draw the arrow shaft (line)
+                    draw.line(
+                        [start_point, end_point], fill=arrow_color, width=line_width
                     )
-                else:
-                    logging.warning(f"image-ref is none for picture {pic_no}")
-                """
 
-            """
-            else:
-                document.pictures[pic_no].image.uri = None
-                # logging.warning(f"inconsistent number of images in the document ({len(pictures)} != {len(document.pictures)})")
-            """
+                    # Calculate the arrowhead points
+                    dx = end_point[0] - start_point[0]
+                    dy = end_point[1] - start_point[1]
+                    angle = (dx**2 + dy**2) ** 0.5 + 0.01  # Length of the arrow shaft
 
-    # Save page images
-    for page_no, page in document.pages.items():
-        if page.image is not None:
-            # print(f"inserting image to page: {page_no}")
-            b64 = to_base64(page_images[page_no - 1])
+                    # Normalized direction vector for the arrow shaft
+                    ux, uy = dx / angle, dy / angle
 
-            image_ref = document.pages[page_no].image
-            if image_ref is not None:
-                image_ref.uri = AnyUrl(f"data:image/png;base64,{b64}")
-                document.pages[page_no].image = image_ref
+                    # Base of the arrowhead
+                    base_x = end_point[0] - ux * arrowhead_length
+                    base_y = end_point[1] - uy * arrowhead_length
 
-    return document
+                    # Left and right points of the arrowhead
+                    left_x = base_x - uy * arrowhead_width
+                    left_y = base_y + ux * arrowhead_width
+                    right_x = base_x + uy * arrowhead_width
+                    right_y = base_y - ux * arrowhead_width
+
+                    # Draw the arrowhead (triangle)
+                    draw.polygon(
+                        [end_point, (left_x, left_y), (right_x, right_y)],
+                        fill=arrow_color,
+                    )
+
+                    x0, y0 = x1, y1
+
+                # Draw rectangle with only a border
+                rectangle_color = "blue"
+                border_width = 1
+                draw.rectangle(
+                    [bbox.l, bbox.b, bbox.r, bbox.t],
+                    outline=rectangle_color,
+                    width=border_width,
+                )
+
+                # Calculate label size using getbbox
+                text_bbox = font.getbbox(str(item.label))
+                label_width = text_bbox[2] - text_bbox[0]
+                label_height = text_bbox[3] - text_bbox[1]
+                label_x = bbox.l
+                label_y = (
+                    bbox.b - label_height
+                )  # - 5  # Place the label above the rectangle
+
+                # Draw label text
+                draw.text(
+                    (label_x, label_y),
+                    str(item.label),
+                    fill=rectangle_color,
+                    font=font,
+                )
+
+    return img
 
 
-def save_shard_to_disk(
-    items: List[Any],
-    dataset_path: Path,
-    thread_id: int = 0,
-    shard_id: int = 0,
-    features: Optional[Features] = None,
-    shard_format: str = "parquet",
+def save_comparison_html_with_clusters(
+    filename: Path,
+    true_doc: DoclingDocument,
+    pred_doc: DoclingDocument,
+    page_image: Image.Image,
+    true_labels: Set[DocItemLabel],
+    pred_labels: Set[DocItemLabel],
+    draw_reading_order: bool = True,
 ):
-    """Save shard of to disk."""
+    if (1 not in true_doc.pages) or (1 not in pred_doc.pages):
+        logging.error(f"1 not in true_doc.pages -> skipping {filename} ")
+        return
 
-    batch = Dataset.from_list(items)  # , features=features)
+    def draw_doc_layout(doc: DoclingDocument, image: Image.Image):
+        r"""
+        Draw the document clusters and optionaly the reading order
+        """
+        clusters = []
+        for idx, (elem, _) in enumerate(doc.iterate_items()):
+            if not isinstance(elem, DocItem):
+                continue
 
-    output_file = dataset_path / f"shard_{thread_id:06}_{shard_id:06}.{shard_format}"
-    logging.info(f"Saved shard {shard_id} to {output_file} with {len(items)} documents")
+            if len(elem.prov) == 0:
+                continue
+            prov = elem.prov[0]  # Assuming that document always has only one page
 
-    if shard_format == "json":
-        batch.to_json(output_file)
+            if prov.page_no not in true_doc.pages or prov.page_no != 1:
+                logging.error(f"{prov.page_no} not in true_doc.pages -> skipping! ")
+                continue
 
-    elif shard_format == "parquet":
-        batch.to_parquet(output_file)
+            tlo_bbox = prov.bbox.to_top_left_origin(
+                page_height=true_doc.pages[prov.page_no].size.height
+            )
+            cluster = Cluster(
+                id=idx,
+                label=elem.label,
+                bbox=BoundingBox.model_validate(tlo_bbox),
+                cells=[],
+            )
+            clusters.append(cluster)
 
-    else:
-        raise ValueError(f"Unsupported shard_format: {shard_format}")
+        scale_x = image.width / true_doc.pages[1].size.width
+        scale_y = image.height / true_doc.pages[1].size.height
+        draw_clusters(image, clusters, scale_x, scale_y)
 
-    shard_id += 1
+        return image
 
-    return shard_id, [], 0
+    def draw_doc_reading_order(doc: DoclingDocument, image: Image.Image):
+        r"""
+        Draw the reading order
+        """
+        draw = ImageDraw.Draw(image)
+        x0, y0 = None, None
+
+        for elem, _ in doc.iterate_items():
+            if not isinstance(elem, DocItem):
+                continue
+            prov = elem.prov[0]  # Assuming that document always has only one page
+
+            if prov.page_no not in true_doc.pages or prov.page_no != 1:
+                logging.error(f"{prov.page_no} not in true_doc.pages -> skipping! ")
+                continue
+
+            tlo_bbox = prov.bbox.to_top_left_origin(
+                page_height=true_doc.pages[prov.page_no].size.height
+            )
+            ro_bbox = tlo_bbox.normalized(doc.pages[prov.page_no].size)
+            ro_bbox.l = round(ro_bbox.l * image.width)
+            ro_bbox.r = round(ro_bbox.r * image.width)
+            ro_bbox.t = round(ro_bbox.t * image.height)
+            ro_bbox.b = round(ro_bbox.b * image.height)
+
+            if ro_bbox.b > ro_bbox.t:
+                ro_bbox.b, ro_bbox.t = ro_bbox.t, ro_bbox.b
+
+            if x0 is None and y0 is None:
+                x0 = (ro_bbox.l + ro_bbox.r) / 2.0
+                y0 = (ro_bbox.b + ro_bbox.t) / 2.0
+            else:
+                assert x0 is not None
+                assert y0 is not None
+
+                x1 = (ro_bbox.l + ro_bbox.r) / 2.0
+                y1 = (ro_bbox.b + ro_bbox.t) / 2.0
+
+                draw = draw_arrow(
+                    draw,
+                    (x0, y0, x1, y1),
+                    line_width=2,
+                    color="red",
+                )
+                x0, y0 = x1, y1
+        return image
+
+    # HTML rendering
+    true_doc_html = true_doc.export_to_html(
+        image_mode=ImageRefMode.EMBEDDED,
+        html_head=HTML_DEFAULT_HEAD_FOR_COMP,
+        labels=true_labels,
+    )
+
+    pred_doc_html = pred_doc.export_to_html(
+        image_mode=ImageRefMode.EMBEDDED,
+        html_head=HTML_DEFAULT_HEAD_FOR_COMP,
+        labels=pred_labels,
+    )
+
+    # since the string in srcdoc are wrapped by ', we need to replace all ' by it HTML convention
+    true_doc_html = true_doc_html.replace("'", "&#39;")
+    pred_doc_html = pred_doc_html.replace("'", "&#39;")
+
+    true_doc_img = draw_doc_layout(true_doc, copy.deepcopy(page_image))
+    pred_doc_img = draw_doc_layout(pred_doc, copy.deepcopy(page_image))
+
+    if draw_reading_order:
+        true_doc_img = draw_doc_reading_order(true_doc, true_doc_img)
+        pred_doc_img = draw_doc_reading_order(pred_doc, pred_doc_img)
+
+    true_doc_img_b64 = from_pil_to_base64(true_doc_img)
+    pred_doc_img_b64 = from_pil_to_base64(pred_doc_img)
+
+    comparison_page = copy.deepcopy(HTML_COMPARISON_PAGE_WITH_CLUSTERS)
+    comparison_page = comparison_page.replace("BASE64TRUEPAGE", true_doc_img_b64)
+    comparison_page = comparison_page.replace("TRUEDOC", true_doc_html)
+    comparison_page = comparison_page.replace("BASE64PREDPAGE", pred_doc_img_b64)
+    comparison_page = comparison_page.replace("PREDDOC", pred_doc_html)
+
+    with open(str(filename), "w") as fw:
+        fw.write(comparison_page)
 
 
-def crop_bounding_box(page_image: Image.Image, page: PageItem, bbox: BoundingBox):
-    """
-    Crop a bounding box from a PIL image.
+def save_inspection_html(
+    filename: Path, doc: DoclingDocument, labels: Set[DocItemLabel]
+):
 
-    :param img: PIL Image object
-    :param l: Left coordinate
-    :param t: Top coordinate (from bottom-left origin)
-    :param r: Right coordinate
-    :param b: Bottom coordinate (from bottom-left origin)
-    :return: Cropped PIL Image
-    """
-    width = float(page.size.width)
-    height = float(page.size.height)
+    html_doc = doc.export_to_html(image_mode=ImageRefMode.EMBEDDED, labels=labels)
+    html_doc = html_doc.replace("'", "&#39;")
 
-    img_width = float(page_image.width)
-    img_height = float(page_image.height)
+    page_images = []
+    page_template = '<div class="image-wrapper"><img src="data:image/png;base64,BASE64PAGE" alt="Example Image"></div>'
+    for page_no, page in doc.pages.items():
+        # page_img = page.image.pil_image
 
-    scale_x = img_width / width
-    scale_y = img_height / height
+        if page.image is not None and page.image.pil_image is not None:
 
-    bbox = bbox.to_top_left_origin(page.size.height)
+            page_img = draw_clusters_with_reading_order(
+                doc=doc,
+                page_image=page.image.pil_image,
+                labels=labels,
+                page_no=page_no,
+                reading_order=True,
+            )
 
-    l = bbox.l * scale_x
-    t = bbox.t * scale_y
-    r = bbox.r * scale_x
-    b = bbox.b * scale_y
+            page_base64 = from_pil_to_base64(page_img)
+            page_images.append(page_template.replace("BASE64PAGE", page_base64))
 
-    # Crop using the converted coordinates
-    cropped_image = page_image.crop((l, t, r, b))
+    html_viz = copy.deepcopy(HTML_INSPECTION)
+    html_viz = html_viz.replace("PREDDOC", html_doc)
+    html_viz = html_viz.replace("PAGE_IMAGES", "\n".join(page_images))
 
-    return cropped_image
+    with open(str(filename), "w") as fw:
+        fw.write(html_viz)

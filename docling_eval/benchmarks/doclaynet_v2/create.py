@@ -331,7 +331,7 @@ def populate_key_value_item(
 
     if overal_bbox is not None:
         prov = ProvenanceItem(
-            page_no=doc.pages[0].page_no,
+            page_no=doc.pages[1].page_no,
             charspan=(0, 0),
             bbox=overal_bbox,
         )
