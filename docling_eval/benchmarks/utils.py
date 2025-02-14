@@ -68,6 +68,7 @@ def write_datasets_info(
             BenchMarkColumns.PREDICTION_PAGE_IMAGES: Sequence(Features_Image()),
             BenchMarkColumns.ORIGINAL: Value("string"),
             BenchMarkColumns.MIMETYPE: Value("string"),
+            BenchMarkColumns.MODALITIES: Sequence(Value("string")),
         }
     )
 
@@ -461,7 +462,7 @@ def save_comparison_html_with_clusters(
     if (1 not in true_doc.pages) or (1 not in pred_doc.pages):
         logging.error(f"1 not in true_doc.pages -> skipping {filename} ")
         return
-    
+
     def draw_doc_layout(doc: DoclingDocument, image: Image.Image):
         r"""
         Draw the document clusters and optionaly the reading order
@@ -473,10 +474,10 @@ def save_comparison_html_with_clusters(
 
             prov = elem.prov[0]  # Assuming that document always has only one page
 
-            if prov.page_no not in true_doc.pages or prov.page_no!=1:
+            if prov.page_no not in true_doc.pages or prov.page_no != 1:
                 logging.error(f"{prov.page_no} not in true_doc.pages -> skipping! ")
                 continue
-            
+
             tlo_bbox = prov.bbox.to_top_left_origin(
                 page_height=true_doc.pages[prov.page_no].size.height
             )
@@ -506,10 +507,10 @@ def save_comparison_html_with_clusters(
                 continue
             prov = elem.prov[0]  # Assuming that document always has only one page
 
-            if prov.page_no not in true_doc.pages or prov.page_no!=1:
+            if prov.page_no not in true_doc.pages or prov.page_no != 1:
                 logging.error(f"{prov.page_no} not in true_doc.pages -> skipping! ")
                 continue
-            
+
             tlo_bbox = prov.bbox.to_top_left_origin(
                 page_height=true_doc.pages[prov.page_no].size.height
             )
@@ -560,7 +561,7 @@ def save_comparison_html_with_clusters(
 
     true_doc_img = draw_doc_layout(true_doc, copy.deepcopy(page_image))
     pred_doc_img = draw_doc_layout(pred_doc, copy.deepcopy(page_image))
-    
+
     if draw_reading_order:
         true_doc_img = draw_doc_reading_order(true_doc, true_doc_img)
         pred_doc_img = draw_doc_reading_order(pred_doc, pred_doc_img)

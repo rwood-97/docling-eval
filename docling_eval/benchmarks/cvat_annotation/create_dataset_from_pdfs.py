@@ -11,10 +11,15 @@ from datasets import Features
 from datasets import Image as Features_Image
 from datasets import Sequence, Value
 
-from docling_eval.docling.conversion import create_converter
-
 from docling_eval.benchmarks.constants import BenchMarkColumns
-
+from docling_eval.benchmarks.utils import (
+    add_pages_to_true_doc,
+    convert_html_table_into_docling_tabledata,
+    save_comparison_html,
+    save_comparison_html_with_clusters,
+    write_datasets_info,
+)
+from docling_eval.docling.conversion import create_converter
 from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
@@ -24,20 +29,12 @@ from docling_eval.docling.utils import (
     save_shard_to_disk,
 )
 
-from docling_eval.benchmarks.utils import (
-    add_pages_to_true_doc,
-    convert_html_table_into_docling_tabledata,
-    save_comparison_html,
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
-
 
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Process input and output directories and a pre-annotation file."
     )
-    
+
     parser.add_argument(
         "-i",
         "--input_dir",
@@ -45,7 +42,10 @@ def parse_args():
         help="Path to directory with pdf's",
     )
     parser.add_argument(
-        "-o", "--output_dir", required=True, help="Path to the output directory containing the dataset."
+        "-o",
+        "--output_dir",
+        required=True,
+        help="Path to the output directory containing the dataset.",
     )
     parser.add_argument(
         "-b", "--bucket-size", required=True, help="Numbers of documents in the bucket."
@@ -54,6 +54,7 @@ def parse_args():
     args = parser.parse_args()
 
     return (Path(args.input_dir), Path(args.output_dir), int(args.bucket_size))
+
 
 def _write_datasets_info(
     name: str, output_dir: Path, num_train_rows: int, num_test_rows: int
@@ -97,16 +98,15 @@ def _write_datasets_info(
         json.dump(dataset_infos, fw, indent=2)
 
 
-
 def main():
 
     image_scale = 2
     artifacts_path = None
-    
+
     source_dir, target_dir, bucket_size = parse_args()
 
     test_dir = target_dir / "test"
-    train_dir = target_dir / "train" 
+    train_dir = target_dir / "train"
 
     for _ in [target_dir, test_dir, train_dir]:
         if not os.path.exists(_):
@@ -116,7 +116,7 @@ def main():
     doc_converter = create_converter(
         page_image_scale=image_scale, artifacts_path=artifacts_path
     )
-            
+
     pdfs = sorted(glob.glob(str(source_dir / "*.pdf")))
 
     records = []
@@ -143,10 +143,10 @@ def main():
             BenchMarkColumns.ORIGINAL: get_binary(pdf_path),
             BenchMarkColumns.MIMETYPE: "application/pdf",
         }
-        records.append(record)        
+        records.append(record)
 
     save_shard_to_disk(items=records, dataset_path=test_dir)
-    
+
     _write_datasets_info(
         name="PDFBench: end-to-end",
         output_dir=target_dir,
@@ -154,6 +154,6 @@ def main():
         num_test_rows=len(records),
     )
 
-        
+
 if __name__ == "__main__":
     main()

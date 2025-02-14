@@ -14,13 +14,13 @@ from docling_core.types.doc.document import (
     DocItem,
     DoclingDocument,
     FloatingItem,
+    GraphData,
     ImageRef,
     PageItem,
     PictureItem,
     ProvenanceItem,
     TableData,
     TableItem,
-    GraphData,
 )
 from docling_core.types.doc.labels import (
     DocItemLabel,
@@ -32,7 +32,7 @@ from docling_parse.pdf_parsers import pdf_parser_v2  # type: ignore[import]
 from PIL import Image  # as PILImage
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.constants import BenchMarkColumns, EvaluationModality
 from docling_eval.benchmarks.cvat_annotation.utils import (
     AnnotatedDoc,
     AnnotatedImage,
@@ -46,6 +46,7 @@ from docling_eval.benchmarks.cvat_annotation.utils import (
 )
 from docling_eval.benchmarks.utils import (
     draw_clusters_with_reading_order,
+    get_binhash,
     save_comparison_html_with_clusters,
     save_inspection_html,
     write_datasets_info,
@@ -85,8 +86,8 @@ def find_box(boxes: List, point: Tuple[float, float]):
             and box["t"] <= point[1]
             and point[1] <= box["b"]
         ):
-            if index==-1 or abs(box["r"]-box["l"])*(box["b"]-box["t"])<area:
-                area = abs(box["r"]-box["l"])*(box["b"]-box["t"])
+            if index == -1 or abs(box["r"] - box["l"]) * (box["b"] - box["t"]) < area:
+                area = abs(box["r"] - box["l"]) * (box["b"] - box["t"])
                 index = i
 
     if index == -1:
@@ -100,9 +101,7 @@ def find_box(boxes: List, point: Tuple[float, float]):
             t = box["t"]
             b = box["b"]
 
-            logging.info(
-                f"=> bbox: {l:.3f}, {r:.3f}, ({(l<x) and (x<r)}), {t:.3f}, {b:.3f}, ({(t<y) and (y<b)})"
-            )
+            # logging.info(f"=> bbox: {l:.3f}, {r:.3f}, ({(l<x) and (x<r)}), {t:.3f}, {b:.3f}, ({(t<y) and (y<b)})")
 
     return index, boxes[index]
 
@@ -110,8 +109,8 @@ def find_box(boxes: List, point: Tuple[float, float]):
 def parse_annotation(image_annot: dict):
 
     basename: str = image_annot["@name"]
-    logging.info(f"parsing annotations for {basename}")
-    
+    # logging.info(f"parsing annotations for {basename}")
+
     keep: bool = False
 
     boxes: List[dict] = []
@@ -177,7 +176,6 @@ def parse_annotation(image_annot: dict):
         )
 
     for i, box in enumerate(boxes):
-        # print(i, "\t", box)
         boxes[i]["b"] = float(box["@ybr"])
         boxes[i]["t"] = float(box["@ytl"])
         boxes[i]["l"] = float(box["@xtl"])
@@ -188,7 +186,7 @@ def parse_annotation(image_annot: dict):
     for i, line in enumerate(lines):
 
         # print(line)
-        
+
         points = []
         for _ in line["@points"].split(";"):
             __ = _.split(",")
@@ -210,7 +208,7 @@ def parse_annotation(image_annot: dict):
         
         print(line["@label"], ": ", len(points), "\t", len(boxids))
         """
-        
+
     for i, line in enumerate(lines):
         if line["@label"] == "reading_order":
             assert len(reading_order) == 0  # you can only have 1 reading order
@@ -531,7 +529,7 @@ def add_footnotes_to_item(
 
 def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
 
-    logging.info(f"creating ground-truth document for {basename}")
+    # logging.info(f"creating ground-truth document for {basename}")
     (
         _,
         keep,
@@ -550,7 +548,7 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
         logging.error(f"incorrect annotation for {basename}")
         return None
 
-    logging.info(f"analyzing {basename}")
+    # logging.info(f"analyzing {basename}")
 
     # ========== Original Groundtruth
     orig_file = desc.true_file
@@ -632,7 +630,7 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
         true_doc.pages[page_no] = page_item
 
     # Build the true-doc
-    logging.info(f"reading-oder from annotations: {reading_order}")
+    # logging.info(f"reading-oder from annotations: {reading_order}")
 
     already_added: List[int] = []
     for boxid in reading_order["boxids"]:
@@ -714,7 +712,7 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
             true_doc.add_text(label=label, prov=prov, text=text)
 
         elif label == DocItemLabel.CODE:
-            #true_doc.add_text(label=label, prov=prov, text=text)
+            # true_doc.add_text(label=label, prov=prov, text=text)
 
             code_item = true_doc.add_code(text=text, prov=prov)
 
@@ -730,7 +728,7 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
                 parser=parser,
                 parsed_page=parsed_pages[page_no],
             )
-            
+
         elif label == DocItemLabel.FORM:
             graph = GraphData(cells=[], links=[])
             true_doc.add_form_item(graph=graph, prov=prov)
@@ -858,13 +856,13 @@ def from_cvat_to_docling_document(
         for image_annot in annot_data["annotations"]["image"]:
 
             basename = image_annot["@name"]
-            logging.info(basename)
+            # logging.info(basename)
 
             """
             if basename != "doc_5387a06d7e31d738c4bdb64b1936ac6fa09246b6a7e8506e1ee86691ff37155c_page_000001.png":
                 continue
             """
-            
+
             if basename not in overview.img_annotations:
                 logging.warning(f"Skipping {basename}: not in overview_file")
                 yield basename, overview.img_annotations[basename], None
@@ -881,8 +879,6 @@ def from_cvat_to_docling_document(
                 )
                 yield basename, overview.img_annotations[basename], true_doc
 
-
-                
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -989,10 +985,10 @@ def create_layout_dataset_from_annotations(
             pictures_column=BenchMarkColumns.PREDICTION_PICTURES.value,  # pictures_column,
             page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES.value,  # page_images_column,
         )
-        
+
         if True:
             vizname = benchmark_dirs.html_comp_dir / f"{basename}-clusters.html"
-            logging.info(f"creating visualization: {vizname}")
+            # logging.info(f"creating visualization: {vizname}")
 
             save_comparison_html_with_clusters(
                 filename=vizname,
@@ -1007,6 +1003,8 @@ def create_layout_dataset_from_annotations(
             BenchMarkColumns.DOCLING_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: str(basename),
+            BenchMarkColumns.DOC_PATH: str(basename),
+            BenchMarkColumns.DOC_HASH: get_binhash(get_binary(pdf_file)),
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
             BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
             BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
@@ -1015,6 +1013,11 @@ def create_layout_dataset_from_annotations(
             BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.ORIGINAL: get_binary(pdf_file),
             BenchMarkColumns.MIMETYPE: "application/pdf",
+            BenchMarkColumns.MODALITIES: [
+                EvaluationModality.LAYOUT,
+                EvaluationModality.READING_ORDER,
+                EvaluationModality.CAPTIONING,
+            ],
         }
         records.append(record)
 

@@ -413,7 +413,7 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Process input and output directories and a pre-annotation file."
     )
-    
+
     parser.add_argument(
         "-i",
         "--input_dir",
@@ -435,7 +435,7 @@ def parse_args():
 def main():
 
     source_dir, target_dir, bucket_size = parse_args()
-    
+
     benchmark_dirs = BenchMarkDirs()
     benchmark_dirs.set_up_directory_structure(source=source_dir, target=target_dir)
 
