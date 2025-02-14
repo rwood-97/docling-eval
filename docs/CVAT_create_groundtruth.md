@@ -98,34 +98,32 @@ Here we have,
 <td style="width: 80%;"><img src="./CVAT_screenshots/01.png" width="700"></td>
 </tr>
 <tr>
-<td>Next, you give the project a name and upload the content of `cvat_description.json` into the Raw labels.</td> 
-<td><img src="./CVAT_screenshots/02.png" width="700"></td>
+<td style="width: 20%;">Next, you give the project a name and upload the content of `cvat_description.json` into the Raw labels.</td> 
+<td style="width: 80%;"><img src="./CVAT_screenshots/02.png" width="700"></td>
 </tr>
 <tr>
-<td>Next, click `Submit & Open`. This will open a new window in which you can create new tasks</td> 
-<td><img src="./CVAT_screenshots/04.png" width="700"></td>
+<td style="width: 20%;">Next, click `Submit & Open`. This will open a new window in which you can create new tasks</td> 
+<td style="width: 80%;"><img src="./CVAT_screenshots/04.png" width="700"></td>
 </tr>
 <tr>
-<td>Next you upload the images you want to annotate from the `cvat_tasks/task_<xx>` and click `Submit & Open`.</td>
-<td><img src="./CVAT_screenshots/05.png" width="700"></td>
+<td style="width: 20%;">Next you upload the images you want to annotate from the `cvat_tasks/task_<xx>` and click `Submit & Open`.</td>
+<td style="width: 80%;"><img src="./CVAT_screenshots/05.png" width="700"></td>
 </tr>
 <tr>
-<td>Next, you can upload the pre-annotations for the taks,</td>
-<td><img src="./CVAT_screenshots/06.png" width="700"></td>
+<td style="width: 20%;">Next, you can upload the pre-annotations for the taks,</td>
+<td style="width: 80%;"><img src="./CVAT_screenshots/06.png" width="700"></td>
 </tr>
 <tr>
-<td>and you upload the CVAT annotations in xml,</td>
-<td><img src="./CVAT_screenshots/08.png" width="700"></td>
+<td style="width: 20%;">and you upload the CVAT annotations in xml,</td>
+<td style="width: 80%;"><img src="./CVAT_screenshots/08.png" width="700"></td>
 </tr>
 <tr>
-<td>Finally, you are ready to annotate (click on `#Job <xxx>`) and the annotation window opens up,</td>
-<td><img src="./CVAT_screenshots/11.png" width="700"></td>
+<td style="width: 20%;">Finally, you are ready to annotate (click on `#Job <xxx>`) and the annotation window opens up,</td>
+<td style="width: 80%;"><img src="./CVAT_screenshots/11.png" width="700"></td>
 </tr>
 <tr>
-<td>Make sure you adjust the bounding boxes, labels and add the reading-order line. The Reading order is simply a line of points, that have to fall inside the bounding-boxes,</td>
-<td>
-<img src="./CVAT_screenshots/12.png" width="700">
-</td>
+<td style="width: 20%;">Make sure you adjust the bounding boxes, labels and add the reading-order line. The Reading order is simply a line of points, that have to fall inside the bounding-boxes,</td>
+<td style="width: 80%;"><img src="./CVAT_screenshots/12.png" width="700"></td>
 </tr>
 </table>
 
