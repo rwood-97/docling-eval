@@ -92,7 +92,7 @@ Here we have,
 ## Online Annotation
 
 
-<table>
+<table style="width: 100%;">
 <tr>
 <td style="width: 20%;">To start annotating, go to the [CVAT](cvat.ai) and create a new project,</td>
 <td style="width: 80%;"><img src="./CVAT_screenshots/01.png" width="700"></td>
