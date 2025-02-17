@@ -2,10 +2,11 @@ import copy
 import hashlib
 import json
 import logging
+import math
 from collections import defaultdict
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 from bs4 import BeautifulSoup  # type: ignore
 from datasets import Features
@@ -19,7 +20,9 @@ from docling_core.types.doc.base import Size
 from docling_core.types.doc.document import (
     DocItem,
     DoclingDocument,
+    GraphCell,
     GraphData,
+    GraphLink,
     ImageRef,
     ImageRefMode,
     PageItem,
@@ -667,3 +670,222 @@ def classify_cells(graph: GraphData) -> None:
         else:
             # fallback case.
             cell.label = GraphCellLabel.UNSPECIFIED
+
+
+def visualize_docling_document(
+    doc: DoclingDocument,
+    page_image: Image.Image,
+    page_no: int = 1,
+    show_text: bool = True,
+    show_tables: bool = True,
+    show_key_value: bool = True,
+    show_pictures: bool = True,
+    draw_labels: bool = True,
+) -> Image.Image:
+    """visualize_docling_document.
+
+    :param doc: DoclingDocument:
+    :param page_image: Image.Image:
+    :param page_no: int:  (Default value = 1)
+    :param show_text: bool:  (Default value = True)
+    :param show_tables: bool:  (Default value = True)
+    :param show_key_value: bool:  (Default value = True)
+    :param show_pictures: bool:  (Default value = True)
+    :param draw_labels: bool:  (Default value = True)
+    """
+    vis_img = page_image.copy()
+    draw = ImageDraw.Draw(vis_img, "RGBA")
+
+    # font info (adapted from draw_clusters_with_reading_order method)
+    font = ImageFont.load_default()
+    try:
+        font = ImageFont.truetype("arial.ttf", size=15)
+    except IOError:
+        font = ImageFont.load_default()
+
+    font_bbox = font.getbbox("this is a placeholder for the Labels")
+    label_height = font_bbox[3] - font_bbox[1]
+
+    # color mapping (we can adjust it later on)
+    label_color_mapping: Dict[str, Dict[str, Tuple[int, int, int, int]]] = {
+        "paragraph": {"fill": (234, 234, 43, 50), "outline": (234, 234, 43, 255)},
+        "text": {"fill": (234, 234, 43, 50), "outline": (234, 234, 43, 255)},
+        "section_header": {"fill": (204, 51, 102, 50), "outline": (204, 51, 102, 255)},
+        "list_item": {"fill": (14, 210, 234, 50), "outline": (14, 210, 234, 255)},
+        "code": {"fill": (245, 245, 220, 50), "outline": (245, 245, 220, 255)},
+        "caption": {"fill": (243, 156, 18, 50), "outline": (243, 156, 18, 255)},
+        "page_header": {"fill": (0, 255, 255, 50), "outline": (0, 255, 255, 255)},
+        "page_footer": {"fill": (0, 200, 200, 50), "outline": (0, 200, 200, 255)},
+        "footnote": {"fill": (255, 215, 0, 50), "outline": (255, 215, 0, 255)},
+        "default": {"fill": (128, 128, 128, 50), "outline": (128, 128, 128, 255)},
+    }
+    table_cell_color = {"fill": (240, 128, 128, 50), "outline": (240, 128, 128, 255)}
+    key_color = {"fill": (70, 130, 180, 50), "outline": (70, 130, 180, 255)}
+    value_color = {"fill": (60, 179, 113, 50), "outline": (60, 179, 113, 255)}
+    picture_color = {"fill": (255, 236, 204, 50), "outline": (255, 236, 204, 255)}
+    kv_region_color = {"fill": (122, 65, 34, 50), "outline": (122, 65, 34, 255)}
+    arrow_color = {"outline": (220, 20, 60, 255)}
+
+    # helper functions
+    def draw_box(
+        bbox: BoundingBox,
+        label: str,
+        fill_color: Tuple[int, int, int, int],
+        outline_color: Tuple[int, int, int, int],
+    ) -> None:
+        try:
+            # we convert the bbox to top-left origin as draw.rectangle assumes that.
+            tbbox = bbox.to_top_left_origin(page_image.height)
+            l, t, r, b = tbbox.as_tuple()
+        except Exception:
+            return
+        draw.rectangle(
+            [(l, t), (r, b)], fill=fill_color, outline=outline_color, width=2
+        )
+        if draw_labels:
+            draw.text((l, t - label_height), label, fill=outline_color, font=font)
+
+    def draw_arrow(
+        draw_obj: ImageDraw.ImageDraw,
+        start: Tuple[float, float],
+        end: Tuple[float, float],
+        arrow_color: Tuple[int, int, int, int],
+        width: int = 2,
+        arrow_head_length: int = 10,
+        arrow_head_angle: float = 30.0,
+    ) -> None:
+        draw_obj.line([start, end], fill=arrow_color, width=width)
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        angle = math.atan2(dy, dx)
+        angle1 = angle + math.radians(arrow_head_angle)
+        angle2 = angle - math.radians(arrow_head_angle)
+        x1 = end[0] - arrow_head_length * math.cos(angle1)
+        y1 = end[1] - arrow_head_length * math.sin(angle1)
+        x2 = end[0] - arrow_head_length * math.cos(angle2)
+        y2 = end[1] - arrow_head_length * math.sin(angle2)
+        draw_obj.polygon([end, (x1, y1), (x2, y2)], fill=arrow_color)
+
+    def get_overall_bbox(
+        links: List[GraphLink], cell_dict: Dict[int, GraphCell]
+    ) -> Optional[BoundingBox]:
+        all_bboxes: List[BoundingBox] = []
+        for link in links:
+            src = cell_dict.get(link.source_cell_id)
+            tgt = cell_dict.get(link.target_cell_id)
+            if src and src.prov is not None:
+                all_bboxes.append(src.prov.bbox)
+            if tgt and tgt.prov is not None:
+                all_bboxes.append(tgt.prov.bbox)
+        if not all_bboxes:
+            return None
+        return BoundingBox.union(all_bboxes)
+
+    # for text items
+    if show_text:
+        for text_item in doc.texts:
+            for prov in text_item.prov:
+                if prov.page_no != page_no or not prov.bbox:
+                    continue
+                # we use the lowercased label to select colors; default if not found.
+                label = text_item.label.lower()
+                colors = label_color_mapping.get(label, label_color_mapping["default"])
+                draw_box(prov.bbox, label, colors["fill"], colors["outline"])
+
+    # for table cells
+    if show_tables:
+        for table_item in doc.tables:
+            table_data = table_item.data
+            for cell in table_data.table_cells:
+                if not cell.bbox:
+                    continue
+                draw_box(
+                    cell.bbox,
+                    "table cell",
+                    table_cell_color["fill"],
+                    table_cell_color["outline"],
+                )
+
+    # for picture items
+    if show_pictures:
+        for picture_item in doc.pictures:
+            for prov in picture_item.prov:
+                if prov.page_no != page_no or not prov.bbox:
+                    continue
+                draw_box(
+                    prov.bbox,
+                    "picture",
+                    picture_color["fill"],
+                    picture_color["outline"],
+                )
+
+    # for key value items
+    if show_key_value:
+        for kv_item in doc.key_value_items:
+            if (
+                not kv_item
+                or not getattr(kv_item, "graph", None)
+                or not kv_item.graph.cells
+            ):
+                continue
+            cells = kv_item.graph.cells
+            links = kv_item.graph.links
+
+            cell_dict = {
+                cell.cell_id: cell for cell in cells if cell.prov and cell.prov.bbox
+            }
+            for link in links:
+                key_cell = cell_dict.get(link.source_cell_id)
+                value_cell = cell_dict.get(link.target_cell_id)
+                if (
+                    not key_cell
+                    or not value_cell
+                    or not key_cell.prov
+                    or not value_cell.prov
+                ):
+                    continue
+
+                draw_box(
+                    key_cell.prov.bbox, "key", key_color["fill"], key_color["outline"]
+                )
+                draw_box(
+                    value_cell.prov.bbox,
+                    "value",
+                    value_color["fill"],
+                    value_color["outline"],
+                )
+
+                k_l, k_t, k_r, k_b = key_cell.prov.bbox.to_top_left_origin(
+                    page_image.height
+                ).as_tuple()
+                v_l, v_t, v_r, v_b = value_cell.prov.bbox.to_top_left_origin(
+                    page_image.height
+                ).as_tuple()
+                key_center = ((k_l + k_r) // 2, (k_t + k_b) // 2)
+                value_center = ((v_l + v_r) // 2, (v_t + v_b) // 2)
+                draw_arrow(
+                    draw, key_center, value_center, arrow_color["outline"], width=2
+                )
+
+            overall_bbox = get_overall_bbox(links, cell_dict)
+            if overall_bbox:
+                try:
+                    tbbox = overall_bbox.to_top_left_origin(page_image.height)
+                    l, t, r, b = tbbox.as_tuple()
+                    draw.rectangle(
+                        [(l, t), (r, b)],
+                        fill=kv_region_color["fill"],
+                        outline=kv_region_color["outline"],
+                        width=2,
+                    )
+                    if draw_labels:
+                        draw.text(
+                            (l, t - label_height),
+                            "key-value region",
+                            fill=kv_region_color["outline"],
+                            font=font,
+                        )
+                except Exception:
+                    pass
+
+    return vis_img
