@@ -2,11 +2,11 @@ import copy
 import hashlib
 import json
 import logging
+from collections import defaultdict
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-import pypdfium2 as pdfium
 from bs4 import BeautifulSoup  # type: ignore
 from datasets import Features
 from datasets import Image as Features_Image
@@ -19,13 +19,14 @@ from docling_core.types.doc.base import Size
 from docling_core.types.doc.document import (
     DocItem,
     DoclingDocument,
+    GraphData,
     ImageRef,
     ImageRefMode,
     PageItem,
     TableCell,
     TableData,
 )
-from docling_core.types.doc.labels import DocItemLabel
+from docling_core.types.doc.labels import DocItemLabel, GraphCellLabel
 from PIL import Image, ImageDraw, ImageFont
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
@@ -228,7 +229,7 @@ def convert_html_table_into_docling_tabledata(
             num_rows = max(row_idx + rowspan, num_rows)
             num_cols = max(col_idx + colspan, num_cols)
 
-    except:
+    except Exception:
         logging.error("No table-structure identified")
 
     return TableData(num_rows=num_rows, num_cols=num_cols, table_cells=cells)
@@ -432,7 +433,7 @@ def draw_clusters_with_reading_order(
 
                 # Calculate label size using getbbox
                 text_bbox = font.getbbox(str(item.label))
-                label_width = text_bbox[2] - text_bbox[0]
+                # label_width = text_bbox[2] - text_bbox[0]
                 label_height = text_bbox[3] - text_bbox[1]
                 label_x = bbox.l
                 label_y = (
@@ -612,3 +613,57 @@ def save_inspection_html(
 
     with open(str(filename), "w") as fw:
         fw.write(html_viz)
+
+
+def classify_cells(graph: GraphData) -> None:
+    """
+    for a graph consisting of a list of GraphCell objects (nodes) and a list of GraphLink objects
+    (directed edges), update each cell's label according to the following rules:
+      - If a node has no outgoing edges, label it as VALUE.
+      - If a node has no incoming edges and has one or more outgoing edges, label it as KEY.
+      - If a node has one or more incoming edges and one or more outgoing edges, but every neighbor it points to is a leaf (has no outgoing edges), label it as KEY.
+      - Otherwise, label it as UNSPECIFIED.
+
+    this function modifies the cells in place.
+    """
+    # for tracking the values
+    indegree = defaultdict(int)
+    outdegree = defaultdict(int)
+    outgoing_neighbors: defaultdict[int, List[int]] = defaultdict(list)
+
+    cells, links = graph.cells, graph.links
+
+    # initialization
+    for cell in cells:
+        indegree[cell.cell_id] = 0
+        outdegree[cell.cell_id] = 0
+        outgoing_neighbors[cell.cell_id] = []
+
+    # populate the values
+    for link in links:
+        src = link.source_cell_id
+        tgt = link.target_cell_id
+        outdegree[src] += 1
+        indegree[tgt] += 1
+        outgoing_neighbors[src].append(tgt)
+
+    # now, we assign labels based on the computed degrees.
+    for cell in cells:
+        cid = cell.cell_id
+        if outdegree[cid] == 0:
+            # if a node is a leaf, it is a VALUE.
+            cell.label = GraphCellLabel.VALUE
+        elif indegree[cid] == 0:
+            # no incoming and at least one outgoing means it is a KEY.
+            cell.label = GraphCellLabel.KEY
+        elif outdegree[cid] > 0 and indegree[cid] > 0:
+            # if all outgoing neighbors are leaves (i.e. outdegree == 0),
+            # then this node is a KEY.
+            if all(outdegree[neighbor] == 0 for neighbor in outgoing_neighbors[cid]):
+                cell.label = GraphCellLabel.KEY
+            else:
+                # otherwise, it is UNSPECIFIED.
+                cell.label = GraphCellLabel.UNSPECIFIED
+        else:
+            # fallback case.
+            cell.label = GraphCellLabel.UNSPECIFIED

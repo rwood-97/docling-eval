@@ -20,7 +20,7 @@ from docling_core.types.doc import (
     TableCell,
     TableData,
 )
-from docling_core.types.doc.document import GraphCell, GraphLink, GraphData
+from docling_core.types.doc.document import GraphCell, GraphData, GraphLink
 from docling_core.types.doc.labels import GraphCellLabel, GraphLinkLabel
 from docling_core.types.doc.tokens import TableToken
 from docling_core.types.io import DocumentStream
@@ -32,6 +32,7 @@ from docling_eval.benchmarks.doclaynet_v1.create import (
     TRUE_HTML_EXPORT_LABELS,
 )
 from docling_eval.benchmarks.utils import (
+    classify_cells,
     save_comparison_html_with_clusters,
     write_datasets_info,
 )
@@ -346,6 +347,9 @@ def populate_key_value_item(
         prov = None
 
     graph = GraphData(cells=cells, links=links)
+
+    # update the labels of the cells based on the links with rules
+    classify_cells(graph=graph)
 
     # Add the key_value_item to the document.
     doc.add_key_values(graph=graph, prov=prov)
