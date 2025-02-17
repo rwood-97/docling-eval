@@ -20,7 +20,7 @@ from docling_core.types.doc import (
     TableCell,
     TableData,
 )
-from docling_core.types.doc.document import GraphCell, GraphLink
+from docling_core.types.doc.document import GraphCell, GraphLink, GraphData
 from docling_core.types.doc.labels import GraphCellLabel, GraphLinkLabel
 from docling_core.types.doc.tokens import TableToken
 from docling_core.types.io import DocumentStream
@@ -260,12 +260,19 @@ def create_graph_cell(cell_data: Dict, label: GraphCellLabel) -> GraphCell:
     bbox_instance = None
     if "bbox" in cell_data and cell_data["bbox"] is not None:
         bbox_instance = convert_bbox(cell_data["bbox"])
+        cell_prov = ProvenanceItem(
+            page_no=1,
+            charspan=(0, 0),
+            bbox=bbox_instance,
+        )
+    else:
+        cell_prov = None
 
     return GraphCell(
         cell_id=cell_data["cell_id"],
         text=cell_data["text"],
         orig=cell_data.get("orig", cell_data["text"]),
-        bbox=bbox_instance,
+        prov=cell_prov,
         label=label,
     )
 
@@ -283,20 +290,20 @@ def create_graph_link(
 
 
 def get_overall_bbox(
-    links: List[GraphLink], element_dict: Dict[int, GraphCell]
+    links: List[GraphLink], cell_dict: Dict[int, GraphCell]
 ) -> Optional[BoundingBox]:
     """
     Compute the overall bounding box (min_x, min_y, max_x, max_y)
-    from all element ids found in the links using element_dict.
+    from all cell ids found in the links using element_dict.
     """
     all_bboxes = []  # type: List[BoundingBox]
     for link in links:
-        src_bbox = element_dict[link.source_cell_id].bbox
-        tgt_bbox = element_dict[link.target_cell_id].bbox
-        if src_bbox is not None:
-            all_bboxes.append(src_bbox)
-        if tgt_bbox is not None:
-            all_bboxes.append(tgt_bbox)
+        src_prov = cell_dict[link.source_cell_id].prov
+        tgt_prov = cell_dict[link.target_cell_id].prov
+        if src_prov is not None:
+            all_bboxes.append(src_prov.bbox)
+        if tgt_prov is not None:
+            all_bboxes.append(tgt_prov.bbox)
 
     if len(all_bboxes) == 0:
         return None
@@ -326,7 +333,7 @@ def populate_key_value_item(
         links.append(kv_link)
 
     overal_bbox = get_overall_bbox(
-        links, element_dict={cell.cell_id: cell for cell in cells}
+        links, cell_dict={cell.cell_id: cell for cell in cells}
     )
 
     if overal_bbox is not None:
@@ -338,8 +345,10 @@ def populate_key_value_item(
     else:
         prov = None
 
+    graph = GraphData(cells=cells, links=links)
+
     # Add the key_value_item to the document.
-    doc.add_key_value_item(cells=cells, links=links, prov=prov)
+    doc.add_key_values(graph=graph, prov=prov)
 
 
 # creation of K/V pairs
