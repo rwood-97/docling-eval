@@ -3,7 +3,6 @@ from enum import Enum
 
 class BenchMarkColumns(str, Enum):
     DOCLING_VERSION = "docling_version"
-    DOCLING_PIPELINE = "docling_pipeline"
 
     STATUS = "status"
     DOC_ID = "document_id"
