@@ -25,14 +25,14 @@ from docling_eval.benchmarks.utils import (
     get_binhash,
     save_comparison_html_with_clusters,
 )
-from docling_eval.dataset_builder import BaseEvaluationDatasetBuilder, HFSource
-from docling_eval.dataset_record import DatasetRecord
+from docling_eval_next.dataset_builders.dataset_builder import BaseEvaluationDatasetBuilder, HFSource
+from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval.docling.utils import (
     crop_bounding_box,
     from_pil_to_base64uri,
     get_binary,
 )
-from docling_eval.prediction_provider import BasePredictionProvider
+from docling_eval_next.prediction_providers.prediction_provider import BasePredictionProvider
 
 TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,

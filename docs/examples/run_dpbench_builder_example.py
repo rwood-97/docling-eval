@@ -17,9 +17,9 @@ from docling.document_converter import PdfFormatOption
 
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
 from docling_eval.cli.main import evaluate
-from docling_eval.dataset_record import DatasetRecord
-from docling_eval.dpbench_builder import DPBenchE2EDatasetBuilder
-from docling_eval.prediction_provider import DoclingPredictionProvider
+from docling_eval_next.datamodels.dataset_record import DatasetRecord
+from docling_eval_next.dataset_builders.dpbench_builder import DPBenchE2EDatasetBuilder
+from docling_eval_next.prediction_providers.prediction_provider import DoclingPredictionProvider
 
 
 def create_docling_prediction_provider(
@@ -70,9 +70,6 @@ def create_docling_prediction_provider(
 
 
 def main():
-
-    DatasetRecord.features()
-
     target_path = Path("./scratch/dpbench-builer-test/")
     provider = create_docling_prediction_provider(page_image_scale=2.0)
 
@@ -81,8 +78,8 @@ def main():
         target=target_path,
     )
 
-    dataset.retrieve_input_dataset()
-    dataset.save_to_disk()
+    dataset.retrieve_input_dataset() # fetches the source dataset from HF
+    dataset.save_to_disk() # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     evaluate(
         modality=EvaluationModality.LAYOUT,
