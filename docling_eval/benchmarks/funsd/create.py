@@ -7,9 +7,6 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
@@ -26,20 +23,11 @@ from docling_core.types.doc import (
 from docling_core.types.doc.document import GraphCell, GraphData, GraphLink
 from docling_core.types.doc.labels import GraphCellLabel, GraphLinkLabel
 from docling_core.types.doc.tokens import TableToken
-from docling_core.types.io import DocumentStream
 from PIL import Image
 from tqdm import tqdm  # type: ignore
 
-from datasets import load_from_disk
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.doclaynet_v1.create import (
-    PRED_HTML_EXPORT_LABELS,
-    TRUE_HTML_EXPORT_LABELS,
-)
-from docling_eval.benchmarks.utils import (
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
+from docling_eval.benchmarks.utils import write_datasets_info
 from docling_eval.docling.conversion import create_image_converter
 from docling_eval.docling.utils import (
     crop_bounding_box,
@@ -305,7 +293,7 @@ def get_overall_bbox(
 
     if len(all_bboxes) == 0:
         return None
-    bbox_instance = BoundingBox.union(all_bboxes)
+    bbox_instance = BoundingBox.enclosing_bbox(all_bboxes)
     return bbox_instance
 
 
@@ -444,7 +432,7 @@ def populate_key_value_item_from_funsd(
 
     graph = GraphData(cells=cells, links=links)
 
-    doc.add_key_value_item(graph=graph, prov=prov)
+    doc.add_key_values(graph=graph, prov=prov)
 
     return doc
 
