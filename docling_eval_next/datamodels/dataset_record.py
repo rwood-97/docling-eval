@@ -93,7 +93,7 @@ class DatasetRecord(BaseModel):
                 # pictures.append(to_pil(picture.image.uri))
                 pictures.append(picture.image.pil_image)
                 picture.image.uri = Path(
-                    f"{self.get_field_alias("predicted_pictures")}/{img_no}"
+                    f"{self.get_field_alias('predicted_pictures')}/{img_no}"
                 )
 
         # Save page images
@@ -103,7 +103,7 @@ class DatasetRecord(BaseModel):
                 # img.show()
                 page_images.append(page.image.pil_image)
                 page.image.uri = Path(
-                    f"{self.get_field_alias("predicted_page_images")}/{page_no}"
+                    f"{self.get_field_alias('predicted_page_images')}/{page_no}"
                 )
 
         return pictures, page_images
