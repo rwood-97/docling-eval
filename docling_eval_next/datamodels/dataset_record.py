@@ -17,9 +17,8 @@ from docling_eval.benchmarks.constants import EvaluationModality
 
 class DatasetRecord(BaseModel):
     predictor_info: dict = Field(alias="predictor_info", default={})
-    status: ConversionStatus = (
-        Field(alias="status", default=ConversionStatus.PENDING),
-    )
+    status: ConversionStatus = Field(alias="status", default=ConversionStatus.PENDING)
+
     doc_id: str = Field(alias="document_id")
     doc_path: Optional[Path] = Field(alias="document_filepath", default=None)
     doc_hash: Optional[str] = Field(alias="document_filehash")

@@ -1,16 +1,20 @@
 import os
 from abc import abstractmethod
+from io import BytesIO
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
 from docling.utils.utils import chunkify
+from docling_core.types.io import DocumentStream
 from huggingface_hub import snapshot_download
 from pydantic import BaseModel
 
 from docling_eval.benchmarks.utils import write_datasets_info
-from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval.docling.utils import save_shard_to_disk
-from docling_eval_next.prediction_providers.prediction_provider import BasePredictionProvider
+from docling_eval_next.datamodels.dataset_record import DatasetRecord
+from docling_eval_next.prediction_providers.prediction_provider import (
+    BasePredictionProvider,
+)
 
 
 class HFSource(BaseModel):
@@ -30,35 +34,36 @@ class BaseEvaluationDatasetBuilder:
         name: str,
         dataset_source: Union[HFSource, S3Source, Path],
         prediction_provider: BasePredictionProvider,
-        target: Optional[Path] = None,
+        target: Path,
     ):
         self.name = name
-        self.target = target
+        self.target: Path = target
         self.prediction_provider = prediction_provider
         self.dataset_source = dataset_source
 
-        self.dataset_local_path = None  # TBD
+        self.dataset_local_path: Optional[Path] = None  # TBD
 
         self.retrieved = False
 
     def retrieve_input_dataset(self) -> Path:
         if isinstance(self.dataset_source, HFSource):
             if not self.dataset_local_path:
-                path = snapshot_download(
+                path_str = snapshot_download(
                     repo_id=self.dataset_source.repo_id,
                     repo_type="dataset",
                     token=self.dataset_source.hf_token,
                     # local_dir=self.target,
                 )
-                path = Path(path)
+                path: Path = Path(path_str)
                 self.dataset_local_path = path
             else:
-                path = snapshot_download(
+                path_str = snapshot_download(
                     repo_id=self.dataset_source.repo_id,
                     repo_type="dataset",
                     token=self.dataset_source.hf_token,
                     local_dir=self.dataset_local_path,
                 )
+                path = Path(path_str)
         elif isinstance(self.dataset_source, Path):
             path = self.dataset_source
         else:
@@ -77,10 +82,21 @@ class BaseEvaluationDatasetBuilder:
     def update_prediction(self, record: DatasetRecord):
         # This might need customization depending on the input the dataset has.
         # The default implementation assumes that there is an original file in binary format which is accepted.
-        pred_doc = self.prediction_provider.predict(record.original)
+        input_data = record.original
+
+        assert input_data is not None
+
+        if not isinstance(input_data, DocumentStream):
+            if isinstance(input_data, Path):
+                input_data = DocumentStream(
+                    name=input_data.name, stream=BytesIO(input_data.open("rb").read())
+                )
+
+        pred_doc = self.prediction_provider.predict(input_data)
+
         record.predicted_doc = pred_doc
 
-        record.validate_model()
+        record.validate_model()  # type: ignore
 
     def save_to_disk(self):
         if not self.retrieved:
