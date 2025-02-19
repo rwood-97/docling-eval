@@ -23,6 +23,7 @@ from docling_eval.benchmarks.tableformer_huggingface_otsl.create import (
     create_p1m_tableformer_dataset,
     create_pubtabnet_tableformer_dataset,
 )
+from docling_eval.evaluators.bbox_text_evaluator import BboxTextEvaluator
 from docling_eval.evaluators.layout_evaluator import (
     DatasetLayoutEvaluation,
     LayoutEvaluator,
@@ -68,6 +69,7 @@ def log_and_save_stats(
     modality: EvaluationModality,
     metric: str,
     stats: DatasetStatistics,
+    log_filename: Optional[Path] = None,
 ) -> tuple[Path, Path]:
     r"""
     For the given DatasetStatistics related to the provided benchmark/modality/metric:
@@ -81,21 +83,27 @@ def log_and_save_stats(
     log_filename: Path of the saved log file
     fig_filename: Path of the saved png file
     """
-    log_filename = odir / f"evaluation_{benchmark.value}_{modality.value}_{metric}.txt"
+    log_mode = "a"
+    if log_filename is None:
+        log_filename = (
+            odir / f"evaluation_{benchmark.value}_{modality.value}_{metric}.txt"
+        )
+        log_mode = "w"
     fig_filename = odir / f"evaluation_{benchmark.value}_{modality.value}_{metric}.png"
+    stats.save_histogram(figname=fig_filename, name=metric)
 
     data, headers = stats.to_table(metric)
-    content = f"{benchmark.value} {modality.value} {metric}:\n\n"
+    content = f"{benchmark.value} {modality.value} {metric}: "
     content += "mean={:.2f} median={:.2f} std={:.2f}\n\n".format(
         stats.mean, stats.median, stats.std
     )
     content += tabulate(data, headers=headers, tablefmt="github")
+    content += "\n\n\n"
 
     log.info(content)
-    with open(log_filename, "w") as fd:
+    with open(log_filename, log_mode) as fd:
         fd.write(content)
         log.info("Saving statistics report to %s", log_filename)
-    stats.save_histogram(figname=fig_filename, name=metric)
 
     return log_filename, fig_filename
 
@@ -276,6 +284,19 @@ def evaluate(
                 ensure_ascii=False,
             )
 
+    elif modality == EvaluationModality.BBOXES_TEXT:
+        bbox_evaluator = BboxTextEvaluator()
+        bbox_evaluation = bbox_evaluator(idir, split=split)
+
+        with open(save_fn, "w") as fd:
+            json.dump(
+                bbox_evaluation.model_dump(),
+                fd,
+                indent=2,
+                sort_keys=True,
+                ensure_ascii=False,
+            )
+
     elif modality == EvaluationModality.CODE_TRANSCRIPTION:
         pass
 
@@ -301,13 +322,18 @@ def visualise(
 
         # Save layout statistics for mAP
         log_filename, _ = log_and_save_stats(
-            odir, benchmark, modality, "mAP_0.5_0.95", layout_evaluation.mAP_stats
+            odir, benchmark, modality, "mAP_0.5_0.95", layout_evaluation.image_mAP_stats
         )
 
-        # Append to layout statistics the mAP classes
+        # Append to layout statistics, the AP per classes
         data, headers = layout_evaluation.to_table()
-        content = "\n\n\nClass mAP[0.5:0.95] table:\n\n"
+        content = "\n\n\nAP[0.5:0.05:0.95] per class (reported as %):\n\n"
         content += tabulate(data, headers=headers, tablefmt="github")
+
+        # Append to layout statistics, the mAP
+        content += "\n\nTotal mAP[0.5:0.05:0.95] (reported as %): {:.2f}".format(
+            100.0 * layout_evaluation.mAP
+        )
         log.info(content)
         with open(log_filename, "a") as fd:
             fd.write(content)
@@ -351,7 +377,59 @@ def visualise(
     elif modality == EvaluationModality.MARKDOWN_TEXT:
         with open(metrics_filename, "r") as fd:
             md_evaluation = DatasetMarkdownEvaluation.parse_file(metrics_filename)
-        log_and_save_stats(odir, benchmark, modality, "BLEU", md_evaluation.bleu_stats)
+        # Log stats for all metrics in the same file
+        log_filename = odir / f"evaluation_{benchmark.value}_{modality.value}.txt"
+        with open(log_filename, "w") as fd:
+            fd.write(f"{benchmark.value} size: {len(md_evaluation.evaluations)}\n\n")
+
+        log_and_save_stats(
+            odir,
+            benchmark,
+            modality,
+            "BLEU",
+            md_evaluation.bleu_stats,
+            log_filename=log_filename,
+        )
+        log_and_save_stats(
+            odir,
+            benchmark,
+            modality,
+            "F1",
+            md_evaluation.f1_score_stats,
+            log_filename=log_filename,
+        )
+        log_and_save_stats(
+            odir,
+            benchmark,
+            modality,
+            "precision",
+            md_evaluation.precision_stats,
+            log_filename=log_filename,
+        )
+        log_and_save_stats(
+            odir,
+            benchmark,
+            modality,
+            "recall",
+            md_evaluation.recall_stats,
+            log_filename=log_filename,
+        )
+        log_and_save_stats(
+            odir,
+            benchmark,
+            modality,
+            "edit_distance",
+            md_evaluation.edit_distance_stats,
+            log_filename=log_filename,
+        )
+        log_and_save_stats(
+            odir,
+            benchmark,
+            modality,
+            "meteor",
+            md_evaluation.meteor_stats,
+            log_filename=log_filename,
+        )
 
     elif modality == EvaluationModality.CODE_TRANSCRIPTION:
         pass

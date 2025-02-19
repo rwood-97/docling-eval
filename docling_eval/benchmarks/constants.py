@@ -37,6 +37,7 @@ class EvaluationModality(str, Enum):
     READING_ORDER = "reading_order"  # to compute the order
     MARKDOWN_TEXT = "markdown_text"  # to compute the text accuracy
     CAPTIONING = "captioning"  # to compute the accuracy of captions to table/figure
+    BBOXES_TEXT = "bboxes_text"
 
 
 class BenchMarkNames(str, Enum):
