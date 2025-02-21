@@ -11,12 +11,15 @@ from docling.datamodel.pipeline_options import (
     OcrOptions,
     PdfPipelineOptions,
     RapidOcrOptions,
+    SmolDoclingOptions,
     TableFormerMode,
     TesseractCliOcrOptions,
     TesseractOcrOptions,
+    VlmPipelineOptions,
 )
 from docling.datamodel.settings import settings
 from docling.document_converter import DocumentConverter, PdfFormatOption
+from docling.pipeline.vlm_pipeline import VlmPipeline
 
 warnings.filterwarnings(action="ignore", category=UserWarning, module="pydantic|torch")
 warnings.filterwarnings(action="ignore", category=FutureWarning, module="easyocr")
@@ -126,3 +129,32 @@ def create_image_converter(
     settings.debug.profile_pipeline_timings = timings
 
     return doc_converter
+
+
+def create_vlm_converter(
+    timings: bool = True,
+):
+    vlm_options = SmolDoclingOptions()
+    pipeline_options = VlmPipelineOptions(
+        generate_page_images=True,
+        force_backend_text=False,
+        vlm_options=vlm_options,
+    )
+
+    converter = DocumentConverter(
+        format_options={
+            InputFormat.PDF: PdfFormatOption(
+                pipeline_cls=VlmPipeline,
+                pipeline_options=pipeline_options,
+            ),
+            InputFormat.IMAGE: PdfFormatOption(
+                pipeline_cls=VlmPipeline,
+                pipeline_options=pipeline_options,
+            ),
+        }
+    )
+
+    # Enable the profiling to measure the time spent
+    settings.debug.profile_pipeline_timings = timings
+
+    return converter

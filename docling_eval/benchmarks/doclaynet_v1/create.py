@@ -28,7 +28,7 @@ from docling_eval.benchmarks.utils import (
     save_comparison_html_with_clusters,
     write_datasets_info,
 )
-from docling_eval.docling.conversion import create_converter
+from docling_eval.docling.conversion import create_converter, create_vlm_converter
 from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
@@ -172,7 +172,10 @@ def create_dlnv1_e2e_dataset(
     print(f"Downloading split: {split}")
 
     ds = load_dataset(name, split=split)
-    converter = create_converter(page_image_scale=1.0)
+
+    # TODO: Hardcoded VLM converter
+    # converter = create_converter(page_image_scale=1.0)
+    converter = create_vlm_converter()
 
     if do_viz:
         viz_dir = output_dir / "visualizations"
