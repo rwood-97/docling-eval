@@ -1,4 +1,3 @@
-import argparse
 import io
 import json
 import math
@@ -22,7 +21,7 @@ from docling_core.types.doc import (
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.constants import BenchMarkColumns, ConverterTypes
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     save_comparison_html_with_clusters,
@@ -166,6 +165,7 @@ def create_dlnv1_e2e_dataset(
     name: str,
     split: str,
     output_dir: Path,
+    converter_type: ConverterTypes = ConverterTypes.DOCLING,
     do_viz: bool = False,
     max_items: int = -1,  # If -1 take the whole split
 ):
@@ -173,9 +173,11 @@ def create_dlnv1_e2e_dataset(
 
     ds = load_dataset(name, split=split)
 
-    # TODO: Hardcoded VLM converter
-    # converter = create_converter(page_image_scale=1.0)
-    converter = create_vlm_converter()
+    # Decide which converter type to initialize
+    if converter_type == ConverterTypes.DOCLING:
+        converter = create_converter(page_image_scale=1.0)
+    else:
+        converter = create_vlm_converter()
 
     if do_viz:
         viz_dir = output_dir / "visualizations"

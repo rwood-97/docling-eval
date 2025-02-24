@@ -65,3 +65,8 @@ class BenchMarkNames(str, Enum):
 
     # OCR
     # ???
+
+
+class ConverterTypes(str, Enum):
+    DOCLING = "Docling"
+    SMOL_DOCLING = "SmolDocling"

@@ -8,7 +8,11 @@ from typing import Annotated, Optional
 import typer
 from tabulate import tabulate  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
+from docling_eval.benchmarks.constants import (
+    BenchMarkNames,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.doclaynet_v1.create import create_dlnv1_e2e_dataset
 from docling_eval.benchmarks.dpbench.create import (
     create_dpbench_e2e_dataset,
@@ -119,6 +123,7 @@ def create(
     odir: Path,
     idir: Optional[Path] = None,
     image_scale: float = 1.0,
+    converter_type: ConverterTypes = ConverterTypes.DOCLING,
     artifacts_path: Optional[Path] = None,
     split: str = "test",
     max_items: int = 1000,
@@ -140,6 +145,7 @@ def create(
             create_dpbench_e2e_dataset(
                 dpbench_dir=idir,
                 output_dir=odir,
+                converter_type=converter_type,
                 image_scale=image_scale,
                 do_viz=True,
             )
@@ -167,7 +173,10 @@ def create(
         ):
             # No support for max_items
             create_omnidocbench_e2e_dataset(
-                omnidocbench_dir=idir, output_dir=odir, image_scale=image_scale
+                omnidocbench_dir=idir,
+                output_dir=odir,
+                converter_type=converter_type,
+                image_scale=image_scale,
             )
         elif modality == EvaluationModality.TABLE_STRUCTURE:
             # No support for max_items
@@ -222,6 +231,7 @@ def create(
                 name="ds4sd/DocLayNet-v1.2",
                 split=split,
                 output_dir=odir,
+                converter_type=converter_type,
                 do_viz=True,
                 max_items=max_items,
             )
@@ -495,6 +505,15 @@ def main(
             help="Input directory",
         ),
     ] = None,
+    converter_type: Annotated[
+        ConverterTypes,
+        typer.Option(
+            ...,
+            "-c",  # Short name
+            "--converter_type",  # Long name
+            help="Type of document converter",
+        ),
+    ] = ConverterTypes.DOCLING,
     split: Annotated[
         str,
         typer.Option(
@@ -530,6 +549,7 @@ def main(
             benchmark,
             odir,
             idir=idir,
+            converter_type=converter_type,
             artifacts_path=artifacts_path,
             split=split,
             max_items=max_items,

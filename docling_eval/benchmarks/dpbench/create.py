@@ -25,7 +25,7 @@ from docling_core.types.doc.document import (
 from docling_core.types.doc.labels import DocItemLabel
 from PIL import Image  # as PILImage
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.constants import BenchMarkColumns, ConverterTypes
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
@@ -33,7 +33,7 @@ from docling_eval.benchmarks.utils import (
     save_comparison_html_with_clusters,
     write_datasets_info,
 )
-from docling_eval.docling.conversion import create_converter
+from docling_eval.docling.conversion import create_converter, create_vlm_converter
 from docling_eval.docling.models.tableformer.tf_model_prediction import (
     TableFormerUpdater,
 )
@@ -237,15 +237,16 @@ def update(
 def create_dpbench_e2e_dataset(
     dpbench_dir: Path,
     output_dir: Path,
+    converter_type: ConverterTypes = ConverterTypes.DOCLING,
     image_scale: float = 1.0,
     do_viz: bool = False,
     artifacts_path: Optional[Path] = None,
 ):
-
     # Create Converter
-    doc_converter = create_converter(
-        page_image_scale=image_scale, artifacts_path=artifacts_path
-    )
+    if converter_type == ConverterTypes.DOCLING:
+        converter = create_converter(page_image_scale=1.0)
+    else:
+        converter = create_vlm_converter()
 
     # load the groundtruth
     with open(dpbench_dir / f"dataset/reference.json", "r") as fr:
@@ -266,7 +267,7 @@ def create_dpbench_e2e_dataset(
         pdf_path = dpbench_dir / f"dataset/pdfs/{filename}"
 
         # Create the predicted Document
-        conv_results = doc_converter.convert(source=pdf_path, raises_on_error=True)
+        conv_results = converter.convert(source=pdf_path, raises_on_error=True)
         pred_doc = conv_results.document
 
         # Create the groundtruth Document
