@@ -12,18 +12,18 @@ from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.benchmarks.utils import draw_clusters_with_reading_order
-from docling_eval.docling.constants import HTML_INSPECTION
-from docling_eval.docling.conversion import (
+from docling_eval.converters.conversion import (
     create_docling_converter,
     create_image_converter,
 )
-from docling_eval.docling.utils import (
+from docling_eval.converters.utils import (
     docling_version,
     extract_images,
     from_pil_to_base64,
     get_binary,
     save_shard_to_disk,
 )
+from docling_eval.visualisation.constants import HTML_INSPECTION
 
 # Configure logging
 logging.basicConfig(

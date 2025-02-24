@@ -51,8 +51,8 @@ from docling_eval.benchmarks.utils import (
     save_inspection_html,
     write_datasets_info,
 )
-from docling_eval.docling.conversion import create_docling_converter
-from docling_eval.docling.utils import (
+from docling_eval.converters.conversion import create_docling_converter
+from docling_eval.converters.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,

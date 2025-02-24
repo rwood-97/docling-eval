@@ -37,7 +37,7 @@ from docling_eval.benchmarks.cvat_annotation.utils import (
     rgb_to_hex,
 )
 from docling_eval.benchmarks.utils import get_binhash
-from docling_eval.docling.utils import insert_images
+from docling_eval.converters.utils import insert_images
 
 # Configure logging
 logging.basicConfig(

@@ -13,24 +13,24 @@ from docling_core.types.doc.document import DoclingDocument, PageItem
 from PIL import Image  # as PILImage
 from pydantic import AnyUrl
 
-from docling_eval.docling.constants import HTML_DEFAULT_HEAD
+from docling_eval.visualisation.constants import HTML_DEFAULT_HEAD
 
 
 def docling_version() -> str:
     return version("docling")  # may raise PackageNotFoundError
 
 
-def create_styled_html(body: str) -> str:
+# def create_styled_html(body: str) -> str:
 
-    html_lines = [
-        "<!DOCTYPE html>",
-        "<html>",
-        HTML_DEFAULT_HEAD,
-        "<body>",
-        body,
-        "</body></html>",
-    ]
-    return "".join(html_lines)
+#     html_lines = [
+#         "<!DOCTYPE html>",
+#         "<html>",
+#         HTML_DEFAULT_HEAD,
+#         "<body>",
+#         body,
+#         "</body></html>",
+#     ]
+#     return "".join(html_lines)
 
 
 def get_binary(file_path: Path):
@@ -206,39 +206,39 @@ def save_shard_to_disk(
     return shard_id, [], 0
 
 
-def load_shard_from_disk(parquet_path: Path):
-    """
-    Load Parquet shard into a single Hugging Face dataset.
-    """
-    return Dataset.from_parquet(parquet_path)
+# def load_shard_from_disk(parquet_path: Path):
+#     """
+#     Load Parquet shard into a single Hugging Face dataset.
+#     """
+#     return Dataset.from_parquet(parquet_path)
 
 
-def load_shards_from_disk(dataset_path: Path):
-    """
-    Load all Parquet shards from a directory into a single Hugging Face dataset.
-    """
-    parquet_files = sorted(list(Path(dataset_path).glob("*.parquet")))
-    datasets = [Dataset.from_parquet(str(pfile)) for pfile in parquet_files]
-    return concatenate_datasets(datasets)
+# def load_shards_from_disk(dataset_path: Path):
+#     """
+#     Load all Parquet shards from a directory into a single Hugging Face dataset.
+#     """
+#     parquet_files = sorted(list(Path(dataset_path).glob("*.parquet")))
+#     datasets = [Dataset.from_parquet(str(pfile)) for pfile in parquet_files]
+#     return concatenate_datasets(datasets)
 
 
-def generate_dataset_info(
-    output_dir: Path,
-    features: Features,
-    description: str = "",
-    license: str = "CC-BY 4.0",
-    version="1.0.0",
-):
-    """
-    Generate dataset_info.json manually for a dataset.
-    """
-    dataset_info = DatasetInfo(
-        description=description,
-        features=features,
-        license="CC-BY 4.0",
-        version="1.0.0",
-    )
-    dataset_info.save_to_disk(str(output_dir))
+# def generate_dataset_info(
+#     output_dir: Path,
+#     features: Features,
+#     description: str = "",
+#     license: str = "CC-BY 4.0",
+#     version="1.0.0",
+# ):
+#     """
+#     Generate dataset_info.json manually for a dataset.
+#     """
+#     dataset_info = DatasetInfo(
+#         description=description,
+#         features=features,
+#         license="CC-BY 4.0",
+#         version="1.0.0",
+#     )
+#     dataset_info.save_to_disk(str(output_dir))
 
 
 def crop_bounding_box(page_image: Image.Image, page: PageItem, bbox: BoundingBox):

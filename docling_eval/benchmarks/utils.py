@@ -29,13 +29,13 @@ from docling_core.types.doc.labels import DocItemLabel
 from PIL import Image, ImageDraw, ImageFont
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.docling.constants import (
+from docling_eval.converters.utils import from_pil_to_base64, from_pil_to_base64uri
+from docling_eval.visualisation.constants import (
     HTML_COMPARISON_PAGE,
     HTML_COMPARISON_PAGE_WITH_CLUSTERS,
     HTML_DEFAULT_HEAD_FOR_COMP,
     HTML_INSPECTION,
 )
-from docling_eval.docling.utils import from_pil_to_base64, from_pil_to_base64uri
 
 
 def get_binhash(binary_data: bytes) -> str:

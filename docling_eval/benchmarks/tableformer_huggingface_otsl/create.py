@@ -22,11 +22,11 @@ from docling_eval.benchmarks.utils import (
     convert_html_table_into_docling_tabledata,
     save_comparison_html,
 )
-from docling_eval.docling.models.tableformer.tf_model_prediction import (
+from docling_eval.converters.models.tableformer.tf_model_prediction import (
     PageTokens,
     TableFormerUpdater,
 )
-from docling_eval.docling.utils import (
+from docling_eval.converters.utils import (
     docling_version,
     extract_images,
     from_pil_to_base64uri,

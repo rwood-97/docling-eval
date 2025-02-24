@@ -28,8 +28,8 @@ from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.benchmarks.utils import write_datasets_info
-from docling_eval.docling.conversion import create_image_converter
-from docling_eval.docling.utils import (
+from docling_eval.converters.conversion import create_image_converter
+from docling_eval.converters.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,

@@ -31,7 +31,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from docling_eval.benchmarks.utils import get_input_document
-from docling_eval.docling.utils import crop_bounding_box, map_to_records
+from docling_eval.converters.utils import crop_bounding_box, map_to_records
 
 # Configure logging
 logging.basicConfig(

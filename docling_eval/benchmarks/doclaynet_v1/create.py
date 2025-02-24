@@ -28,11 +28,11 @@ from docling_eval.benchmarks.utils import (
     save_comparison_html_with_clusters,
     write_datasets_info,
 )
-from docling_eval.docling.conversion import (
+from docling_eval.converters.conversion import (
     create_docling_converter,
     create_vlm_converter,
 )
-from docling_eval.docling.utils import (
+from docling_eval.converters.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
