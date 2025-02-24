@@ -308,7 +308,7 @@ def get_overall_bbox(
 
     if len(all_bboxes) == 0:
         return None
-    bbox_instance = BoundingBox.union(all_bboxes)
+    bbox_instance = BoundingBox.enclosing_bbox(all_bboxes)
     return bbox_instance
 
 
