@@ -12,7 +12,11 @@ from docling_core.types.doc.labels import DocItemLabel
 from PIL import Image  # as PILImage
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns, ConverterTypes
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
@@ -368,6 +372,10 @@ def create_omnidocbench_e2e_dataset(
             BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
             BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
+            BenchMarkColumns.MODALITIES: [
+                EvaluationModality.LAYOUT,
+                EvaluationModality.READING_ORDER,
+            ],
         }
         records.append(record)
 
@@ -485,6 +493,7 @@ def create_omnidocbench_tableformer_dataset(
                 BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
                 BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
                 BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
+                BenchMarkColumns.MODALITIES: [EvaluationModality.TABLE_STRUCTURE],
             }
             records.append(record)
 

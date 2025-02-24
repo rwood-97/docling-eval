@@ -26,7 +26,11 @@ from docling_core.types.doc.tokens import TableToken
 from PIL import Image
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.utils import write_datasets_info
 from docling_eval.converters.conversion import create_image_converter
 from docling_eval.converters.utils import (
@@ -511,6 +515,7 @@ def create_funsd_dataset(
             )
 
             record = {
+                BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
                 BenchMarkColumns.DOCLING_VERSION: docling_version(),
                 BenchMarkColumns.DOC_ID: img_path.stem,
                 BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
@@ -518,6 +523,10 @@ def create_funsd_dataset(
                 BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
                 BenchMarkColumns.ORIGINAL: img_bytes,
                 BenchMarkColumns.MIMETYPE: "image/png",
+                BenchMarkColumns.MODALITIES: [
+                    EvaluationModality.LAYOUT,
+                    EvaluationModality.READING_ORDER,
+                ],
             }
             records.append(record)
             count += 1

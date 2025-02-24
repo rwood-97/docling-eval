@@ -21,7 +21,11 @@ from docling_core.types.doc import (
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns, ConverterTypes
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.utils import add_pages_to_true_doc, write_datasets_info
 from docling_eval.converters.conversion import (
     create_docling_converter,
@@ -265,6 +269,10 @@ def create_dlnv1_e2e_dataset(
             BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.ORIGINAL: pdf_stream.getvalue(),
             BenchMarkColumns.MIMETYPE: "image/png",
+            BenchMarkColumns.MODALITIES: [
+                EvaluationModality.LAYOUT,
+                EvaluationModality.READING_ORDER,
+            ],
         }
         pdf_stream.close()
         records.append(record)

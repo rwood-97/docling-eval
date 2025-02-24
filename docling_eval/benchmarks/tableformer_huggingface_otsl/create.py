@@ -17,7 +17,11 @@ from docling_core.types.doc.document import (
 from docling_core.types.doc.labels import DocItemLabel
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.utils import convert_html_table_into_docling_tabledata
 from docling_eval.converters.models.tableformer.tf_model_prediction import (
     PageTokens,
@@ -221,6 +225,7 @@ def create_huggingface_otsl_tableformer_dataset(
                 )
 
             record = {
+                BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
                 BenchMarkColumns.DOCLING_VERSION: docling_version(),
                 BenchMarkColumns.STATUS: str(ConversionStatus.SUCCESS.value),
                 BenchMarkColumns.DOC_ID: str(os.path.basename(filename)),
@@ -232,10 +237,12 @@ def create_huggingface_otsl_tableformer_dataset(
                 BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
                 BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
                 BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
+                BenchMarkColumns.MODALITIES: [EvaluationModality.TABLE_STRUCTURE],
             }
             records.append(record)
         else:
             record = {
+                BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
                 BenchMarkColumns.DOCLING_VERSION: docling_version(),
                 BenchMarkColumns.STATUS: str(ConversionStatus.FAILURE.value),
                 BenchMarkColumns.DOC_ID: str(os.path.basename(filename)),
@@ -247,6 +254,7 @@ def create_huggingface_otsl_tableformer_dataset(
                 BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
                 BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
                 BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
+                BenchMarkColumns.MODALITIES: [EvaluationModality.TABLE_STRUCTURE],
             }
             records.append(record)
 

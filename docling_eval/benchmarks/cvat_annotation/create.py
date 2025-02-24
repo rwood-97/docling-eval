@@ -23,7 +23,11 @@ from docling_parse.pdf_parsers import pdf_parser_v2  # type: ignore[import]
 from PIL import Image  # as PILImage
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns, EvaluationModality
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.cvat_annotation.utils import (
     AnnotatedImage,
     AnnotationOverview,
@@ -979,6 +983,7 @@ def create_layout_dataset_from_annotations(
             )
 
         record = {
+            BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
             BenchMarkColumns.DOCLING_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: str(basename),
