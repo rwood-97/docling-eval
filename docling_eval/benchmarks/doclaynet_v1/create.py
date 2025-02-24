@@ -201,10 +201,6 @@ def create_dlnv1_e2e_dataset(
     ):
         page_hash = doc["metadata"]["page_hash"]
 
-        # # TODO: Debug
-        # if page_hash != "2b49edc9d0a47e4efaaeabf907a8b8b84b747c295dd10a639e2b5265ac258cf5":
-        #     continue
-
         pdf = doc["pdf"]
         pdf_stream = io.BytesIO(pdf)
         pdf_stream.seek(0)
@@ -233,9 +229,6 @@ def create_dlnv1_e2e_dataset(
         ]
         for l, b, c in zip(labels, bboxes, contents):
             update(true_doc, current_list, img, old_size, l, b, c)
-
-        # TODO: Debug
-        # print(f"Create doc_id={page_hash}")
 
         if do_viz:
             save_comparison_html_with_clusters(
