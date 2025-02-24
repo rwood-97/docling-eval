@@ -194,6 +194,12 @@ def create_dlnv1_e2e_dataset(
         ds,
         total=min(len(ds), max_items if max_items > -1 else math.inf),
     ):
+        page_hash = doc["metadata"]["page_hash"]
+
+        # # TODO: Debug
+        # if page_hash != "2b49edc9d0a47e4efaaeabf907a8b8b84b747c295dd10a639e2b5265ac258cf5":
+        #     continue
+
         pdf = doc["pdf"]
         pdf_stream = io.BytesIO(pdf)
         pdf_stream.seek(0)
@@ -205,7 +211,7 @@ def create_dlnv1_e2e_dataset(
 
         pred_doc = conv_results.document
 
-        true_doc = DoclingDocument(name=doc["metadata"]["page_hash"])
+        true_doc = DoclingDocument(name=page_hash)
         true_doc, true_page_images = add_pages_to_true_doc(
             pdf_path=pdf_stream, true_doc=true_doc, image_scale=1.0
         )
@@ -222,6 +228,9 @@ def create_dlnv1_e2e_dataset(
         ]
         for l, b, c in zip(labels, bboxes, contents):
             update(true_doc, current_list, img, old_size, l, b, c)
+
+        # TODO: Debug
+        print(f"Create doc_id={page_hash}")
 
         if do_viz:
             save_comparison_html_with_clusters(
@@ -249,7 +258,7 @@ def create_dlnv1_e2e_dataset(
             BenchMarkColumns.CONVERTER_TYPE: converter_type,
             BenchMarkColumns.DOCLING_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
-            BenchMarkColumns.DOC_ID: doc["metadata"]["page_hash"],
+            BenchMarkColumns.DOC_ID: page_hash,
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
             BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
             BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,

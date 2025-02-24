@@ -471,8 +471,9 @@ def save_comparison_html_with_clusters(
         for idx, (elem, _) in enumerate(doc.iterate_items()):
             if not isinstance(elem, DocItem):
                 continue
-
-            prov = elem.prov[0]  # Assuming that document always has only one page
+            if len(elem.prov) == 0:
+                continue  # Skip elements without provenances
+            prov = elem.prov[0]
 
             if prov.page_no not in true_doc.pages or prov.page_no != 1:
                 logging.error(f"{prov.page_no} not in true_doc.pages -> skipping! ")
@@ -505,7 +506,9 @@ def save_comparison_html_with_clusters(
         for elem, _ in doc.iterate_items():
             if not isinstance(elem, DocItem):
                 continue
-            prov = elem.prov[0]  # Assuming that document always has only one page
+            if len(elem.prov) == 0:
+                continue  # Skip elements without provenances
+            prov = elem.prov[0]
 
             if prov.page_no not in true_doc.pages or prov.page_no != 1:
                 logging.error(f"{prov.page_no} not in true_doc.pages -> skipping! ")
