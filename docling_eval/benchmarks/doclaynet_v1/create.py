@@ -246,6 +246,7 @@ def create_dlnv1_e2e_dataset(
         )
 
         record = {
+            BenchMarkColumns.CONVERTER_TYPE: converter_type,
             BenchMarkColumns.DOCLING_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: doc["metadata"]["page_hash"],

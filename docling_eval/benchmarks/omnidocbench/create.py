@@ -352,6 +352,7 @@ def create_omnidocbench_e2e_dataset(
         )
 
         record = {
+            BenchMarkColumns.CONVERTER_TYPE: converter_type,
             BenchMarkColumns.DOCLING_VERSION: docling_version(),
             BenchMarkColumns.STATUS: "SUCCESS",
             BenchMarkColumns.DOC_ID: str(os.path.basename(jpg_path)),
@@ -469,6 +470,7 @@ def create_omnidocbench_tableformer_dataset(
             )
 
             record = {
+                BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
                 BenchMarkColumns.DOCLING_VERSION: docling_version(),
                 BenchMarkColumns.STATUS: "SUCCESS",
                 BenchMarkColumns.DOC_ID: str(os.path.basename(jpg_path)),
