@@ -5,7 +5,7 @@ import math
 import os
 from pathlib import Path
 
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
@@ -13,7 +13,6 @@ from docling_core.types.doc import (
     DocItemLabel,
     GroupLabel,
     ImageRef,
-    PageItem,
     ProvenanceItem,
     Size,
     TableCell,

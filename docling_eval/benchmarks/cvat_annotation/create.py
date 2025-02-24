@@ -1,54 +1,37 @@
 import argparse
-import copy
 import glob
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Generator, Iterator, List, Optional, Tuple, cast
+from typing import Dict, Iterator, List, Optional, Tuple, cast
 
 import xmltodict  # type: ignore[import]
-from datasets import Dataset, load_dataset
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
-    DocItem,
     DoclingDocument,
     FloatingItem,
     GraphData,
     ImageRef,
     PageItem,
-    PictureItem,
     ProvenanceItem,
     TableData,
     TableItem,
 )
-from docling_core.types.doc.labels import (
-    DocItemLabel,
-    GroupLabel,
-    PictureClassificationLabel,
-    TableCellLabel,
-)
+from docling_core.types.doc.labels import DocItemLabel
 from docling_parse.pdf_parsers import pdf_parser_v2  # type: ignore[import]
 from PIL import Image  # as PILImage
 from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns, EvaluationModality
 from docling_eval.benchmarks.cvat_annotation.utils import (
-    AnnotatedDoc,
     AnnotatedImage,
-    AnnotationBBox,
-    AnnotationLine,
     AnnotationOverview,
     BenchMarkDirs,
-    DocLinkLabel,
-    TableComponentLabel,
-    rgb_to_hex,
 )
 from docling_eval.benchmarks.utils import (
-    draw_clusters_with_reading_order,
     get_binhash,
     save_comparison_html_with_clusters,
-    save_inspection_html,
     write_datasets_info,
 )
 from docling_eval.converters.conversion import create_docling_converter
@@ -58,7 +41,6 @@ from docling_eval.converters.utils import (
     extract_images,
     from_pil_to_base64uri,
     get_binary,
-    insert_images,
     save_shard_to_disk,
 )
 
@@ -602,14 +584,14 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
         img_height = page_image.height
 
         if pred_doc.pages[page_no] is None:
-            logging.error(f"Page item is None, skipping ...")
+            logging.error("Page item is None, skipping ...")
             continue
 
         pred_page_item = pred_doc.pages[page_no]
 
         pred_page_imageref = pred_page_item.image
         if pred_page_imageref is None:
-            logging.error(f"Page ImageRef is None, skipping ...")
+            logging.error("Page ImageRef is None, skipping ...")
             continue
 
         assert pred_page_imageref.size.width == img_width
@@ -644,14 +626,14 @@ def create_true_document(basename: str, annot: dict, desc: AnnotatedImage):
         page_no = 1
 
         if (page_no not in true_doc.pages) or (true_doc.pages[page_no] is None):
-            logging.error(f"Page item is None, skipping ...")
+            logging.error("Page item is None, skipping ...")
             continue
 
         true_page_item = true_doc.pages[page_no]
 
         true_page_imageref = true_page_item.image
         if true_page_imageref is None:
-            logging.error(f"Page ImageRef is None, skipping ...")
+            logging.error("Page ImageRef is None, skipping ...")
             continue
 
         true_page_pilimage = true_page_imageref.pil_image

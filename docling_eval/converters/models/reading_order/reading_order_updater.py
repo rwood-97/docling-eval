@@ -1,5 +1,4 @@
 import copy
-import json
 import logging
 from pathlib import Path
 from typing import Optional
@@ -12,8 +11,6 @@ from docling_core.utils.legacy import (
     doc_item_label_to_legacy_name,
     docling_document_to_legacy,
 )
-
-from docling_eval.benchmarks.utils import get_input_document
 
 _log = logging.getLogger(__name__)
 
@@ -38,7 +35,7 @@ class ReadingOrderUpdater:
         try:
             # TODO: Understand why some documents fail here
             glm_doc = self._nlp_model.apply_on_doc(ds_doc_dict)
-        except RuntimeError as ex:
+        except RuntimeError:
             # print("nlp_model.apply_on_doc()")
             return None
 

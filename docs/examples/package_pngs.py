@@ -7,15 +7,11 @@ from docling.cli.main import OcrEngine
 from docling.datamodel.base_models import ConversionStatus
 from docling_core.types.doc.document import ImageRefMode
 from docling_core.types.doc.labels import DocItemLabel
-from PIL import Image as PILImage
 from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.benchmarks.utils import draw_clusters_with_reading_order
-from docling_eval.converters.conversion import (
-    create_docling_converter,
-    create_image_converter,
-)
+from docling_eval.converters.conversion import create_image_converter
 from docling_eval.converters.utils import (
     docling_version,
     extract_images,

@@ -2,7 +2,6 @@ import glob
 import logging
 import random
 from pathlib import Path
-from typing import List, Optional
 
 import matplotlib.pyplot as plt
 from datasets import Dataset, load_dataset
@@ -236,7 +235,7 @@ class TableEvaluator:
                     pred_nrows=pred_table.data.num_rows,
                 )
                 table_evaluations.append(table_evaluation)
-            except Exception as exc:
+            except Exception:
                 logging.error(
                     f"Table {table_id} from document {doc_id} could not be compared!"
                 )

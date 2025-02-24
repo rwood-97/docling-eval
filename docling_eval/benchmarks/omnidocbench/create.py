@@ -1,4 +1,3 @@
-import argparse
 import glob
 import json
 import logging
@@ -6,7 +5,6 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from bs4 import BeautifulSoup  # type: ignore
 from docling.datamodel.pipeline_options import TableFormerMode
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import DoclingDocument, ImageRef, ProvenanceItem
@@ -265,7 +263,7 @@ def create_omnidocbench_e2e_dataset(
         converter = create_vlm_converter()
 
     # load the groundtruth
-    with open(omnidocbench_dir / f"OmniDocBench.json", "r") as fr:
+    with open(omnidocbench_dir / "OmniDocBench.json", "r") as fr:
         gt = json.load(fr)
 
     gt = update_gt_into_map(gt)
@@ -290,7 +288,7 @@ def create_omnidocbench_e2e_dataset(
         pdf_path = Path(page_tuple[1])
 
         # logging.info(f"file: {pdf_path}")
-        if not os.path.basename(jpg_path) in gt:
+        if os.path.basename(jpg_path) not in gt:
             logging.error(f"did not find ground-truth for {os.path.basename(jpg_path)}")
             continue
 
@@ -395,7 +393,7 @@ def create_omnidocbench_tableformer_dataset(
     tf_updater = TableFormerUpdater(mode, artifacts_path=artifacts_path)
 
     # load the groundtruth
-    with open(omnidocbench_dir / f"OmniDocBench.json", "r") as fr:
+    with open(omnidocbench_dir / "OmniDocBench.json", "r") as fr:
         gt = json.load(fr)
 
     gt = update_gt_into_map(gt)
@@ -418,7 +416,7 @@ def create_omnidocbench_tableformer_dataset(
         pdf_path = Path(page_tuple[1])
 
         # logging.info(f"file: {pdf_path}")
-        if not os.path.basename(jpg_path) in gt:
+        if os.path.basename(jpg_path) not in gt:
             logging.error(f"did not find ground-truth for {os.path.basename(jpg_path)}")
             continue
 

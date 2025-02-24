@@ -6,7 +6,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-import pypdfium2 as pdfium
 from bs4 import BeautifulSoup  # type: ignore
 from datasets import Features
 from datasets import Image as Features_Image

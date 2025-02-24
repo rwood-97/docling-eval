@@ -1,4 +1,3 @@
-import argparse
 import json
 import logging
 import os
@@ -13,7 +12,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-from bs4 import BeautifulSoup  # type: ignore
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
     DoclingDocument,
@@ -252,7 +250,7 @@ def create_dpbench_e2e_dataset(
         converter = create_vlm_converter()
 
     # load the groundtruth
-    with open(dpbench_dir / f"dataset/reference.json", "r") as fr:
+    with open(dpbench_dir / "dataset/reference.json", "r") as fr:
         gt = json.load(fr)
 
     viz_dir = output_dir / "vizualisations"
@@ -367,7 +365,7 @@ def create_dpbench_tableformer_dataset(
     tf_updater = TableFormerUpdater(mode, artifacts_path=artifacts_path)
 
     # load the groundtruth
-    with open(dpbench_dir / f"dataset/reference.json", "r") as fr:
+    with open(dpbench_dir / "dataset/reference.json", "r") as fr:
         gt = json.load(fr)
 
     viz_dir = output_dir / "vizualisations"

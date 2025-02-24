@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional, Set, Tuple
+from typing import List, Optional, Set
 
 import evaluate
 import nltk

@@ -7,13 +7,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd  # import-untyped
-from datasets import Dataset, DatasetInfo, Features, concatenate_datasets
+from datasets import Dataset, Features
 from docling_core.types.doc.base import BoundingBox
 from docling_core.types.doc.document import DoclingDocument, PageItem
 from PIL import Image  # as PILImage
 from pydantic import AnyUrl
-
-from docling_eval.visualisation.constants import HTML_DEFAULT_HEAD
 
 
 def docling_version() -> str:

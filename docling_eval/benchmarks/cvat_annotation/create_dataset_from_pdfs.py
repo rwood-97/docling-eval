@@ -1,30 +1,18 @@
 import argparse
-import copy
 import glob
 import json
-import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 from datasets import Features
 from datasets import Image as Features_Image
 from datasets import Sequence, Value
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.utils import (
-    add_pages_to_true_doc,
-    convert_html_table_into_docling_tabledata,
-    save_comparison_html,
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
 from docling_eval.converters.conversion import create_docling_converter
 from docling_eval.converters.utils import (
-    crop_bounding_box,
     docling_version,
     extract_images,
-    from_pil_to_base64uri,
     get_binary,
     save_shard_to_disk,
 )
