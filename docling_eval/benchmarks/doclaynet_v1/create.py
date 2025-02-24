@@ -39,6 +39,14 @@ from docling_eval.docling.utils import (
     save_shard_to_disk,
 )
 
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+log = logging.getLogger(__name__)
+
+
 TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,
     DocItemLabel.DOCUMENT_INDEX,
@@ -128,7 +136,7 @@ def update(true_doc, current_list, img, old_size, label, box, content):
                 uri=uri,
             )
         except Exception as e:
-            print(
+            log.error(
                 "Warning: failed to resolve image uri for content {} of doc {}. Caught exception is {}:{}. Setting null ImageRef".format(
                     str(content), str(true_doc.name), type(e).__name__, e
                 )
@@ -172,8 +180,6 @@ def create_dlnv1_e2e_dataset(
     do_viz: bool = False,
     max_items: int = -1,  # If -1 take the whole split
 ):
-    print(f"Downloading split: {split}")
-
     ds = load_dataset(name, split=split)
 
     # Decide which converter type to initialize
@@ -233,7 +239,7 @@ def create_dlnv1_e2e_dataset(
             update(true_doc, current_list, img, old_size, l, b, c)
 
         # TODO: Debug
-        print(f"Create doc_id={page_hash}")
+        # print(f"Create doc_id={page_hash}")
 
         if do_viz:
             save_comparison_html_with_clusters(
