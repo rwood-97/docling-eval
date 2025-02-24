@@ -515,6 +515,8 @@ def create_dlnv2_e2e_dataset(
             shard_id = count // SHARD_SIZE - 1
             save_shard_to_disk(items=records, dataset_path=test_dir, shard_id=shard_id)
             records = []
+        if count > max_items:
+            break
 
     shard_id = count // SHARD_SIZE
     save_shard_to_disk(items=records, dataset_path=test_dir, shard_id=shard_id)
