@@ -423,7 +423,7 @@ def create_dlnv2_e2e_dataset(
     count = 0
     for doc in tqdm(
         ds[split],
-        total=min(len(ds), max_items),
+        total=min(len(ds[split]), max_items),
     ):
         img = doc["image"]
         with io.BytesIO() as img_byte_stream:
