@@ -18,10 +18,7 @@ from docling_core.types.doc.labels import DocItemLabel
 from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.utils import (
-    convert_html_table_into_docling_tabledata,
-    save_comparison_html,
-)
+from docling_eval.benchmarks.utils import convert_html_table_into_docling_tabledata
 from docling_eval.converters.models.tableformer.tf_model_prediction import (
     PageTokens,
     TableFormerUpdater,
@@ -32,6 +29,7 @@ from docling_eval.converters.utils import (
     from_pil_to_base64uri,
     save_shard_to_disk,
 )
+from docling_eval.visualisation.visualisations import save_comparison_html
 
 HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,

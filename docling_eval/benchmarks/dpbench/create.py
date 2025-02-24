@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from docling.datamodel.pipeline_options import TableFormerMode
-from tqdm import tqdm  # type: ignore
+from tqdm import tqdm
+
+from docling_eval.visualisation.visualisations import (  # type: ignore
+    save_comparison_html,
+    save_comparison_html_with_clusters,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -27,8 +32,6 @@ from docling_eval.benchmarks.constants import BenchMarkColumns, ConverterTypes
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
-    save_comparison_html,
-    save_comparison_html_with_clusters,
     write_datasets_info,
 )
 from docling_eval.converters.conversion import (

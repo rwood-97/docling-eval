@@ -29,11 +29,7 @@ from docling_eval.benchmarks.cvat_annotation.utils import (
     AnnotationOverview,
     BenchMarkDirs,
 )
-from docling_eval.benchmarks.utils import (
-    get_binhash,
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
+from docling_eval.benchmarks.utils import get_binhash, write_datasets_info
 from docling_eval.converters.conversion import create_docling_converter
 from docling_eval.converters.utils import (
     crop_bounding_box,
@@ -43,6 +39,7 @@ from docling_eval.converters.utils import (
     get_binary,
     save_shard_to_disk,
 )
+from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 
 # from pydantic import
 

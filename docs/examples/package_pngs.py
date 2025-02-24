@@ -10,7 +10,6 @@ from docling_core.types.doc.labels import DocItemLabel
 from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.utils import draw_clusters_with_reading_order
 from docling_eval.converters.conversion import create_image_converter
 from docling_eval.converters.utils import (
     docling_version,
@@ -20,6 +19,7 @@ from docling_eval.converters.utils import (
     save_shard_to_disk,
 )
 from docling_eval.visualisation.constants import HTML_INSPECTION
+from docling_eval.visualisation.visualisations import draw_clusters_with_reading_order
 
 # Configure logging
 logging.basicConfig(

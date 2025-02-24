@@ -16,8 +16,6 @@ from docling_eval.benchmarks.constants import BenchMarkColumns, ConverterTypes
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
-    save_comparison_html,
-    save_comparison_html_with_clusters,
     write_datasets_info,
 )
 from docling_eval.converters.conversion import (
@@ -34,6 +32,10 @@ from docling_eval.converters.utils import (
     from_pil_to_base64uri,
     get_binary,
     save_shard_to_disk,
+)
+from docling_eval.visualisation.visualisations import (
+    save_comparison_html,
+    save_comparison_html_with_clusters,
 )
 
 # Configure logging

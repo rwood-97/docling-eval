@@ -22,11 +22,7 @@ from docling_core.types.io import DocumentStream
 from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns, ConverterTypes
-from docling_eval.benchmarks.utils import (
-    add_pages_to_true_doc,
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
+from docling_eval.benchmarks.utils import add_pages_to_true_doc, write_datasets_info
 from docling_eval.converters.conversion import (
     create_docling_converter,
     create_vlm_converter,
@@ -38,6 +34,7 @@ from docling_eval.converters.utils import (
     from_pil_to_base64uri,
     save_shard_to_disk,
 )
+from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 
 # Configure logging
 logging.basicConfig(
