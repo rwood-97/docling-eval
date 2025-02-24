@@ -28,7 +28,7 @@ warnings.filterwarnings(action="ignore", category=FutureWarning, module="easyocr
 logging.getLogger("docling").setLevel(logging.WARNING)
 
 
-def create_converter(
+def create_docling_converter(
     page_image_scale: float = 2.0,
     do_ocr: bool = False,
     ocr_lang: List[str] = ["en"],

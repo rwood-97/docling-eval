@@ -19,7 +19,7 @@ from docling_eval.benchmarks.utils import (
     save_comparison_html_with_clusters,
     write_datasets_info,
 )
-from docling_eval.docling.conversion import create_converter
+from docling_eval.docling.conversion import create_docling_converter
 from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
@@ -113,7 +113,7 @@ def main():
             os.makedirs(_)
 
     # Create Converter
-    doc_converter = create_converter(
+    doc_converter = create_docling_converter(
         page_image_scale=image_scale, artifacts_path=artifacts_path
     )
 

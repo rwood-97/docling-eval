@@ -51,7 +51,7 @@ from docling_eval.benchmarks.utils import (
     save_inspection_html,
     write_datasets_info,
 )
-from docling_eval.docling.conversion import create_converter
+from docling_eval.docling.conversion import create_docling_converter
 from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
@@ -943,7 +943,7 @@ def create_layout_dataset_from_annotations(
 
     # Create Converter
     image_scale = 2.0
-    doc_converter = create_converter(page_image_scale=image_scale)
+    doc_converter = create_docling_converter(page_image_scale=image_scale)
 
     records = []
     for basename, desc, true_doc in tqdm(

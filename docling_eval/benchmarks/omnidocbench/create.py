@@ -22,7 +22,10 @@ from docling_eval.benchmarks.utils import (
     save_comparison_html_with_clusters,
     write_datasets_info,
 )
-from docling_eval.docling.conversion import create_converter, create_vlm_converter
+from docling_eval.docling.conversion import (
+    create_docling_converter,
+    create_vlm_converter,
+)
 from docling_eval.docling.models.tableformer.tf_model_prediction import (
     TableFormerUpdater,
 )
@@ -257,7 +260,7 @@ def create_omnidocbench_e2e_dataset(
 
     # Create Converter
     if converter_type == ConverterTypes.DOCLING:
-        converter = create_converter(page_image_scale=1.0)
+        converter = create_docling_converter(page_image_scale=1.0)
     else:
         converter = create_vlm_converter()
 
