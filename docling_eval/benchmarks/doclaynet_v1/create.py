@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import math
 import os
 from pathlib import Path
@@ -38,7 +39,6 @@ from docling_eval.docling.utils import (
     from_pil_to_base64uri,
     save_shard_to_disk,
 )
-
 
 # Configure logging
 logging.basicConfig(
