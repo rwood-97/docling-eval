@@ -10,14 +10,14 @@ from docling_core.types.doc.labels import DocItemLabel
 from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.converters.conversion import create_image_converter
-from docling_eval.converters.utils import (
+from docling_eval.benchmarks.utils import (
     docling_version,
     extract_images,
     from_pil_to_base64,
     get_binary,
     save_shard_to_disk,
 )
+from docling_eval.converters.conversion import create_image_docling_converter
 from docling_eval.visualisation.constants import HTML_INSPECTION
 from docling_eval.visualisation.visualisations import draw_clusters_with_reading_order
 
@@ -139,7 +139,7 @@ def main():
     os.makedirs(viz_dir, exist_ok=True)
 
     # Create Converter
-    doc_converter = create_image_converter(
+    doc_converter = create_image_docling_converter(
         do_ocr=True, ocr_lang=["en"], ocr_engine=OcrEngine.OCRMAC
     )
 
@@ -155,7 +155,7 @@ def main():
             pred_doc = conv_results.document
         except:
             record = {
-                BenchMarkColumns.DOCLING_VERSION: docling_version(),
+                BenchMarkColumns.CONVERTER_VERSION: docling_version(),
                 BenchMarkColumns.STATUS: str(ConversionStatus.FAILURE.value),
                 BenchMarkColumns.DOC_ID: str(os.path.basename(img_file)),
                 BenchMarkColumns.DOC_PATH: str(img_file),
@@ -218,7 +218,7 @@ def main():
         )
 
         record = {
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status.value),
             BenchMarkColumns.DOC_ID: str(os.path.basename(img_file)),
             BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),

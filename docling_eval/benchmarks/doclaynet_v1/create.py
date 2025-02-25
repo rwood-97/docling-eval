@@ -26,17 +26,18 @@ from docling_eval.benchmarks.constants import (
     ConverterTypes,
     EvaluationModality,
 )
-from docling_eval.benchmarks.utils import add_pages_to_true_doc, write_datasets_info
-from docling_eval.converters.conversion import (
-    create_docling_converter,
-    create_vlm_converter,
-)
-from docling_eval.converters.utils import (
+from docling_eval.benchmarks.utils import (
+    add_pages_to_true_doc,
     crop_bounding_box,
     docling_version,
     extract_images,
     from_pil_to_base64uri,
     save_shard_to_disk,
+    write_datasets_info,
+)
+from docling_eval.converters.conversion import (
+    create_pdf_docling_converter,
+    create_smol_docling_converter,
 )
 from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 
@@ -184,9 +185,9 @@ def create_dlnv1_e2e_dataset(
 
     # Decide which converter type to initialize
     if converter_type == ConverterTypes.DOCLING:
-        converter = create_docling_converter(page_image_scale=1.0)
+        converter = create_pdf_docling_converter(page_image_scale=1.0)
     else:
-        converter = create_vlm_converter()
+        converter = create_smol_docling_converter()
 
     if do_viz:
         viz_dir = output_dir / "visualizations"
@@ -258,7 +259,7 @@ def create_dlnv1_e2e_dataset(
 
         record = {
             BenchMarkColumns.CONVERTER_TYPE: converter_type,
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: page_hash,
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),

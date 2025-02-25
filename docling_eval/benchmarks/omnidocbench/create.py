@@ -20,22 +20,20 @@ from docling_eval.benchmarks.constants import (
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
-    write_datasets_info,
-)
-from docling_eval.converters.conversion import (
-    create_docling_converter,
-    create_vlm_converter,
-)
-from docling_eval.converters.models.tableformer.tf_model_prediction import (
-    TableFormerUpdater,
-)
-from docling_eval.converters.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
     from_pil_to_base64uri,
     get_binary,
     save_shard_to_disk,
+    write_datasets_info,
+)
+from docling_eval.converters.conversion import (
+    create_pdf_docling_converter,
+    create_smol_docling_converter,
+)
+from docling_eval.converters.models.tableformer.tf_model_prediction import (
+    TableFormerUpdater,
 )
 from docling_eval.visualisation.visualisations import (
     save_comparison_html,
@@ -264,9 +262,9 @@ def create_omnidocbench_e2e_dataset(
 
     # Create Converter
     if converter_type == ConverterTypes.DOCLING:
-        converter = create_docling_converter(page_image_scale=1.0)
+        converter = create_pdf_docling_converter(page_image_scale=1.0)
     else:
-        converter = create_vlm_converter()
+        converter = create_smol_docling_converter()
 
     # load the groundtruth
     with open(omnidocbench_dir / "OmniDocBench.json", "r") as fr:
@@ -360,7 +358,7 @@ def create_omnidocbench_e2e_dataset(
 
         record = {
             BenchMarkColumns.CONVERTER_TYPE: converter_type,
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: "SUCCESS",
             BenchMarkColumns.DOC_ID: str(os.path.basename(jpg_path)),
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
@@ -482,7 +480,7 @@ def create_omnidocbench_tableformer_dataset(
 
             record = {
                 BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
-                BenchMarkColumns.DOCLING_VERSION: docling_version(),
+                BenchMarkColumns.CONVERTER_VERSION: docling_version(),
                 BenchMarkColumns.STATUS: "SUCCESS",
                 BenchMarkColumns.DOC_ID: str(os.path.basename(jpg_path)),
                 BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),

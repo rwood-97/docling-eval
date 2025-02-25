@@ -9,13 +9,13 @@ from datasets import Image as Features_Image
 from datasets import Sequence, Value
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.converters.conversion import create_docling_converter
-from docling_eval.converters.utils import (
+from docling_eval.benchmarks.utils import (
     docling_version,
     extract_images,
     get_binary,
     save_shard_to_disk,
 )
+from docling_eval.converters.conversion import create_pdf_docling_converter
 
 
 def parse_args():
@@ -49,7 +49,7 @@ def _write_datasets_info(
 ):
     features = Features(
         {
-            BenchMarkColumns.DOCLING_VERSION: Value("string"),
+            BenchMarkColumns.CONVERTER_VERSION: Value("string"),
             BenchMarkColumns.STATUS: Value("string"),
             BenchMarkColumns.DOC_ID: Value("string"),
             # BenchMarkColumns.DOC_PATH: Value("string"),
@@ -101,7 +101,7 @@ def main():
             os.makedirs(_)
 
     # Create Converter
-    doc_converter = create_docling_converter(
+    doc_converter = create_pdf_docling_converter(
         page_image_scale=image_scale, artifacts_path=artifacts_path
     )
 
@@ -122,7 +122,7 @@ def main():
         )
 
         record = {
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: str(os.path.basename(pdf_path)),
             BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),

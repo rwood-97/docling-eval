@@ -33,16 +33,17 @@ from docling_eval.benchmarks.cvat_annotation.utils import (
     AnnotationOverview,
     BenchMarkDirs,
 )
-from docling_eval.benchmarks.utils import get_binhash, write_datasets_info
-from docling_eval.converters.conversion import create_docling_converter
-from docling_eval.converters.utils import (
+from docling_eval.benchmarks.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
     from_pil_to_base64uri,
     get_binary,
+    get_binhash,
     save_shard_to_disk,
+    write_datasets_info,
 )
+from docling_eval.converters.conversion import create_pdf_docling_converter
 from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 
 # from pydantic import
@@ -926,7 +927,7 @@ def create_layout_dataset_from_annotations(
 
     # Create Converter
     image_scale = 2.0
-    doc_converter = create_docling_converter(page_image_scale=image_scale)
+    doc_converter = create_pdf_docling_converter(page_image_scale=image_scale)
 
     records = []
     for basename, desc, true_doc in tqdm(
@@ -984,7 +985,7 @@ def create_layout_dataset_from_annotations(
 
         record = {
             BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: str(basename),
             BenchMarkColumns.DOC_PATH: str(basename),

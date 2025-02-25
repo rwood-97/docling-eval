@@ -25,8 +25,7 @@ from docling_parse.pdf_parsers import pdf_parser_v2
 from PIL import Image
 from pydantic import BaseModel
 
-from docling_eval.benchmarks.utils import get_input_document
-from docling_eval.converters.utils import map_to_records
+from docling_eval.benchmarks.utils import get_input_document, map_to_records
 
 # Configure logging
 logging.basicConfig(

@@ -28,7 +28,7 @@ warnings.filterwarnings(action="ignore", category=FutureWarning, module="easyocr
 logging.getLogger("docling").setLevel(logging.WARNING)
 
 
-def create_docling_converter(
+def create_pdf_docling_converter(
     page_image_scale: float = 2.0,
     do_ocr: bool = False,
     ocr_lang: List[str] = ["en"],
@@ -81,7 +81,7 @@ def create_docling_converter(
     return doc_converter
 
 
-def create_image_converter(
+def create_image_docling_converter(
     do_ocr: bool = False,
     ocr_lang: List[str] = ["en"],
     ocr_engine: OcrEngine = OcrEngine.EASYOCR,
@@ -131,7 +131,7 @@ def create_image_converter(
     return doc_converter
 
 
-def create_vlm_converter(
+def create_smol_docling_converter(
     timings: bool = True,
 ):
     vlm_options = SmolDoclingOptions()
