@@ -3,14 +3,14 @@
 Create and evaluate DP-Bench using a single command:
 
 ```sh
-poetry run python ./docs/examples/benchmark_dpbench.py
+poetry run python docs/examples/benchmark_dpbench.py
 ```
 
-This command downloads the DP-Bench dataset, runs the evaluations and produces the following files:
+This command downloads the DP-Bench dataset, runs the evaluations and produces the following files
 
 ## Layout Evaluation
 
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -41,7 +41,7 @@ poetry run evaluate \
 
 ## TableFormer Evaluation
 
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -78,7 +78,7 @@ poetry run evaluate \
 
 ## Reading order Evaluation
 
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -113,7 +113,7 @@ poetry run evaluate \
 
 ## Markdown text Evaluation
 
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
