@@ -11,11 +11,11 @@ from docling.datamodel.pipeline_options import (
     OcrOptions,
     PdfPipelineOptions,
     RapidOcrOptions,
-    SmolDoclingOptions,
     TableFormerMode,
     TesseractCliOcrOptions,
     TesseractOcrOptions,
     VlmPipelineOptions,
+    smoldocling_vlm_conversion_options,
 )
 from docling.datamodel.settings import settings
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -134,12 +134,10 @@ def create_image_docling_converter(
 def create_smol_docling_converter(
     timings: bool = True,
 ):
-    vlm_options = SmolDoclingOptions()
-    pipeline_options = VlmPipelineOptions(
-        generate_page_images=True,
-        force_backend_text=False,
-        vlm_options=vlm_options,
-    )
+    pipeline_options = VlmPipelineOptions()
+    pipeline_options.generate_page_images = True
+    pipeline_options.accelerator_options.cuda_use_flash_attention2 = True
+    pipeline_options.vlm_options = smoldocling_vlm_conversion_options
 
     converter = DocumentConverter(
         format_options={
