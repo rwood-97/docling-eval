@@ -890,8 +890,8 @@ vlm = ["transformers (>=4.42.0,<4.43.0)", "transformers (>=4.46.0,<5.0.0)"]
 [package.source]
 type = "git"
 url = "https://github.com/DS4SD/docling.git"
-reference = "mly/smol-docling-integration"
-resolved_reference = "1c75b52f850e19c34ea8a8e0c20021779d1b605e"
+reference = "cau/vlm-pipeline-generalizations"
+resolved_reference = "10f64a948cee65c3e168f0df5cd6edf1fcc2b417"
 
 [[package]]
 name = "docling-core"
@@ -6402,4 +6402,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "e9f12a7628ff0b035f03c036594641d91086e1493db6117ce8c44d81b92e313a"
+content-hash = "207f5708095a91f518a5db86d4c20b24d3895fc4cc4a0a4886e39130b2c87a35"

@@ -32,8 +32,8 @@ datasets = "^3.2.0"
 apted = "^1.0.3"
 Distance = "^0.1.3"
 # docling = "^2.24.0"
-# docling =  { git = "https://github.com/DS4SD/docling.git", rev = "dc3a388aa2fe73e6dab8f7edd0c0ee7c6f692244" }
-docling =  { git = "https://github.com/DS4SD/docling.git", branch = "mly/smol-docling-integration" }
+# docling =  { git = "https://github.com/DS4SD/docling.git", branch = "mly/smol-docling-integration" }
+docling =  { git = "https://github.com/DS4SD/docling.git", branch = "cau/vlm-pipeline-generalizations" }
 matplotlib = "^3.10.0"
 torch = "^2.5.1"
 torchmetrics = "^1.6.0"
