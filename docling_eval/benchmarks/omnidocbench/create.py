@@ -324,17 +324,6 @@ def create_omnidocbench_e2e_dataset(
         )
 
         if do_viz:
-            """
-            save_comparison_html(
-                filename=viz_dir / f"{os.path.basename(pdf_path)}-comp.html",
-                true_doc=true_doc,
-                pred_doc=pred_doc,
-                page_image=true_page_images[0],
-                true_labels=TRUE_HTML_EXPORT_LABELS,
-                pred_labels=PRED_HTML_EXPORT_LABELS,
-            )
-            """
-
             save_comparison_html_with_clusters(
                 filename=viz_dir / f"{os.path.basename(pdf_path)}-clusters.html",
                 true_doc=true_doc,
@@ -372,7 +361,9 @@ def create_omnidocbench_e2e_dataset(
             BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
             BenchMarkColumns.MODALITIES: [
                 EvaluationModality.LAYOUT,
+                EvaluationModality.MARKDOWN_TEXT,
                 EvaluationModality.READING_ORDER,
+                EvaluationModality.TABLE_STRUCTURE,
             ],
         }
         records.append(record)

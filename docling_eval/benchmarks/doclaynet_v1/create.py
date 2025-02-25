@@ -272,7 +272,7 @@ def create_dlnv1_e2e_dataset(
             BenchMarkColumns.MIMETYPE: "image/png",
             BenchMarkColumns.MODALITIES: [
                 EvaluationModality.LAYOUT,
-                EvaluationModality.READING_ORDER,
+                EvaluationModality.MARKDOWN_TEXT,
             ],
         }
         pdf_stream.close()

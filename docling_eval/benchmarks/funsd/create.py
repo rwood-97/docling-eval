@@ -523,10 +523,7 @@ def create_funsd_dataset(
                 BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
                 BenchMarkColumns.ORIGINAL: img_bytes,
                 BenchMarkColumns.MIMETYPE: "image/png",
-                BenchMarkColumns.MODALITIES: [
-                    EvaluationModality.LAYOUT,
-                    EvaluationModality.READING_ORDER,
-                ],
+                BenchMarkColumns.MODALITIES: [],
             }
             records.append(record)
             count += 1
