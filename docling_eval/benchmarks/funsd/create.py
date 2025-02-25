@@ -26,16 +26,20 @@ from docling_core.types.doc.tokens import TableToken
 from PIL import Image
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.utils import write_datasets_info
-from docling_eval.docling.conversion import create_image_converter
-from docling_eval.docling.utils import (
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
+from docling_eval.benchmarks.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
     from_pil_to_base64uri,
     save_shard_to_disk,
+    write_datasets_info,
 )
+from docling_eval.converters.conversion import create_image_docling_converter
 
 SHARD_SIZE = 1000
 
@@ -443,7 +447,7 @@ def create_funsd_dataset(
     splits: List[str] = ["train", "test"],
     max_items: int = -1,
 ):
-    doc_converter = create_image_converter(do_ocr=True, ocr_lang=["en"])
+    doc_converter = create_image_docling_converter(do_ocr=True, ocr_lang=["en"])
 
     num_train_rows = 0
     num_test_rows = 0
@@ -511,13 +515,18 @@ def create_funsd_dataset(
             )
 
             record = {
-                BenchMarkColumns.DOCLING_VERSION: docling_version(),
+                BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
+                BenchMarkColumns.CONVERTER_VERSION: docling_version(),
                 BenchMarkColumns.DOC_ID: img_path.stem,
                 BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
                 BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
                 BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
                 BenchMarkColumns.ORIGINAL: img_bytes,
                 BenchMarkColumns.MIMETYPE: "image/png",
+                BenchMarkColumns.MODALITIES: [
+                    EvaluationModality.LAYOUT,
+                    EvaluationModality.READING_ORDER,
+                ],
             }
             records.append(record)
             count += 1

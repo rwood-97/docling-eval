@@ -6,13 +6,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from docling_core.types.doc.base import BoundingBox, CoordOrigin, ImageRefMode, Size
-from docling_core.types.doc.labels import (
-    DocItemLabel,
-    GroupLabel,
-    PictureClassificationLabel,
-    TableCellLabel,
-)
+from docling_core.types.doc.base import BoundingBox
+from docling_core.types.doc.labels import DocItemLabel
 from pydantic import BaseModel
 
 

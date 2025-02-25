@@ -1,21 +1,18 @@
 import copy
 import logging
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from docling.datamodel.base_models import Cluster, LayoutPrediction, Page, Table
-from docling.datamodel.document import ConversionResult, InputDocument
+from docling.datamodel.document import ConversionResult
 from docling.datamodel.pipeline_options import (
     AcceleratorDevice,
     AcceleratorOptions,
-    PdfPipelineOptions,
     TableFormerMode,
     TableStructureOptions,
 )
 from docling.models.table_structure_model import TableStructureModel
-from docling.pipeline.standard_pdf_pipeline import StandardPdfPipeline
 from docling_core.types.doc import DocItemLabel
 from docling_core.types.doc.base import BoundingBox
 from docling_core.types.doc.document import (
@@ -24,14 +21,11 @@ from docling_core.types.doc.document import (
     TableData,
     TableItem,
 )
-from docling_ibm_models.tableformer.data_management.tf_predictor import TFPredictor
 from docling_parse.pdf_parsers import pdf_parser_v2
-from huggingface_hub import snapshot_download
 from PIL import Image
 from pydantic import BaseModel
 
-from docling_eval.benchmarks.utils import get_input_document
-from docling_eval.docling.utils import crop_bounding_box, map_to_records
+from docling_eval.benchmarks.utils import get_input_document, map_to_records
 
 # Configure logging
 logging.basicConfig(

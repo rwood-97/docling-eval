@@ -5,7 +5,7 @@ import math
 import os
 from pathlib import Path
 
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
@@ -13,7 +13,6 @@ from docling_core.types.doc import (
     DocItemLabel,
     GroupLabel,
     ImageRef,
-    PageItem,
     ProvenanceItem,
     Size,
     TableCell,
@@ -22,23 +21,25 @@ from docling_core.types.doc import (
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns, ConverterTypes
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
-from docling_eval.docling.conversion import (
-    create_docling_converter,
-    create_vlm_converter,
-)
-from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
     from_pil_to_base64uri,
     save_shard_to_disk,
+    write_datasets_info,
 )
+from docling_eval.converters.conversion import (
+    create_pdf_docling_converter,
+    create_smol_docling_converter,
+)
+from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 
 # Configure logging
 logging.basicConfig(
@@ -184,9 +185,9 @@ def create_dlnv1_e2e_dataset(
 
     # Decide which converter type to initialize
     if converter_type == ConverterTypes.DOCLING:
-        converter = create_docling_converter(page_image_scale=1.0)
+        converter = create_pdf_docling_converter(page_image_scale=1.0)
     else:
-        converter = create_vlm_converter()
+        converter = create_smol_docling_converter()
 
     if do_viz:
         viz_dir = output_dir / "visualizations"
@@ -204,10 +205,6 @@ def create_dlnv1_e2e_dataset(
         total=min(len(ds), max_items if max_items > -1 else math.inf),
     ):
         page_hash = doc["metadata"]["page_hash"]
-
-        # # TODO: Debug
-        # if page_hash != "2b49edc9d0a47e4efaaeabf907a8b8b84b747c295dd10a639e2b5265ac258cf5":
-        #     continue
 
         pdf = doc["pdf"]
         pdf_stream = io.BytesIO(pdf)
@@ -238,9 +235,6 @@ def create_dlnv1_e2e_dataset(
         for l, b, c in zip(labels, bboxes, contents):
             update(true_doc, current_list, img, old_size, l, b, c)
 
-        # TODO: Debug
-        # print(f"Create doc_id={page_hash}")
-
         if do_viz:
             save_comparison_html_with_clusters(
                 filename=viz_dir / f"{true_doc.name}-clusters.html",
@@ -265,7 +259,7 @@ def create_dlnv1_e2e_dataset(
 
         record = {
             BenchMarkColumns.CONVERTER_TYPE: converter_type,
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: page_hash,
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
@@ -276,6 +270,10 @@ def create_dlnv1_e2e_dataset(
             BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.ORIGINAL: pdf_stream.getvalue(),
             BenchMarkColumns.MIMETYPE: "image/png",
+            BenchMarkColumns.MODALITIES: [
+                EvaluationModality.LAYOUT,
+                EvaluationModality.READING_ORDER,
+            ],
         }
         pdf_stream.close()
         records.append(record)
