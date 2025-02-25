@@ -526,7 +526,7 @@ def create_dlnv2_e2e_dataset(
             BenchMarkColumns.MIMETYPE: "image/png",
             BenchMarkColumns.MODALITIES: [
                 EvaluationModality.LAYOUT,
-                EvaluationModality.READING_ORDER,
+                EvaluationModality.MARKDOWN_TEXT,
             ],
         }
         records.append(record)
