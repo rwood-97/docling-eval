@@ -49,7 +49,7 @@ docling-eval % poetry run evaluate --help
 - [DocLayNetV1 Benchmarks](docs/DocLayNetv1_benchmarks.md): Text and layout evaluation on the DocLayNet v1.2 dataset.
 - [FinTabnet Benchmarks](docs/FinTabNet_benchmarks.md): Table structure evaluation on the FinTabNet dataset.
 - [PubTabNet benchmarks](docs/PubTabNet_benchmarks.md): Table structure evaluation on the PubTabNet dataset.
-- [Pub1M benchmarks](docs/Pub1M_benchmarks.md): Table structure evaluation on the Pub1M dataset.
+- [Pub1M benchmarks](docs/P1M_benchmarks.md): Table structure evaluation on the Pub1M dataset.
 
 
 ## Contributing
