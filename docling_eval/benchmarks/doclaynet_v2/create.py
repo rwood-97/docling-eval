@@ -1,6 +1,7 @@
 import io
 import itertools
 import json
+import logging
 import os
 import re
 from pathlib import Path
@@ -26,24 +27,34 @@ from docling_core.types.doc.tokens import TableToken
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.doclaynet_v1.create import (
     PRED_HTML_EXPORT_LABELS,
     TRUE_HTML_EXPORT_LABELS,
 )
 from docling_eval.benchmarks.utils import (
     classify_cells,
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
-from docling_eval.docling.conversion import create_converter
-from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
     from_pil_to_base64uri,
     save_shard_to_disk,
+    write_datasets_info,
 )
+from docling_eval.converters.conversion import (
+    create_pdf_docling_converter,
+    create_smol_docling_converter,
+)
+from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+log = logging.getLogger(__name__)
 
 SHARD_SIZE = 1000
 
@@ -205,8 +216,8 @@ def update(true_doc, current_list, img, label, segment, bb):
                 uri=uri,
             )
         except Exception as e:
-            print(
-                "Warning: failed to resolve image uri for segment {} of doc {}. Caught exception is {}:{}. Setting null ImageRef".format(
+            log.warning(
+                "Failed to resolve image uri for segment {} of doc {}. Caught exception is {}:{}. Setting null ImageRef".format(
                     str(segment), str(true_doc.name), type(e).__name__, e
                 )
             )
@@ -400,14 +411,18 @@ def create_dlnv2_e2e_dataset(
     input_dir: Path,
     split: str,
     output_dir: Path,
+    converter_type: ConverterTypes = ConverterTypes.DOCLING,
     do_viz: bool = False,
     max_items: int = -1,  # If -1 take the whole split
 ):
-    converter = create_converter(
-        page_image_scale=1.0,
-        do_ocr=True,
-        ocr_lang=["en", "fr", "es", "de", "jp", "cn"],
-    )
+    if converter_type == ConverterTypes.DOCLING:
+        converter = create_pdf_docling_converter(
+            page_image_scale=1.0,
+            do_ocr=True,
+            ocr_lang=["en", "fr", "es", "de", "jp", "cn"],
+        )
+    else:
+        converter = create_smol_docling_converter()
     ds = load_from_disk(input_dir)
 
     if do_viz:
@@ -497,7 +512,8 @@ def create_dlnv2_e2e_dataset(
         )
 
         record = {
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_TYPE: converter_type,
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: doc["extra"]["filename"],
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
@@ -508,6 +524,10 @@ def create_dlnv2_e2e_dataset(
             BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.ORIGINAL: img_bytes,
             BenchMarkColumns.MIMETYPE: "image/png",
+            BenchMarkColumns.MODALITIES: [
+                EvaluationModality.LAYOUT,
+                EvaluationModality.READING_ORDER,
+            ],
         }
         records.append(record)
         count += 1
