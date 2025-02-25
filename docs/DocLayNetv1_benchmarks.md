@@ -1,4 +1,4 @@
-# DocLayNet V1 Benchmarks
+# DocLayNet V1.2 Benchmarks
 
 Create and evaluate DocLayNetv1.2 dataset using a single command. This command downloads from Huggingface the [DocLayNetv1.2_OTSL](https://huggingface.co/datasets/ds4sd/DocLayNet-v1.2) and runs the evaluations using the PDF Docling converter for all supported modalities.
 

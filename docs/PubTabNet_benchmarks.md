@@ -19,7 +19,7 @@ poetry run evaluate \
     -o benchmarks/PubTabNet-dataset/tableformer
 ```
 
-[Tableformer evaluation json](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer.json)
+[Tableformer evaluation json](evaluations/PubTabNet/evaluation_PubTabNet_tableformer.json)
 
 Visualize the report:
 
@@ -32,13 +32,13 @@ poetry run evaluate \
     -o benchmarks/PubTabNet-dataset/tableformer
 ```
 
-![TEDS plot](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer-delta_row_col.png)
+![TEDS plot](evaluations/PubTabNet/evaluation_PubTabNet_tableformer-delta_row_col.png)
 
-![TEDS struct only plot](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-only.png)
+![TEDS struct only plot](evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-only.png)
 
-[TEDS struct only report](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-only.txt)
+[TEDS struct only report](evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-only.txt)
 
-![TEDS struct with text plot](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-with-text.png)
+![TEDS struct with text plot](evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-with-text.png)
 
-[TEDS struct with text report](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-with-text.txt)
+[TEDS struct with text report](evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-with-text.txt)
 

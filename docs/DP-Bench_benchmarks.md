@@ -1,5 +1,7 @@
 # DP-Bench Benchmarks
 
+[DP-Bench on HuggingFace](https://huggingface.co/datasets/upstage/dp-bench)
+
 Create and evaluate DP-Bench using a single command:
 
 ```sh
@@ -7,6 +9,8 @@ poetry run python docs/examples/benchmark_dpbench.py
 ```
 
 This command downloads the DP-Bench dataset, runs the evaluations and produces the following files
+
+
 
 ## Layout Evaluation
 

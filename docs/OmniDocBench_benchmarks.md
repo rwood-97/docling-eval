@@ -1,4 +1,6 @@
-# OmniDocBench
+# OmniDocBench Benchmarks
+
+[OmniDocBench on HuggingFace](https://huggingface.co/datasets/opendatalab/OmniDocBench)
 
 Create and evaluate OmniDocBench using a single command:
 

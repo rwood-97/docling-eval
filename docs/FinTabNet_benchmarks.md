@@ -19,7 +19,7 @@ poetry run evaluate \
     -o benchmarks/FinTabNet-dataset/tableformer
 ```
 
-[Tableformer evaluation json](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer.json)
+[Tableformer evaluation json](evaluations/FinTabNet/evaluation_FinTabNet_tableformer.json)
 
 Visualize the report:
 
@@ -32,12 +32,12 @@ poetry run evaluate \
     -o benchmarks/FinTabNet-dataset/tableformer
 ```
 
-![TEDS plot](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer-delta_row_col.png)
+![TEDS plot](evaluations/FinTabNet/evaluation_FinTabNet_tableformer-delta_row_col.png)
 
-![TEDS struct only plot](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-only.png)
+![TEDS struct only plot](evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-only.png)
 
-[TEDS struct only report](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-only.txt)
+[TEDS struct only report](evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-only.txt)
 
-![TEDS struct with text plot](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-with-text.png)
+![TEDS struct with text plot](evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-with-text.png)
 
-[TEDS struct with text report](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-with-text.txt)
+[TEDS struct with text report](evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-with-text.txt)

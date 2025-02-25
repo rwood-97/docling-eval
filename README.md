@@ -44,34 +44,12 @@ docling-eval % poetry run evaluate --help
 
 ## Benchmarks
 
-### DP-Bench
-
-[DP-Bench benchmarks](docs/DP-Bench_benchmarks.md)
-
-
-### OmniDocBench
-
-[OmniDocBench benchmarks](docs/OmniDocBench_benchmarks.md)
-
-
-### DocLayNet v1
-
-[DocLayNetV1 Benchmarks](docs/DocLayNetv1_benchmarks.md)
-
-
-### FinTabNet
-
-[FinTabnet Benchmarks](docs/FinTabNet_benchmarks.md)
-
-
-### PubTabNet
-
-[PubTabNet benchmarks](docs/PubTabNet_benchmarks.md)
-
-
-### Pub1M
-
-[Pub1M benchmarks](docs/Pub1M_benchmarks.md)
+- [DP-Bench benchmarks](docs/DP-Bench_benchmarks.md): Text, layout, reading order and table structure evaluation on the DP-Bench dataset.
+- [OmniDocBench benchmarks](docs/OmniDocBench_benchmarks.md): Text, layout, reading order and table structure evaluation on the OmniDocBench dataset.
+- [DocLayNetV1 Benchmarks](docs/DocLayNetv1_benchmarks.md): Text and layout evaluation on the DocLayNet v1.2 dataset.
+- [FinTabnet Benchmarks](docs/FinTabNet_benchmarks.md): Table structure evaluation on the FinTabNet dataset.
+- [PubTabNet benchmarks](docs/PubTabNet_benchmarks.md): Table structure evaluation on the PubTabNet dataset.
+- [Pub1M benchmarks](docs/Pub1M_benchmarks.md): Table structure evaluation on the Pub1M dataset.
 
 
 ## Contributing
