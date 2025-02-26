@@ -180,6 +180,7 @@ def create_dlnv1_e2e_dataset(
     converter_type: ConverterTypes = ConverterTypes.DOCLING,
     do_viz: bool = False,
     max_items: int = -1,  # If -1 take the whole split
+    do_save_page_text: bool = False,
 ):
     ds = load_dataset(name, split=split)
 
@@ -216,6 +217,16 @@ def create_dlnv1_e2e_dataset(
         pdf_stream = io.BytesIO(pdf)
 
         pred_doc = conv_results.document
+
+        # Debugging code that dumps the VLM predicted text in files
+        if do_save_page_text:
+            debug_dir = output_dir / "debug"
+            os.makedirs(debug_dir, exist_ok=True)
+            if len(conv_results.pages):
+                for page_id, page in enumerate(conv_results.pages):
+                    page_text_fn = debug_dir / f"{page_hash}_{page_id}.txt"
+                    with open(page_text_fn, "w") as fd:
+                        fd.write(page.predictions.vlm_response.text)
 
         true_doc = DoclingDocument(name=page_hash)
         true_doc, true_page_images = add_pages_to_true_doc(

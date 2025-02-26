@@ -136,7 +136,6 @@ def create_smol_docling_converter(
 ):
     pipeline_options = VlmPipelineOptions()
     pipeline_options.generate_page_images = True
-    pipeline_options.accelerator_options.device = "cuda:0"
     pipeline_options.accelerator_options.cuda_use_flash_attention2 = True
     pipeline_options.vlm_options = smoldocling_vlm_conversion_options
 

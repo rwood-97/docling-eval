@@ -229,6 +229,7 @@ def create(
                 converter_type=converter_type,
                 do_viz=True,
                 max_items=max_items,
+                do_save_page_text=True,  # TODO: Debug
             )
         else:
             log.error(f"{modality} is not yet implemented for {benchmark}")
