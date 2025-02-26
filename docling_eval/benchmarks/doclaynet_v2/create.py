@@ -46,7 +46,7 @@ from docling_eval.benchmarks.utils import (
     write_datasets_info,
 )
 from docling_eval.converters.conversion import (
-    create_pdf_docling_converter,
+    create_image_docling_converter,
     create_smol_docling_converter,
 )
 from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
@@ -416,10 +416,8 @@ def create_dlnv2_e2e_dataset(
     max_items: int = -1,  # If -1 take the whole split
 ):
     if converter_type == ConverterTypes.DOCLING:
-        converter = create_pdf_docling_converter(
-            page_image_scale=1.0,
+        converter = create_image_docling_converter(
             do_ocr=True,
-            ocr_lang=["en", "fr", "es", "de", "jp", "cn"],
         )
     else:
         converter = create_smol_docling_converter()
@@ -531,12 +529,12 @@ def create_dlnv2_e2e_dataset(
         }
         records.append(record)
         count += 1
+        if count > max_items:
+            break
         if count % SHARD_SIZE == 0:
             shard_id = count // SHARD_SIZE - 1
             save_shard_to_disk(items=records, dataset_path=test_dir, shard_id=shard_id)
             records = []
-        if count > max_items:
-            break
 
     shard_id = count // SHARD_SIZE
     save_shard_to_disk(items=records, dataset_path=test_dir, shard_id=shard_id)
