@@ -40,11 +40,6 @@ from docling_eval.evaluators.markdown_text_evaluator import (
     DatasetMarkdownEvaluation,
     MarkdownTextEvaluator,
 )
-
-# from docling_eval.evaluators.readingorder_evaluator_glm import (
-#    DatasetReadingOrderEvaluation,
-#    ReadingOrderEvaluatorGlm,
-# )
 from docling_eval.evaluators.readingorder_evaluator import ReadingOrderEvaluator
 from docling_eval.evaluators.stats import DatasetStatistics
 from docling_eval.evaluators.table_evaluator import (

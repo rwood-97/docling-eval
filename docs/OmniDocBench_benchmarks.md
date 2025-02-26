@@ -1,9 +1,11 @@
-# OmniDocBench
+# OmniDocBench Benchmarks
+
+[OmniDocBench on HuggingFace](https://huggingface.co/datasets/opendatalab/OmniDocBench)
 
 Create and evaluate OmniDocBench using a single command:
 
 ```sh
-poetry run python ./docs/examples/benchmark_omnidocbench.py
+poetry run python docs/examples/benchmark_omnidocbench.py
 ```
 
 This command downloads runs the evaluations and produces the following files:
@@ -11,7 +13,7 @@ This command downloads runs the evaluations and produces the following files:
 
 ## Layout Evaluation
 
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -42,7 +44,7 @@ poetry run evaluate \
 
 ## Tableformer Evaluation
 
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -80,7 +82,7 @@ poetry run evaluate \
 
 ## Reading order Evaluation
 
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -116,7 +118,7 @@ poetry run evaluate \
 
 ## Markdown text evaluation
 
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \

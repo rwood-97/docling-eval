@@ -21,199 +21,35 @@ Evaluate docling on various datasets. You can use the cli
 
 ```sh
 docling-eval % poetry run evaluate --help
-2024-12-20 10:51:57,593 - INFO - PyTorch version 2.5.1 available.
 
  Usage: evaluate [OPTIONS]
 
-╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ *  --task        -t      [create|evaluate|visualize]                                                                Evaluation task [default: None] [required]                                                                              │
-│ *  --modality    -m      [end-to-end|layout|tableformer|codeformer]                                                 Evaluation modality [default: None] [required]                                                                          │
-│ *  --benchmark   -b      [DPBench|OmniDcoBench|WordScape|PubLayNet|DocLayNetV1|Pub1M|PubTabNet|FinTabNet|WikiTabNet]  Benchmark name [default: None] [required]                                                                               │
-│ *  --input-dir   -i      PATH                                                                                       Input directory [default: None] [required]                                                                              │
-│ *  --output-dir  -o      PATH                                                                                       Output directory [default: None] [required]                                                                             │
-│    --help                                                                                                           Show this message and exit.                                                                                             │
-╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ *  --task            -t      [create|evaluate|visualize]                                 Evaluation task [default: None] [required]                 │
+│ *  --modality        -m      [end-to-end|layout|table_structure|code_transcription|math  Evaluation modality [default: None] [required]             │
+│                              _transcription|reading_order|markdown_text|captioning|bbox                                                             │
+│                              es_text]                                                                                                               │
+│ *  --benchmark       -b      [DPBench|OmniDocBench|WordScape|PubLayNet|DocLayNetV1|DocL  Benchmark name [default: None] [required]                  │
+│                              ayNetV2|FUNSD|Pub1M|PubTabNet|FinTabNet|WikiTabNet]                                                                    │
+│ *  --output-dir      -o      PATH                                                        Output directory [default: None] [required]                │
+│    --input-dir       -i      PATH                                                        Input directory [default: None]                            │
+│    --converter_type  -c      [Docling|SmolDocling]                                       Type of document converter [default: Docling]              │
+│    --split           -s      TEXT                                                        Dataset split [default: test]                              │
+│    --artifacts-path  -a      PATH                                                        Load artifacts from local path [default: None]             │
+│    --max-items       -n      INTEGER                                                     How many items to load from the original dataset           │
+│                                                                                          [default: 1000]                                            │
+│    --help                                                                                Show this message and exit.                                │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
-## End to End examples
+## Benchmarks
 
-### FinTabNet
-
-Using a single command (loading the dataset from Huggingface: [FinTabNet_OTSL](https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL)),
-
-```sh
-poetry run python docs/examples/benchmark_fintabnet.py
-```
-
-<details>
-<summary><b>Table evaluations for FinTabNet</b></summary>
-<br>
-
-👉 Evaluate the dataset:
-
-```sh
-poetry run evaluate \
-    -t evaluate \
-    -m tableformer \
-    -b FinTabNet \
-    -i benchmarks/FinTabNet-dataset/tableformer \
-    -o benchmarks/FinTabNet-dataset/tableformer
-```
-
-[Tableformer evaluation json](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer.json)
-
-👉 Visualize the dataset:
-
-```sh
-poetry run evaluate \
-    -t visualize \
-    -m tableformer \
-    -b FinTabNet \
-    -i benchmarks/FinTabNet-dataset/tableformer \
-    -o benchmarks/FinTabNet-dataset/tableformer
-```
-
-![TEDS plot](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer-delta_row_col.png)
-
-![TEDS struct only plot](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-only.png)
-
-[TEDS struct only report](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-only.txt)
-
-![TEDS struct with text plot](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-with-text.png)
-
-[TEDS struct with text report](docs/evaluations/FinTabNet/evaluation_FinTabNet_tableformer_TEDS_struct-with-text.txt)
-
-</details>
-
-### DocLayNet v1
-
-Using a single command,
-
-```sh
-poetry run python ./docs/examples/benchmark_doclaynet_v1.py
-```
-
-This command downloads the DocLayNet v1.1 dataset, runs the evaluations and produces the following files:
-
-<details>
-<summary><b>Layout evaluation</b></summary>
-<br>
-
-- [Layout evaluation json](docs/evaluations/DocLayNetV1/evaluation_DocLayNetV1_layout.json)
-- [mAP[0.5:0.95] report](docs/evaluations/DocLayNetV1/evaluation_DocLayNetV1_layout_mAP_0.5_0.95.txt)
-- [mAP[0.5:0.95] plot](docs/evaluations/DocLayNetV1/evaluation_DocLayNetV1_layout_mAP_0.5_0.95.png)
-
-</details>
-=======
-
-
-### Pub1M
-
-Using a single command (loading the dataset from Huggingface: [Pub1M_OTSL](https://huggingface.co/datasets/ds4sd/Pub1M_OTSL)),
-
-```sh
-poetry run python docs/examples/benchmark_p1m.py
-```
-
-<details>
-<summary><b>Table evaluations for Pub1M</b></summary>
-<br>
-
-👉 Evaluate the dataset:
-
-```sh
-poetry run evaluate \
-    -t evaluate \
-    -m tableformer \
-    -b Pub1M \
-    -i benchmarks/Pub1M-dataset/tableformer \
-    -o benchmarks/Pub1M-dataset/tableformer
-```
-
-[Tableformer evaluation json](docs/evaluations/Pub1M/evaluation_Pub1M_tableformer.json)
-
-👉 Visualize the dataset:
-
-```sh
-poetry run evaluate \
-    -t visualize \
-    -m tableformer \
-    -b Pub1M \
-    -i benchmarks/Pub1M-dataset/tableformer \
-    -o benchmarks/Pub1M-dataset/tableformer
-```
-
-![TEDS plot](docs/evaluations/Pub1M/evaluation_Pub1M_tableformer-delta_row_col.png)
-
-![TEDS struct only plot](docs/evaluations/Pub1M/evaluation_Pub1M_tableformer_TEDS_struct-only.png)
-
-[TEDS struct only report](docs/evaluations/Pub1M/evaluation_Pub1M_tableformer_TEDS_struct-only.txt)
-
-![TEDS struct with text plot](docs/evaluations/Pub1M/evaluation_Pub1M_tableformer_TEDS_struct-with-text.png)
-
-[TEDS struct with text report](docs/evaluations/Pub1M/evaluation_Pub1M_tableformer_TEDS_struct-with-text.txt)
-
-</details>
-
-
-### PubTabNet
-
-Using a single command (loading the dataset from Huggingface: [Pubtabnet_OTSL](https://huggingface.co/datasets/ds4sd/Pubtabnet_OTSL)),
-
-```sh
-poetry run python ./docs/examples/benchmark_pubtabnet.py
-```
-
-<details>
-<summary><b>Table evaluations for PubTabNet</b></summary>
-<br>
-
-👉 Evaluate the dataset:
-
-```sh
-poetry run evaluate \
-    -t evaluate \
-    -m tableformer \
-    -b PubTabNet \
-    -i benchmarks/PubTabNet-dataset/tableformer \
-    -o benchmarks/PubTabNet-dataset/tableformer
-```
-
-[Tableformer evaluation json](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer.json)
-
-👉 Visualize the dataset:
-
-```sh
-poetry run evaluate \
-    -t visualize \
-    -m tableformer \
-    -b PubTabNet \
-    -i benchmarks/PubTabNet-dataset/tableformer \
-    -o benchmarks/PubTabNet-dataset/tableformer
-```
-
-![TEDS plot](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer-delta_row_col.png)
-
-![TEDS struct only plot](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-only.png)
-
-[TEDS struct only report](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-only.txt)
-
-![TEDS struct with text plot](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-with-text.png)
-
-[TEDS struct with text report](docs/evaluations/PubTabNet/evaluation_PubTabNet_tableformer_TEDS_struct-with-text.txt)
-
-
-</details>
-
-
-## DP-Bench
-
-[See DP-Bench benchmarks](docs/DP-Bench_benchmarks.md)
-
-
-## OmniDocBench
-
-[See OmniDocBench benchmarks](docs/OmniDocBench_benchmarks.md)
+- [DP-Bench benchmarks](docs/DP-Bench_benchmarks.md): Text, layout, reading order and table structure evaluation on the DP-Bench dataset.
+- [OmniDocBench benchmarks](docs/OmniDocBench_benchmarks.md): Text, layout, reading order and table structure evaluation on the OmniDocBench dataset.
+- [DocLayNetV1 Benchmarks](docs/DocLayNetv1_benchmarks.md): Text and layout evaluation on the DocLayNet v1.2 dataset.
+- [FinTabnet Benchmarks](docs/FinTabNet_benchmarks.md): Table structure evaluation on the FinTabNet dataset.
+- [PubTabNet benchmarks](docs/PubTabNet_benchmarks.md): Table structure evaluation on the PubTabNet dataset.
+- [Pub1M benchmarks](docs/P1M_benchmarks.md): Table structure evaluation on the Pub1M dataset.
 
 
 ## Contributing

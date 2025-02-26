@@ -154,7 +154,7 @@ def yield_cells_from_html_table(
 ):
     soup = BeautifulSoup(table_html, "html.parser")
     table = soup.find("table") or soup  # Ensure table context
-    rows = table.find_all("tr")
+    rows = table.find_all("tr")  # type: ignore
 
     max_cols = 0
     for row in rows:
