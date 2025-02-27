@@ -41,11 +41,8 @@ from docling_eval.converters.conversion import (
 )
 from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-log = logging.getLogger(__name__)
+# Get logger
+_log = logging.getLogger(__name__)
 
 
 TRUE_HTML_EXPORT_LABELS = {
@@ -137,7 +134,7 @@ def update(true_doc, current_list, img, old_size, label, box, content):
                 uri=uri,
             )
         except Exception as e:
-            log.error(
+            _log.error(
                 "Warning: failed to resolve image uri for content {} of doc {}. Caught exception is {}:{}. Setting null ImageRef".format(
                     str(content), str(true_doc.name), type(e).__name__, e
                 )
@@ -202,7 +199,7 @@ def create_dlnv1_e2e_dataset(
     ds = ds.select(range(begin_index, end_index))
     selected_ds_len = len(ds)
 
-    log.info(
+    _log.info(
         "Dataset len: %s. Selected range: [%s, %s] = %s",
         total_ds_len,
         begin_index,
@@ -232,7 +229,7 @@ def create_dlnv1_e2e_dataset(
             page_hash = doc["metadata"]["page_hash"]
 
             if do_debug:
-                log.debug("Converting: %s", page_hash)
+                _log.info("Converting: %s", page_hash)
 
             pdf = doc["pdf"]
             pdf_stream = io.BytesIO(pdf)
@@ -329,7 +326,7 @@ def create_dlnv1_e2e_dataset(
                 saved_shards += 1
                 records = []
         except Exception as ex:
-            log.error(str(ex))
+            _log.error(str(ex))
             skipped_rows += 1
 
     if len(records) > 0:
@@ -345,7 +342,7 @@ def create_dlnv1_e2e_dataset(
             num_test_rows=len(records) + exported_rows,
         )
 
-    log.info(
+    _log.info(
         "Dataset len: %s. Selected range: [%s, %s]. Exported rows: %s. Skipped_rows: %s. Saved shards: %s",
         total_ds_len,
         begin_index,
