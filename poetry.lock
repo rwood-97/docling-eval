@@ -927,8 +927,8 @@ vlm = ["accelerate (>=1.2.1,<2.0.0)", "transformers (>=4.42.0,<4.43.0)", "transf
 [package.source]
 type = "git"
 url = "https://github.com/DS4SD/docling.git"
-reference = "cau/vlm-pipeline-generalizations"
-resolved_reference = "f994654918d84801db9f7178cf8f77eef6ca303c"
+reference = "HEAD"
+resolved_reference = "3c9fe76b706b7714b25d49cb09050c42e3b8c849"
 
 [[package]]
 name = "docling-core"
@@ -6455,4 +6455,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "40da02415b0d173c74445c22b379e69341075fc4e98006eb4491309b9ec7e147"
+content-hash = "82314748456f4d2b50faad916ad96b4c4f82a7452ad5823ed3c7c9acdfe80d7c"
