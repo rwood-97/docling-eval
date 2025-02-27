@@ -96,7 +96,7 @@ def create_huggingface_otsl_tableformer_dataset(
     max_records: int = 1000,
     split: str = "test",
     do_viz: bool = False,
-    max_items: int = -1,  # If -1, then take the whole split
+    end_index: int = -1,  # If -1, then take the whole split
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
 ):
@@ -124,20 +124,20 @@ def create_huggingface_otsl_tableformer_dataset(
 
     ds = load_dataset(name, split=split)
 
-    if max_items == -1:
-        max_items = len(ds)
+    if end_index == -1:
+        end_index = len(ds)
 
     records = []
     tid, sid = 0, 0
 
     for i, item in tqdm(
         enumerate(ds),
-        total=max_items,
+        total=end_index,
         ncols=128,
         desc=f"create {name} tableformer dataset",
     ):
 
-        if i >= max_items:
+        if i >= end_index:
             break
 
         filename = item["filename"]
@@ -286,7 +286,7 @@ def create_fintabnet_tableformer_dataset(
     image_scale: float = 1.0,
     max_records: int = 1000,
     do_viz: bool = False,
-    max_items: int = 1000,
+    end_index: int = 1000,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
 ):
@@ -297,7 +297,7 @@ def create_fintabnet_tableformer_dataset(
         max_records=max_records,
         split="test",
         do_viz=do_viz,
-        max_items=max_items,
+        end_index=end_index,
         mode=mode,
         artifacts_path=artifacts_path,
     )
@@ -308,7 +308,7 @@ def create_pubtabnet_tableformer_dataset(
     image_scale: float = 1.0,
     max_records: int = 1000,
     do_viz: bool = False,
-    max_items: int = 1000,
+    end_index: int = 1000,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
 ):
@@ -319,7 +319,7 @@ def create_pubtabnet_tableformer_dataset(
         max_records=max_records,
         split="val",
         do_viz=do_viz,
-        max_items=max_items,
+        end_index=end_index,
         mode=mode,
         artifacts_path=artifacts_path,
     )
@@ -330,7 +330,7 @@ def create_p1m_tableformer_dataset(
     image_scale: float = 1.0,
     max_records: int = 1000,
     do_viz: bool = True,
-    max_items: int = 1000,
+    end_index: int = 1000,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
 ):
@@ -341,7 +341,7 @@ def create_p1m_tableformer_dataset(
         max_records=max_records,
         split="test",
         do_viz=do_viz,
-        max_items=max_items,
+        end_index=end_index,
         mode=mode,
         artifacts_path=artifacts_path,
     )

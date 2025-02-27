@@ -121,7 +121,9 @@ def create(
     converter_type: ConverterTypes = ConverterTypes.DOCLING,
     artifacts_path: Optional[Path] = None,
     split: str = "test",
-    max_items: int = 1000,
+    begin_index: int = 0,
+    end_index: int = 1000,
+    debug: bool = False,
 ):
     r""""""
     if odir is None:
@@ -189,7 +191,7 @@ def create(
             log.info("Create the tableformer converted PubTabNet dataset")
             create_pubtabnet_tableformer_dataset(
                 output_dir=odir,
-                max_items=max_items,
+                end_index=end_index,
                 do_viz=True,
                 artifacts_path=artifacts_path,
             )
@@ -201,7 +203,7 @@ def create(
             log.info("Create the tableformer converted FinTabNet dataset")
             create_fintabnet_tableformer_dataset(
                 output_dir=odir,
-                max_items=max_items,
+                end_index=end_index,
                 do_viz=True,
                 artifacts_path=artifacts_path,
             )
@@ -213,7 +215,7 @@ def create(
             log.info("Create the tableformer converted Pub1M dataset")
             create_p1m_tableformer_dataset(
                 output_dir=odir,
-                max_items=max_items,
+                end_index=end_index,
                 do_viz=True,
                 artifacts_path=artifacts_path,
             )
@@ -228,7 +230,9 @@ def create(
                 output_dir=odir,
                 converter_type=converter_type,
                 do_viz=True,
-                max_items=max_items,
+                begin_index=begin_index,
+                end_index=end_index,
+                do_debug=debug,
             )
         else:
             log.error(f"{modality} is not yet implemented for {benchmark}")
@@ -527,15 +531,31 @@ def main(
             help="Load artifacts from local path",
         ),
     ] = None,
-    max_items: Annotated[
+    begin_index: Annotated[
         int,
         typer.Option(
             ...,
-            "-n",  # Short name
-            "--max-items",  # Long name
-            help="How many items to load from the original dataset",
+            "-bi",  # Short name
+            "--begin_index",  # Long name
+            help="Begin converting from the given sample index (inclusive). Zero based.",
+        ),
+    ] = 0,
+    end_index: Annotated[
+        int,
+        typer.Option(
+            ...,
+            "-ei",  # Short name
+            "--end_index",  # Long name
+            help="End converting to the given sample index (exclusive). Zero based. -1 indicates to take all",
         ),
     ] = 1000,
+    debug: Annotated[
+        bool,
+        typer.Option(
+            ...,
+            help="Enable debugging",
+        ),
+    ] = False,
 ):
     # Dispatch the command
     if task == EvaluationTask.CREATE:
@@ -547,7 +567,9 @@ def main(
             converter_type=converter_type,
             artifacts_path=artifacts_path,
             split=split,
-            max_items=max_items,
+            begin_index=begin_index,
+            end_index=end_index,
+            debug=debug,
         )
 
     elif task == EvaluationTask.EVALUATE:

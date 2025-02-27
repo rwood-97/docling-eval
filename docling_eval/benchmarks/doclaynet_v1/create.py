@@ -179,10 +179,36 @@ def create_dlnv1_e2e_dataset(
     output_dir: Path,
     converter_type: ConverterTypes = ConverterTypes.DOCLING,
     do_viz: bool = False,
-    max_items: int = -1,  # If -1 take the whole split
-    do_save_page_text: bool = False,
+    begin_index: int = 0,
+    end_index: int = -1,  # If -1 take the whole split
+    do_debug: bool = False,
 ):
     ds = load_dataset(name, split=split)
+    total_ds_len = len(ds)
+
+    # Check sample ranges
+    if end_index == -1:
+        end_index = total_ds_len
+
+    if begin_index > end_index:
+        raise RuntimeError("Cannot have from_sample_index > to_sample_index")
+
+    if begin_index >= total_ds_len or end_index > total_ds_len:
+        raise IndexError(
+            f"The sample indices go beyond the dataset size: {total_ds_len}"
+        )
+
+    # Select the asked rows
+    ds = ds.select(range(begin_index, end_index))
+    selected_ds_len = len(ds)
+
+    log.info(
+        "Total dataset len: %s. Selected range: [%s, %s] = %s",
+        total_ds_len,
+        begin_index,
+        end_index,
+        selected_ds_len,
+    )
 
     # Decide which converter type to initialize
     if converter_type == ConverterTypes.DOCLING:
@@ -194,115 +220,123 @@ def create_dlnv1_e2e_dataset(
         viz_dir = output_dir / "visualizations"
         os.makedirs(viz_dir, exist_ok=True)
 
-    if max_items == -1:
-        max_items = len(ds)
-
     test_dir = output_dir / split
     os.makedirs(test_dir, exist_ok=True)
     records = []
-    count = 0
-    for doc in tqdm(
-        ds,
-        total=min(len(ds), max_items if max_items > -1 else math.inf),
-    ):
-        page_hash = doc["metadata"]["page_hash"]
+    exported_rows = 0
+    skiped_rows = 0
 
-        pdf = doc["pdf"]
-        pdf_stream = io.BytesIO(pdf)
-        pdf_stream.seek(0)
-        conv_results = converter.convert(
-            source=DocumentStream(name=doc["metadata"]["page_hash"], stream=pdf_stream),
-            raises_on_error=True,
-        )
-        pdf_stream = io.BytesIO(pdf)
+    for doc in tqdm(ds, total=selected_ds_len):
+        try:
+            page_hash = doc["metadata"]["page_hash"]
 
-        pred_doc = conv_results.document
+            if do_debug:
+                log.debug("Converting: %s", page_hash)
 
-        # Debugging code that dumps the VLM predicted text in files
-        if do_save_page_text:
-            debug_dir = output_dir / "debug"
-            os.makedirs(debug_dir, exist_ok=True)
-            if len(conv_results.pages):
-                for page_id, page in enumerate(conv_results.pages):
-                    page_text_fn = debug_dir / f"{page_hash}_{page_id}.txt"
-                    with open(page_text_fn, "w") as fd:
-                        fd.write(page.predictions.vlm_response.text)
-
-        true_doc = DoclingDocument(name=page_hash)
-        true_doc, true_page_images = add_pages_to_true_doc(
-            pdf_path=pdf_stream, true_doc=true_doc, image_scale=1.0
-        )
-        img = true_page_images[0]
-        old_w, old_h = doc["image"].size
-        old_size = Size(width=old_w, height=old_h)
-
-        current_list = None
-        labels = list(map(lambda cid: category_map[int(cid)], doc["category_id"]))
-        bboxes = doc["bboxes"]
-        segments = doc["pdf_cells"]
-        contents = [
-            " ".join(map(lambda cell: cell["text"], cells)) for cells in segments
-        ]
-        for l, b, c in zip(labels, bboxes, contents):
-            update(true_doc, current_list, img, old_size, l, b, c)
-
-        if do_viz:
-            save_comparison_html_with_clusters(
-                filename=viz_dir / f"{true_doc.name}-clusters.html",
-                true_doc=true_doc,
-                pred_doc=pred_doc,
-                page_image=img,
-                true_labels=TRUE_HTML_EXPORT_LABELS,
-                pred_labels=PRED_HTML_EXPORT_LABELS,
-                draw_reading_order=False,  # Disable reading-order visualization
+            pdf = doc["pdf"]
+            pdf_stream = io.BytesIO(pdf)
+            pdf_stream.seek(0)
+            conv_results = converter.convert(
+                source=DocumentStream(
+                    name=doc["metadata"]["page_hash"], stream=pdf_stream
+                ),
+                raises_on_error=True,
             )
-        true_doc, true_pictures, true_page_images = extract_images(
-            document=true_doc,
-            pictures_column=BenchMarkColumns.GROUNDTRUTH_PICTURES.value,  # pictures_column,
-            page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES.value,  # page_images_column,
-        )
+            pdf_stream = io.BytesIO(pdf)
 
-        pred_doc, pred_pictures, pred_page_images = extract_images(
-            document=pred_doc,
-            pictures_column=BenchMarkColumns.PREDICTION_PICTURES.value,  # pictures_column,
-            page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES.value,  # page_images_column,
-        )
+            pred_doc = conv_results.document
 
-        record = {
-            BenchMarkColumns.CONVERTER_TYPE: converter_type,
-            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
-            BenchMarkColumns.STATUS: str(conv_results.status),
-            BenchMarkColumns.DOC_ID: page_hash,
-            BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
-            BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
-            BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
-            BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
-            BenchMarkColumns.PREDICTION_PAGE_IMAGES: pred_page_images,
-            BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
-            BenchMarkColumns.ORIGINAL: pdf_stream.getvalue(),
-            BenchMarkColumns.MIMETYPE: "image/png",
-            BenchMarkColumns.MODALITIES: [
-                EvaluationModality.LAYOUT,
-                EvaluationModality.MARKDOWN_TEXT,
-            ],
-        }
-        pdf_stream.close()
-        records.append(record)
-        count += 1
-        if count % SHARD_SIZE == 0:
-            shard_id = count // SHARD_SIZE - 1
-            save_shard_to_disk(items=records, dataset_path=test_dir, shard_id=shard_id)
-            records = []
-        if max_items > -1 and count > max_items:
-            break
+            # Debugging code that dumps the VLM predicted text in files
+            if do_debug:
+                debug_dir = output_dir / "debug"
+                os.makedirs(debug_dir, exist_ok=True)
+                if len(conv_results.pages):
+                    for page_id, page in enumerate(conv_results.pages):
+                        page_text_fn = debug_dir / f"{page_hash}_{page_id}.txt"
+                        with open(page_text_fn, "w") as fd:
+                            fd.write(page.predictions.vlm_response.text)
+
+            true_doc = DoclingDocument(name=page_hash)
+            true_doc, true_page_images = add_pages_to_true_doc(
+                pdf_path=pdf_stream, true_doc=true_doc, image_scale=1.0
+            )
+            img = true_page_images[0]
+            old_w, old_h = doc["image"].size
+            old_size = Size(width=old_w, height=old_h)
+
+            current_list = None
+            labels = list(map(lambda cid: category_map[int(cid)], doc["category_id"]))
+            bboxes = doc["bboxes"]
+            segments = doc["pdf_cells"]
+            contents = [
+                " ".join(map(lambda cell: cell["text"], cells)) for cells in segments
+            ]
+            for l, b, c in zip(labels, bboxes, contents):
+                update(true_doc, current_list, img, old_size, l, b, c)
+
+            if do_viz:
+                save_comparison_html_with_clusters(
+                    filename=viz_dir / f"{true_doc.name}-clusters.html",
+                    true_doc=true_doc,
+                    pred_doc=pred_doc,
+                    page_image=img,
+                    true_labels=TRUE_HTML_EXPORT_LABELS,
+                    pred_labels=PRED_HTML_EXPORT_LABELS,
+                    draw_reading_order=False,  # Disable reading-order visualization
+                )
+            true_doc, true_pictures, true_page_images = extract_images(
+                document=true_doc,
+                pictures_column=BenchMarkColumns.GROUNDTRUTH_PICTURES.value,  # pictures_column,
+                page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES.value,  # page_images_column,
+            )
+
+            pred_doc, pred_pictures, pred_page_images = extract_images(
+                document=pred_doc,
+                pictures_column=BenchMarkColumns.PREDICTION_PICTURES.value,  # pictures_column,
+                page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES.value,  # page_images_column,
+            )
+
+            record = {
+                BenchMarkColumns.CONVERTER_TYPE: converter_type,
+                BenchMarkColumns.CONVERTER_VERSION: docling_version(),
+                BenchMarkColumns.STATUS: str(conv_results.status),
+                BenchMarkColumns.DOC_ID: page_hash,
+                BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
+                BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
+                BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
+                BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
+                BenchMarkColumns.PREDICTION_PAGE_IMAGES: pred_page_images,
+                BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
+                BenchMarkColumns.ORIGINAL: pdf_stream.getvalue(),
+                BenchMarkColumns.MIMETYPE: "image/png",
+                BenchMarkColumns.MODALITIES: [
+                    EvaluationModality.LAYOUT,
+                    EvaluationModality.MARKDOWN_TEXT,
+                ],
+            }
+            pdf_stream.close()
+            records.append(record)
+            exported_rows += 1
+            if exported_rows % SHARD_SIZE == 0:
+                shard_id = exported_rows // SHARD_SIZE - 1
+                save_shard_to_disk(
+                    items=records, dataset_path=test_dir, shard_id=shard_id
+                )
+                records = []
+        except Exception as ex:
+            log.error(str(ex))
+            skiped_rows += 1
 
     if len(records) > 0:
-        shard_id = count // SHARD_SIZE
+        shard_id = exported_rows // SHARD_SIZE
         save_shard_to_disk(items=records, dataset_path=test_dir, shard_id=shard_id)
 
-    write_datasets_info(
-        name="DocLayNetV1: end-to-end",
-        output_dir=output_dir,
-        num_train_rows=0,
-        num_test_rows=len(records) + count,
-    )
+    if selected_ds_len > 0:
+        write_datasets_info(
+            name="DocLayNetV1: end-to-end",
+            output_dir=output_dir,
+            num_train_rows=0,
+            num_test_rows=len(records) + exported_rows,
+        )
+
+    log.info("Exported rows: %s, skipped rows: %s", exported_rows, skiped_rows)
