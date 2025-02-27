@@ -171,13 +171,6 @@ class LayoutEvaluator:
 
         evaluations_per_class: List[ClassLayoutEvaluation] = []
 
-        # TODO: Why do we need the next for loop?
-        # for key, value in result.items():
-        #     if isinstance(value, float):
-        #         evaluations_per_class.append(
-        #             ClassLayoutEvaluation(name=key, value=value, label=None)
-        #         )
-
         total_mAP = result["map"]
         if "map_per_class" in result:
             for label_idx, class_map in enumerate(result["map_per_class"]):
