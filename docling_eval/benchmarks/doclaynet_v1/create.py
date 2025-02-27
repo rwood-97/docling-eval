@@ -89,7 +89,7 @@ PRED_HTML_EXPORT_LABELS = {
     DocItemLabel.FOOTNOTE,
 }
 
-SHARD_SIZE = 1000
+SHARD_SIZE = 100
 
 category_map = {
     1: "caption",
@@ -203,7 +203,7 @@ def create_dlnv1_e2e_dataset(
     selected_ds_len = len(ds)
 
     log.info(
-        "Total dataset len: %s. Selected range: [%s, %s] = %s",
+        "Dataset len: %s. Selected range: [%s, %s] = %s",
         total_ds_len,
         begin_index,
         end_index,
@@ -224,7 +224,8 @@ def create_dlnv1_e2e_dataset(
     os.makedirs(test_dir, exist_ok=True)
     records = []
     exported_rows = 0
-    skiped_rows = 0
+    skipped_rows = 0
+    saved_shards = 0
 
     for doc in tqdm(ds, total=selected_ds_len):
         try:
@@ -247,14 +248,17 @@ def create_dlnv1_e2e_dataset(
             pred_doc = conv_results.document
 
             # Debugging code that dumps the VLM predicted text in files
-            if do_debug:
+            if do_debug and converter_type == ConverterTypes.SMOL_DOCLING:
                 debug_dir = output_dir / "debug"
                 os.makedirs(debug_dir, exist_ok=True)
                 if len(conv_results.pages):
                     for page_id, page in enumerate(conv_results.pages):
+                        predicted_txt = page.predictions.vlm_response.text
+                        if predicted_txt is None:
+                            continue
                         page_text_fn = debug_dir / f"{page_hash}_{page_id}.txt"
                         with open(page_text_fn, "w") as fd:
-                            fd.write(page.predictions.vlm_response.text)
+                            fd.write(predicted_txt)
 
             true_doc = DoclingDocument(name=page_hash)
             true_doc, true_page_images = add_pages_to_true_doc(
@@ -322,14 +326,16 @@ def create_dlnv1_e2e_dataset(
                 save_shard_to_disk(
                     items=records, dataset_path=test_dir, shard_id=shard_id
                 )
+                saved_shards += 1
                 records = []
         except Exception as ex:
             log.error(str(ex))
-            skiped_rows += 1
+            skipped_rows += 1
 
     if len(records) > 0:
         shard_id = exported_rows // SHARD_SIZE
         save_shard_to_disk(items=records, dataset_path=test_dir, shard_id=shard_id)
+        saved_shards += 1
 
     if selected_ds_len > 0:
         write_datasets_info(
@@ -339,4 +345,12 @@ def create_dlnv1_e2e_dataset(
             num_test_rows=len(records) + exported_rows,
         )
 
-    log.info("Exported rows: %s, skipped rows: %s", exported_rows, skiped_rows)
+    log.info(
+        "Dataset len: %s. Selected range: [%s, %s]. Exported rows: %s. Skipped_rows: %s. Saved shards: %s",
+        total_ds_len,
+        begin_index,
+        end_index,
+        exported_rows,
+        skipped_rows,
+        saved_shards,
+    )
