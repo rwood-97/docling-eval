@@ -33,7 +33,11 @@ def main():
     if True:
         log.info("Create the end-to-end converted DocLayNetV2 dataset")
         create_dlnv2_e2e_dataset(
-            input_dir=idir, split=split, do_viz=True, output_dir=odir_lay, max_items=1000
+            input_dir=idir,
+            split=split,
+            do_viz=True,
+            output_dir=odir_lay,
+            max_items=1000,
         )
 
         # Layout
