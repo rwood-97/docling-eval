@@ -1,7 +1,7 @@
 import glob
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 from datasets import Dataset, load_dataset
@@ -17,6 +17,8 @@ from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
+
+_log = logging.getLogger(__name__)
 
 
 class ClassLayoutEvaluation(BaseModel):
@@ -92,7 +94,12 @@ class LayoutEvaluator:
             self.filter_labels.append(_)
             self.label_names[i] = _
 
-    def __call__(self, ds_path: Path, split: str = "test") -> DatasetLayoutEvaluation:
+    def __call__(
+        self,
+        ds_path: Path,
+        split: str = "test",
+        pred_dict: Optional[Dict[str, DoclingDocument]] = None,
+    ) -> DatasetLayoutEvaluation:
         logging.info("Loading the split '%s' from: '%s'", split, ds_path)
 
         # Load the dataset
@@ -106,7 +113,7 @@ class LayoutEvaluator:
         ds_selection: Dataset = ds[split]
 
         true_labels, pred_labels, intersection_labels = self._find_intersecting_labels(
-            ds_selection
+            ds_selection, pred_dict=pred_dict
         )
         intersection_labels_str = "\n" + "\n".join(sorted(intersection_labels))
         logging.info(f"Intersection labels: {intersection_labels_str}")
@@ -122,12 +129,19 @@ class LayoutEvaluator:
             ncols=120,
             total=len(ds_selection),
         ):
+            doc_id = data[BenchMarkColumns.DOC_ID]
+
             true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
             true_doc = DoclingDocument.model_validate_json(true_doc_dict)
-            pred_doc_dict = data[BenchMarkColumns.PREDICTION]
-            pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
+            if pred_dict is None:
+                pred_doc_dict = data[BenchMarkColumns.PREDICTION]
+                pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
+            else:
+                if doc_id not in pred_dict:
+                    _log.error("Missing pred_doc from dict argument for %s", doc_id)
+                    continue
+                pred_doc = pred_dict[doc_id]
 
-            doc_id = data[BenchMarkColumns.DOC_ID]
             gts, preds = self._extract_layout_data(
                 doc_id=doc_id,
                 true_doc=true_doc,
@@ -331,7 +345,7 @@ class LayoutEvaluator:
         }
 
     def _find_intersecting_labels(
-        self, ds: Dataset
+        self, ds: Dataset, pred_dict: Optional[Dict[str, DoclingDocument]] = None
     ) -> tuple[dict[str, int], dict[str, int], list[DocItemLabel]]:
         r"""
         Compute counters per labels for the groundtruth, prediciton and their intersections
@@ -349,11 +363,19 @@ class LayoutEvaluator:
         for i, data in tqdm(
             enumerate(ds), desc="Layout evaluations", ncols=120, total=len(ds)
         ):
+            doc_id = data[BenchMarkColumns.DOC_ID]
+
             true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
             true_doc = DoclingDocument.model_validate_json(true_doc_dict)
 
-            pred_doc_dict = data[BenchMarkColumns.PREDICTION]
-            pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
+            if pred_dict is None:
+                pred_doc_dict = data[BenchMarkColumns.PREDICTION]
+                pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
+            else:
+                if doc_id not in pred_dict:
+                    _log.error("Missing pred_doc from dict argument for %s", doc_id)
+                    continue
+                pred_doc = pred_dict[doc_id]
 
             for item, level in true_doc.iterate_items():
                 if isinstance(item, DocItem):  # and item.label in filter_labels:
