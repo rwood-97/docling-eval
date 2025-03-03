@@ -2,6 +2,7 @@ import glob
 import logging
 import random
 from pathlib import Path
+from typing import Dict, Optional
 
 import matplotlib.pyplot as plt
 from datasets import Dataset, load_dataset
@@ -100,7 +101,12 @@ class TableEvaluator:
         self._teds_scorer = TEDScorer()
         self._stopwords = ["<i>", "</i>", "<b>", "</b>", "<u>", "</u>"]
 
-    def __call__(self, ds_path: Path, split: str = "test") -> DatasetTableEvaluation:
+    def __call__(
+        self,
+        ds_path: Path,
+        split: str = "test",
+        pred_dict: Optional[Dict[str, DoclingDocument]] = None,
+    ) -> DatasetTableEvaluation:
         r"""
         Load a dataset in HF format. Expected columns with DoclingDocuments
         "GTDoclingDocument"
@@ -126,10 +132,19 @@ class TableEvaluator:
             ncols=120,
             total=len(ds_selection),
         ):
+            doc_id = data[BenchMarkColumns.DOC_ID]
+
             gt_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
             gt_doc = DoclingDocument.model_validate_json(gt_doc_dict)
-            pred_doc_dict = data[BenchMarkColumns.PREDICTION]
-            pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
+
+            if pred_dict is None:
+                pred_doc_dict = data[BenchMarkColumns.PREDICTION]
+                pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
+            else:
+                if doc_id not in pred_dict:
+                    _log.error("Missing pred_doc from dict argument for %s", doc_id)
+                    continue
+                pred_doc = pred_dict[doc_id]
 
             results = self._evaluate_tables_in_documents(
                 doc_id=data[BenchMarkColumns.DOC_ID],
