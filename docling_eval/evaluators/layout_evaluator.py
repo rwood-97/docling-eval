@@ -86,9 +86,12 @@ class DatasetLayoutEvaluation(BaseModel):
 
 class LayoutEvaluator:
 
-    def __init__(self) -> None:
+    def __init__(
+        self, label_mapping: Optional[Dict[DocItemLabel, Optional[DocItemLabel]]] = None
+    ) -> None:
         self.filter_labels = []
         self.label_names = {}
+        self.label_mapping = label_mapping or {v: v for v in DocItemLabel}
 
         for i, _ in enumerate(DEFAULT_EXPORT_LABELS):
             self.filter_labels.append(_)
@@ -149,20 +152,30 @@ class LayoutEvaluator:
                 filter_labels=intersection_labels,
             )
 
-            if len(gts) == len(preds):
+            if len(gts) > 0:
                 for i in range(len(gts)):
                     doc_ids.append(data[BenchMarkColumns.DOC_ID] + f"-page-{i}")
 
                 ground_truths.extend(gts)
-                predictions.extend(preds)
-            else:
-                mismatched_docs += 1
-                logging.error(
-                    "Mismatch in len of GT (%s) vs pred (%s). Skipping document '%s'.",
-                    len(gts),
-                    len(preds),
-                    doc_id,
-                )
+
+                if len(gts) == len(preds):
+                    predictions.extend(preds)
+                else:
+                    mismatched_docs += 1
+                    logging.error(
+                        "Mismatch in len of GT (%s) vs pred (%s) in document_id '%s'.",
+                        len(gts),
+                        len(preds),
+                        doc_id,
+                    )
+
+                    predictions.append(
+                        {
+                            "boxes": torch.empty(0, 4),
+                            "labels": torch.empty(0),
+                            "scores": torch.empty(0),
+                        }
+                    )
 
         if mismatched_docs > 0:
             logging.error(
@@ -380,18 +393,22 @@ class LayoutEvaluator:
             for item, level in true_doc.iterate_items():
                 if isinstance(item, DocItem):  # and item.label in filter_labels:
                     for prov in item.prov:
-                        if item.label in true_labels:
+                        if item.label in [
+                            self.label_mapping[v] for v in true_labels if v is not None  # type: ignore
+                        ]:
                             true_labels[item.label] += 1
-                        else:
-                            true_labels[item.label] = 1
+                        elif self.label_mapping[item.label]:
+                            true_labels[self.label_mapping[item.label]] = 1  # type: ignore
 
             for item, level in pred_doc.iterate_items():
                 if isinstance(item, DocItem):  # and item.label in filter_labels:
                     for prov in item.prov:
-                        if item.label in pred_labels:
+                        if item.label in [
+                            self.label_mapping[v] for v in pred_labels if v is not None  # type: ignore
+                        ]:
                             pred_labels[item.label] += 1
-                        else:
-                            pred_labels[item.label] = 1
+                        elif self.label_mapping[item.label] is not None:
+                            pred_labels[self.label_mapping[item.label]] = 1  # type: ignore
 
         """
         logging.info(f"True labels:")
@@ -437,7 +454,10 @@ class LayoutEvaluator:
         pred_pages_to_objects: Dict[int, List[DocItem]] = {}
 
         for item, level in true_doc.iterate_items():
-            if isinstance(item, DocItem) and item.label in filter_labels:
+            if (
+                isinstance(item, DocItem)
+                and self.label_mapping[item.label] in filter_labels
+            ):
                 for prov in item.prov:
                     if prov.page_no not in true_pages_to_objects:
                         true_pages_to_objects[prov.page_no] = [item]
@@ -445,7 +465,10 @@ class LayoutEvaluator:
                         true_pages_to_objects[prov.page_no].append(item)
 
         for item, level in pred_doc.iterate_items():
-            if isinstance(item, DocItem) and item.label in filter_labels:
+            if (
+                isinstance(item, DocItem)
+                and self.label_mapping[item.label] in filter_labels
+            ):
                 for prov in item.prov:
                     if prov.page_no not in pred_pages_to_objects:
                         pred_pages_to_objects[prov.page_no] = [item]
@@ -479,7 +502,7 @@ class LayoutEvaluator:
                     # logging.info(f"ground-truth {page_no}: {page_width, page_height} -> {item.label}, {bbox.coord_origin}: [{bbox.l}, {bbox.t}, {bbox.r}, {bbox.b}]")
 
                     bboxes.append([bbox.l, bbox.t, bbox.r, bbox.b])
-                    labels.append(filter_labels.index(item.label))
+                    labels.append(filter_labels.index(self.label_mapping[item.label]))  # type: ignore
 
             ground_truths.append(
                 {
@@ -507,7 +530,7 @@ class LayoutEvaluator:
                     bbox = bbox.scaled(100.0)
 
                     bboxes.append([bbox.l, bbox.t, bbox.r, bbox.b])
-                    labels.append(filter_labels.index(item.label))
+                    labels.append(filter_labels.index(self.label_mapping[item.label]))  # type: ignore
                     scores.append(1.0)  # FIXME
 
             predictions.append(
