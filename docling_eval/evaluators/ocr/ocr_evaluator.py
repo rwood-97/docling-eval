@@ -7,11 +7,19 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import evaluate
+import pandas as pd
 from docling_core.types.doc.document import DoclingDocument
 from pydantic import BaseModel
 from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns  # type: ignore
+
+logging.basicConfig(
+    level=logging.DEBUG,  # Set the logging level
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
+log = logging.getLogger(__name__)
 
 
 class DatasetStatistics(BaseModel):
@@ -29,10 +37,12 @@ class PageEvaluation(BaseModel):
     extracted_text: str
     cer: float
     source_file: str
+    engine: str
 
 
 class FileEvaluation(BaseModel):
     file_name: str
+    engine_name: str
     evaluations: List[PageEvaluation]
     cer_stats: DatasetStatistics
 
@@ -80,29 +90,51 @@ class OCREvaluator:
     def __call__(
         self, input_ds_path: Path, output_path: Path, split: str = "test"
     ) -> DatasetTextractEvaluation:
-        jsonl_files = str(input_ds_path / "*.jsonl")
-        logging.info(f"Loading JSONL files from pattern: {jsonl_files}")
+        search_pattern = os.path.join(input_ds_path, "*", split, "shard_*.parquet")
+        parquet_files = glob.glob(search_pattern)
+        logging.info(f"Loading Parquet files from pattern: {search_pattern}")
+        logging.info(f"Found {len(parquet_files)} matching files")
 
-        dataset_by_file = load_jsonl_dataset(jsonl_files)
+        dataset_by_file = {}
+        engine_mapping = {}
+
+        for file_path in parquet_files:
+            file_name = Path(file_path).name
+            path_parts = Path(file_path).parts
+            engine_name = path_parts[-3]
+            composite_key = f"{engine_name}/{file_name}"
+            engine_mapping[composite_key] = engine_name
+
+            try:
+                df = pd.read_parquet(file_path)
+                dataset_by_file[composite_key] = df.to_dict("records")
+                logging.info(f"Successfully loaded {file_path} with {len(df)} records")
+            except Exception as e:
+                logging.error(f"Error loading {file_path}: {str(e)}")
+
         if not dataset_by_file:
-            raise ValueError(f"Failed to load dataset from {jsonl_files}")
+            raise ValueError(f"Failed to load dataset from {search_pattern}")
 
         file_count = len(dataset_by_file)
         total_records = sum(len(records) for records in dataset_by_file.values())
-        logging.info(f"Loaded {total_records} records from {file_count} JSONL files")
+        logging.info(f"Loaded {total_records} records from {file_count} Parquet files")
 
         file_evaluations = []
 
-        # Process each file separately
-        for file_name, dataset in dataset_by_file.items():
-            logging.info(f"Processing file: {file_name} with {len(dataset)} records")
+        for composite_key, dataset in dataset_by_file.items():
+            engine_name = engine_mapping[composite_key]
+            file_name = composite_key.split("/", 1)[1]  # Remove engine prefix
 
-            file_evaluations_list = []
+            logging.info(
+                f"Processing file: {file_name} (Engine: {engine_name}) with {len(dataset)} records"
+            )
+
+            text_evaluations_list = []
             file_cers_list = []
 
             for i, data in tqdm(
                 enumerate(dataset),
-                desc=f"Processing {file_name}",
+                desc=f"Processing {engine_name}/{file_name}",
                 ncols=120,
                 total=len(dataset),
             ):
@@ -110,8 +142,8 @@ class OCREvaluator:
                 true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
                 pred_doc_dict = data[BenchMarkColumns.PREDICTION]
 
-                true_doc = DoclingDocument.model_validate(true_doc_dict)
-                pred_doc = DoclingDocument.model_validate(pred_doc_dict)
+                true_doc = DoclingDocument.model_validate_json(true_doc_dict)
+                pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
 
                 # Extract text from documents
                 gd_text = self._extract_text(true_doc.export_to_dict())
@@ -130,23 +162,26 @@ class OCREvaluator:
                     extracted_text=extracted_text,
                     cer=cer,
                     source_file=file_name,
+                    engine=engine_name,
                 )
 
-                file_evaluations_list.append(text_evaluation)
-                logging.debug(f"File: {file_name}, Document {doc_id} CER: {cer:.4f}")
+                text_evaluations_list.append(text_evaluation)
+                logging.debug(
+                    f"Engine: {engine_name}, File: {file_name}, Document {doc_id} CER: {cer:.4f}"
+                )
 
-            # Compute statistics for this file
             file_cer_stats = compute_stats(file_cers_list)
 
             file_evaluation = FileEvaluation(
                 file_name=file_name,
-                evaluations=file_evaluations_list,
+                engine_name=engine_name,
+                evaluations=text_evaluations_list,
                 cer_stats=file_cer_stats,
             )
 
             file_evaluations.append(file_evaluation)
 
-            logging.debug(f"\n{file_name} CER Statistics:")
+            logging.info(f"\n{engine_name}/{file_name} CER Statistics:")
             logging.debug(f"  - Mean CER: {file_cer_stats.mean:.4f}")
             logging.debug(f"  - Median CER: {file_cer_stats.median:.4f}")
             logging.debug(f"  - Min CER: {file_cer_stats.min:.4f}")
@@ -154,6 +189,7 @@ class OCREvaluator:
             logging.debug(f"  - Std Dev: {file_cer_stats.std:.4f}")
             logging.debug(f"  - Count: {file_cer_stats.count}")
 
+        # Only create output after processing all files
         output_path.mkdir(parents=True, exist_ok=True)
 
         results_path = output_path / "evaluation_results.json"
@@ -162,6 +198,7 @@ class OCREvaluator:
                 "file_evaluations": [
                     {
                         "file_name": eval_item.file_name,
+                        "engine_name": eval_item.engine_name,  # Include engine name in output
                         "statistics": eval_item.cer_stats.model_dump(),
                         "evaluations": [e.model_dump() for e in eval_item.evaluations],
                     }
@@ -179,12 +216,7 @@ class OCREvaluator:
 
     def _compute_cer_score(self, true_txt: str, pred_txt: str):
         """Compute CER score with the HF evaluate and the default Tokenizer"""
-        # separator = "-" * 40
-
-        # logging.debug(f"\n{separator}\nPredicted Text:\n{pred_txt}\n{separator}\n")
-        # logging.debug(f"\n{separator}\nTrue Text:\n{true_txt}\n{separator}\n")
         result = self._cer_eval.compute(predictions=[pred_txt], references=[true_txt])
-
         return result
 
     def _extract_text(self, json_data: Dict[str, Any]) -> str:
@@ -204,17 +236,46 @@ class OCREvaluator:
             import matplotlib.pyplot as plt
             import numpy as np
 
+            engine_data = {}  # type: ignore
+            for eval_item in file_evaluations:
+                engine_name = eval_item.engine_name
+
+                if engine_name not in engine_data:
+                    engine_data[engine_name] = {
+                        "mean_cers": [],
+                        "median_cers": [],
+                        "counts": [],
+                    }
+
+                engine_data[engine_name]["mean_cers"].append(eval_item.cer_stats.mean)
+                engine_data[engine_name]["median_cers"].append(
+                    eval_item.cer_stats.median
+                )
+                engine_data[engine_name]["counts"].append(eval_item.cer_stats.count)
+
             engines = []
             mean_cers = []
             median_cers = []
 
-            for eval_item in file_evaluations:
-                engine_name = eval_item.file_name.split("_")[0]  # Extract engine name
-                engines.append(engine_name)
-                mean_cers.append(eval_item.cer_stats.mean)
-                median_cers.append(eval_item.cer_stats.median)
+            for engine, data in engine_data.items():
+                engines.append(engine)
 
-            # Set up bar chart
+                if len(data["mean_cers"]) > 1:
+                    total_count = sum(data["counts"])
+                    weighted_mean = (
+                        sum(m * c for m, c in zip(data["mean_cers"], data["counts"]))
+                        / total_count
+                    )
+                    weighted_median = (
+                        sum(m * c for m, c in zip(data["median_cers"], data["counts"]))
+                        / total_count
+                    )
+                    mean_cers.append(weighted_mean)
+                    median_cers.append(weighted_median)
+                else:
+                    mean_cers.append(data["mean_cers"][0])
+                    median_cers.append(data["median_cers"][0])
+
             x = np.arange(len(engines))
             width = 0.35
 
@@ -243,3 +304,11 @@ class OCREvaluator:
             logging.warning(
                 "Could not create comparison chart: matplotlib is not installed"
             )
+
+
+if __name__ == "__main__":
+    evaluator = OCREvaluator()
+    dataset_path = Path("docling-eval/custom-dataset/ground-truth")
+    output_path = Path("docling-eval/custom-dataset/ground-truth")
+    evaluation_results = evaluator(dataset_path, output_path)
+    print(f"Completed evaluation. Results saved to {output_path}")
