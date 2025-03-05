@@ -291,7 +291,8 @@ def create_fintabnet_tableformer_dataset(
     artifacts_path: Optional[Path] = None,
 ):
     create_huggingface_otsl_tableformer_dataset(
-        name="ds4sd/FinTabNet_OTSL",
+        # name="ds4sd/FinTabNet_OTSL",
+        name="ds4sd/FinTabNet_OTSL-v1.1",
         output_dir=output_dir,
         image_scale=image_scale,
         max_records=max_records,
@@ -335,7 +336,8 @@ def create_p1m_tableformer_dataset(
     artifacts_path: Optional[Path] = None,
 ):
     create_huggingface_otsl_tableformer_dataset(
-        name="ds4sd/PubTables-1M_OTSL",
+        # name="ds4sd/PubTables-1M_OTSL",
+        name="ds4sd/PubTables-1M_OTSL-v1.1",
         output_dir=output_dir,
         image_scale=image_scale,
         max_records=max_records,
