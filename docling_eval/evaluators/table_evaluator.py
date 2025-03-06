@@ -126,6 +126,7 @@ class TableEvaluator:
 
         table_evaluations = []
         table_struct_evaluations = []
+        evaluation_errors = 0
         for i, data in tqdm(
             enumerate(ds_selection),
             desc="Table evaluations",
@@ -148,21 +149,30 @@ class TableEvaluator:
                     continue
                 pred_doc = pred_dict[doc_id]
 
-            results = self._evaluate_tables_in_documents(
-                doc_id=data[BenchMarkColumns.DOC_ID],
-                true_doc=gt_doc,
-                pred_doc=pred_doc,
-                structure_only=False,
-            )
-            table_evaluations.extend(results)
+            try:
+                results = self._evaluate_tables_in_documents(
+                    doc_id=data[BenchMarkColumns.DOC_ID],
+                    true_doc=gt_doc,
+                    pred_doc=pred_doc,
+                    structure_only=False,
+                )
+                table_evaluations.extend(results)
 
-            results = self._evaluate_tables_in_documents(
-                doc_id=data[BenchMarkColumns.DOC_ID],
-                true_doc=gt_doc,
-                pred_doc=pred_doc,
-                structure_only=True,
-            )
-            table_struct_evaluations.extend(results)
+                results = self._evaluate_tables_in_documents(
+                    doc_id=data[BenchMarkColumns.DOC_ID],
+                    true_doc=gt_doc,
+                    pred_doc=pred_doc,
+                    structure_only=True,
+                )
+                table_struct_evaluations.extend(results)
+            except Exception as ex:
+                evaluation_errors += 1
+                _log.error("Error during tables evaluation for %s", doc_id)
+
+        _log.info(
+            "Finish. %s documents were skipped due to evaluation errors",
+            evaluation_errors,
+        )
 
         # Compute TED statistics for the entire dataset
         teds_simple = []
