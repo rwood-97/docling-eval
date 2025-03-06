@@ -141,6 +141,8 @@ class TableEvaluator:
                 pred_doc_dict = data[BenchMarkColumns.PREDICTION]
                 pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
             else:
+                if doc_id.endswith(".png") or doc_id.endswith(".jpg"):
+                    doc_id = doc_id[:-4]
                 if doc_id not in pred_dict:
                     _log.error("Missing pred_doc from dict argument for %s", doc_id)
                     continue
