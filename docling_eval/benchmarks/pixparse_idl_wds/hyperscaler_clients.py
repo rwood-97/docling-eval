@@ -122,4 +122,3 @@ def process_with_azure(azure_client, image_content: bytes) -> Optional[Dict]:
     except Exception as e:
         print(f"Error processing with Azure Document Intelligence: {e}")
         return None
-
