@@ -105,6 +105,7 @@ class TableEvaluator:
         self,
         ds_path: Path,
         split: str = "test",
+        structure_only: bool = False,
         pred_dict: Optional[Dict[str, DoclingDocument]] = None,
     ) -> DatasetTableEvaluation:
         r"""
@@ -150,13 +151,14 @@ class TableEvaluator:
                 pred_doc = pred_dict[doc_id]
 
             try:
-                results = self._evaluate_tables_in_documents(
-                    doc_id=data[BenchMarkColumns.DOC_ID],
-                    true_doc=gt_doc,
-                    pred_doc=pred_doc,
-                    structure_only=False,
-                )
-                table_evaluations.extend(results)
+                if not structure_only:
+                    results = self._evaluate_tables_in_documents(
+                        doc_id=data[BenchMarkColumns.DOC_ID],
+                        true_doc=gt_doc,
+                        pred_doc=pred_doc,
+                        structure_only=False,
+                    )
+                    table_evaluations.extend(results)
 
                 results = self._evaluate_tables_in_documents(
                     doc_id=data[BenchMarkColumns.DOC_ID],
@@ -178,13 +180,14 @@ class TableEvaluator:
         teds_simple = []
         teds_complex = []
         teds_all = []
-        for te in table_evaluations:
-            teds_all.append(te.TEDS)
+        if not structure_only:
+            for te in table_evaluations:
+                teds_all.append(te.TEDS)
 
-            if te.is_complex:
-                teds_complex.append(te.TEDS)
-            else:
-                teds_simple.append(te.TEDS)
+                if te.is_complex:
+                    teds_complex.append(te.TEDS)
+                else:
+                    teds_simple.append(te.TEDS)
 
         teds_struct = []
         for te in table_struct_evaluations:
