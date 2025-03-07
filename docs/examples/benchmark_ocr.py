@@ -18,19 +18,24 @@ log = logging.getLogger(__name__)
 
 
 def main():
-    idir = Path("/Users/sami/Desktop/docling-eval/custom-dataset/ground-truth")
-    odir = Path("/Users/sami/Desktop/docling-eval/custom-dataset/ground-truth")
+    idir = Path("docling-eval/pixparse-idl")
+    odir = Path("docling-eval/pixparse-idl")
 
     os.makedirs(odir, exist_ok=True)
 
-    os.environ["AWS_ACCESS_KEY_ID"] = ""
-    os.environ["AWS_SECRET_ACCESS_KEY"] = ""
-    os.environ["GOOGLE_PROJECT_ID"] = ""
-    os.environ["GOOGLE_PROCESSOR_ID"] = ""
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ""
-
-    os.environ["AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"] = ""
-    os.environ["AZURE_DOCUMENT_INTELLIGENCE_KEY"] = ""
+    os.environ["AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID", "")
+    os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+    os.environ["GOOGLE_PROJECT_ID"] = os.environ.get("GOOGLE_PROJECT_ID", "")
+    os.environ["GOOGLE_PROCESSOR_ID"] = os.environ.get("GOOGLE_PROCESSOR_ID", "")
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.environ.get(
+        "GOOGLE_APPLICATION_CREDENTIALS", ""
+    )
+    os.environ["AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"] = os.environ.get(
+        "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", ""
+    )
+    os.environ["AZURE_DOCUMENT_INTELLIGENCE_KEY"] = os.environ.get(
+        "AZURE_DOCUMENT_INTELLIGENCE_KEY", ""
+    )
 
     log.info("Create the converted PIXPARSE dataset")
 
@@ -41,7 +46,28 @@ def main():
         input_dir=idir,
         output_dir=odir,
         ocr_engine=OcrEngine.EASYOCR,
-        reprocess=True,
+        reprocess=False,
+        # reprocess=True,
+    )
+
+    create_pixparse_dataset(
+        name="pixparse",
+        split="test",
+        input_dir=idir,
+        output_dir=odir,
+        ocr_engine=OcrEngine.TESSERACT,
+        reprocess=False,
+        # reprocess=True,
+    )
+
+    create_pixparse_dataset(
+        name="pixparse",
+        split="test",
+        input_dir=idir,
+        output_dir=odir,
+        ocr_engine=OcrEngine.RAPIDOCR,
+        reprocess=False,
+        # reprocess=True,
     )
 
     create_pixparse_dataset(
@@ -71,10 +97,19 @@ def main():
         reprocess=False,
     )
 
+    create_pixparse_dataset(
+        name="pixparse",
+        split="test",
+        input_dir=idir,
+        output_dir=odir,
+        hyperscaler=Hyperscaler.WDU,
+        reprocess=False,
+    )
+
     log.info("Evaluate the OCR for the Pixparse dataset")
     evaluator = OCREvaluator()
-    dataset_path = Path("/Users/sami/Desktop/docling-eval/custom-dataset/ground-truth")
-    output_path = Path("/Users/sami/Desktop/docling-eval/custom-dataset/ground-truth")
+    dataset_path = Path("docling-eval/pixparse-idl")
+    output_path = Path("docling-eval/pixparse-idl")
     evaluation_results = evaluator(dataset_path, output_path)
     log.info(f"Completed evaluation. Results saved to {output_path}")
 

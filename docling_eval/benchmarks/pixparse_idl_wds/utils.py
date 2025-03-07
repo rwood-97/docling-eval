@@ -14,6 +14,17 @@ from docling.cli.main import OcrEngine
 from PIL import Image
 
 
+from PIL import Image
+
+
+class OcrEngine(str, Enum):
+    EASYOCR = "easyocr"
+    TESSERACT = "tesseract"
+    TESSERACT_CLI = "tesseract_cli"
+    OCRMAC = "ocrmac"
+    RAPIDOCR = "rapidocr"
+
+
 class Hyperscaler(str, Enum):
     AWS = "aws"
     AZURE = "azure"
