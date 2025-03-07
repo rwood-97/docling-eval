@@ -292,9 +292,12 @@ class TableEvaluator:
         save_dir: Path,
     ):
         r""" """
+        evals = [ev.model_dump() for ev in table_evaluations]
+
         prefix = "struct" if structure_only else "struct_content"
         evaluation_filename = f"TED_{prefix}_{enunumerate_id:05d}_{doc_id}.json"
         evaluation_fn = save_dir / evaluation_filename
         _log.info("Saving intermediate TEDs: %s", evaluation_fn)
-        with open(evaluation_filename, "w") as fd:
-            json.dump(table_evaluations, fd)
+
+        with open(evaluation_fn, "w") as fd:
+            json.dump(evals, fd)
