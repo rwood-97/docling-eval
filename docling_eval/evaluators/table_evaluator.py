@@ -1,4 +1,5 @@
 import glob
+import json
 import logging
 import random
 from pathlib import Path
@@ -107,6 +108,7 @@ class TableEvaluator:
         split: str = "test",
         structure_only: bool = False,
         pred_dict: Optional[Dict[str, DoclingDocument]] = None,
+        intermediate_results_dir: Optional[Path] = None,
     ) -> DatasetTableEvaluation:
         r"""
         Load a dataset in HF format. Expected columns with DoclingDocuments
@@ -160,6 +162,11 @@ class TableEvaluator:
                     )
                     table_evaluations.extend(results)
 
+                    if intermediate_results_dir:
+                        self._save_table_evalutions(
+                            False, i, doc_id, results, intermediate_results_dir
+                        )
+
                 results = self._evaluate_tables_in_documents(
                     doc_id=data[BenchMarkColumns.DOC_ID],
                     true_doc=gt_doc,
@@ -167,6 +174,10 @@ class TableEvaluator:
                     structure_only=True,
                 )
                 table_struct_evaluations.extend(results)
+                if intermediate_results_dir:
+                    self._save_table_evalutions(
+                        True, i, doc_id, results, intermediate_results_dir
+                    )
             except Exception as ex:
                 evaluation_errors += 1
                 _log.error("Error during tables evaluation for %s", doc_id)
@@ -271,3 +282,19 @@ class TableEvaluator:
                 )
 
         return table_evaluations
+
+    def _save_table_evalutions(
+        self,
+        structure_only: bool,
+        enunumerate_id: int,
+        doc_id: str,
+        table_evaluations: list[TableEvaluation],
+        save_dir: Path,
+    ):
+        r""" """
+        prefix = "struct" if structure_only else "struct_content"
+        evaluation_filename = f"TED_{prefix}_{enunumerate_id:05d}_{doc_id}.json"
+        evaluation_fn = save_dir / evaluation_filename
+        _log.info("Saving intermediate TEDs: %s", evaluation_fn)
+        with open(evaluation_filename, "w") as fd:
+            json.dump(table_evaluations, fd)
