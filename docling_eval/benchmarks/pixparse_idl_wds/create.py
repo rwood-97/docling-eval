@@ -1,8 +1,9 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
+from docling.cli.main import OcrEngine
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
@@ -27,7 +28,6 @@ from docling_eval.benchmarks.pixparse_idl_wds.hyperscaler_clients import (
 from docling_eval.benchmarks.pixparse_idl_wds.utils import (
     CustomJSONEncoder,
     Hyperscaler,
-    OcrEngine,
     check_service_env_vars,
     read_image_content,
     write_dataset_info,
@@ -65,19 +65,38 @@ def process_with_service(
         output_raw_path = input_dir / doc_id / f"{service_name}_raw.json"
 
         if service == Hyperscaler.AWS:
-            result = process_with_textract(clients["textract"], image_content_bytes)
-            write_json_output(output_raw_path, result)
-            converted_result = convert_textract_output_to_docling(result, image_file)
+            aws_result: Optional[dict] = process_with_textract(
+                clients["textract"], image_content_bytes
+            )
+            if aws_result is not None:
+                write_json_output(output_raw_path, aws_result)
+                converted_result = convert_textract_output_to_docling(
+                    aws_result, image_file
+                )
+            else:
+                logging.warning("AWS Textract processing returned None result")
         elif service == Hyperscaler.GOOGLE:
-            result = process_with_google(
+            google_result: Optional[dict] = process_with_google(
                 clients["google"], clients["google_processor_name"], image_content_bytes
             )
-            write_json_output(output_raw_path, result)
-            converted_result = convert_google_output_to_docling(result, image_file)
+            if google_result is not None:
+                write_json_output(output_raw_path, google_result)
+                converted_result = convert_google_output_to_docling(
+                    google_result, image_file
+                )
+            else:
+                logging.warning("Google processing returned None result")
         elif service == Hyperscaler.AZURE:
-            result = process_with_azure(clients["azure"], image_content_bytes)
-            write_json_output(output_raw_path, result)
-            converted_result = convert_azure_output_to_docling(result, image_file)
+            azure_result: Optional[dict] = process_with_azure(
+                clients["azure"], image_content_bytes
+            )
+            if azure_result is not None:
+                write_json_output(output_raw_path, azure_result)
+                converted_result = convert_azure_output_to_docling(
+                    azure_result, image_file
+                )
+            else:
+                logging.warning("Azure processing returned None result")
     elif isinstance(service, OcrEngine):
         docling_ocr_doc_converter = create_image_docling_converter(
             do_ocr=True, ocr_engine=service, ocr_lang=["en"]
@@ -189,7 +208,7 @@ def create_pixparse_dataset(
         ground_truth_files = ground_truth_files[:max_items]
 
     # Determine which services to process
-    services_to_process = []
+    services_to_process: list[Union[Hyperscaler, OcrEngine]] = []
 
     if hyperscaler:
         services_to_process.append(hyperscaler)
@@ -201,14 +220,14 @@ def create_pixparse_dataset(
         services_to_process.extend([h for h in Hyperscaler])
 
     # Track records by service
-    service_records = {s.value: [] for s in services_to_process}
+    service_records: dict[str, list] = {s.value: [] for s in services_to_process}
     service_counts = {s.value: 0 for s in services_to_process}
-    print(services_to_process)
+    logging.info(services_to_process)
     for gt_file in tqdm(ground_truth_files):
         try:
             image_file = gt_file.parent / "original.tif"
             if not image_file.exists():
-                print(f"Warning: No image file found for {gt_file}")
+                logging.info(f"Warning: No image file found for {gt_file}")
                 continue
 
             doc_id = gt_file.parent.name
@@ -240,7 +259,7 @@ def create_pixparse_dataset(
                         if converted_path.exists():
                             pred_doc = DoclingDocument.load_from_json(converted_path)
                         else:
-                            print(
+                            logging.info(
                                 f"No converted result found for {doc_id} with {service_name}, loading raw files"
                             )
                             output_raw_path = (
@@ -249,13 +268,15 @@ def create_pixparse_dataset(
                             with open(output_raw_path, "r") as f:
                                 result = json.load(f)
 
-                            converters = {
+                            converters: Dict[
+                                Hyperscaler, Callable[[Any, Path], DoclingDocument]
+                            ] = {
                                 Hyperscaler.AZURE: convert_azure_output_to_docling,
                                 Hyperscaler.AWS: convert_textract_output_to_docling,
                                 Hyperscaler.GOOGLE: convert_google_output_to_docling,
                             }
 
-                            pred_doc = converters.get(service, lambda *args: None)(
+                            pred_doc = converters.get(service, lambda *args: None)(  # type: ignore
                                 result, image_file
                             )
                             if pred_doc:
@@ -293,7 +314,9 @@ def create_pixparse_dataset(
                         service_records[service_name] = []
 
                 except Exception as e:
-                    print(f"Error processing {doc_id} with {service.value}: {str(e)}")
+                    logging.info(
+                        f"Error processing {doc_id} with {service.value}: {str(e)}"
+                    )
                     raise
 
             # Generate visualization if requested
@@ -302,7 +325,7 @@ def create_pixparse_dataset(
                 # TODO: Add visualization code
 
         except Exception as e:
-            print(f"Error processing {gt_file}: {str(e)}")
+            logging.info(f"Error processing {gt_file}: {str(e)}")
             raise
 
     # Save any remaining records
@@ -322,4 +345,3 @@ def create_pixparse_dataset(
         num_train_rows=0,
         num_test_rows=total_records,
     )
-

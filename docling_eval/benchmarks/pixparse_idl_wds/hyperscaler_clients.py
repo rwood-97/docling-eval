@@ -1,9 +1,8 @@
+import logging
 import os
 from typing import Any, Dict, Optional, Tuple
 
-import boto3
-from azure.ai.documentintelligence import DocumentIntelligenceClient
-from azure.core.credentials import AzureKeyCredential
+import boto3  # type: ignore
 from google.cloud import documentai
 from google.protobuf.json_format import MessageToDict
 
@@ -30,7 +29,7 @@ def initialize_textract_client():
 def initialize_google_doc_ai_client() -> Tuple[Optional[Any], Optional[str]]:
     """Initializes and returns the Google Document AI client and processor name."""
     if not hasattr(documentai, "DocumentProcessorServiceClient"):
-        print(
+        logging.info(
             "Warning: google-cloud-documentai library not installed. Google Doc AI functionality will be disabled."
         )
         return None, None
@@ -51,8 +50,11 @@ def initialize_google_doc_ai_client() -> Tuple[Optional[Any], Optional[str]]:
 
 def initialize_azure_document_intelligence_client() -> Optional[Any]:
     """Initializes and returns the Azure Document Intelligence client."""
-    if not (DocumentIntelligenceClient and AzureKeyCredential):
-        print(
+    try:
+        from azure.ai.documentintelligence import DocumentIntelligenceClient
+        from azure.core.credentials import AzureKeyCredential
+    except ImportError:
+        logging.info(
             "Warning: azure-ai-documentintelligence library not installed. Azure functionality will be disabled."
         )
         return None
@@ -71,7 +73,7 @@ def initialize_azure_document_intelligence_client() -> Optional[Any]:
 def process_with_textract(textract_client, image_content: bytes) -> Dict:
     """Processes image content with AWS Textract."""
     if textract_client is None:
-        print("Textract client not initialized. Skipping processing.")
+        logging.info("Textract client not initialized. Skipping processing.")
         return {}
     try:
         response = textract_client.analyze_document(
@@ -79,7 +81,7 @@ def process_with_textract(textract_client, image_content: bytes) -> Dict:
         )
         return response
     except Exception as e:
-        print(f"Error processing with Textract: {e}")
+        logging.info(f"Error processing with Textract: {e}")
         return {}
 
 
@@ -91,7 +93,7 @@ def process_with_google(
 ) -> Optional[Dict]:
     """Processes image content with Google Document AI."""
     if google_client is None or google_processor_name is None:
-        print("Google Doc AI client not initialized. Skipping processing.")
+        logging.info("Google Doc AI client not initialized. Skipping processing.")
         return None
 
     try:
@@ -104,14 +106,14 @@ def process_with_google(
         response = google_client.process_document(request=request)
         return MessageToDict(response.document._pb)
     except Exception as e:
-        print(f"Error processing with Google Doc AI: {e}")
+        logging.info(f"Error processing with Google Doc AI: {e}")
         return None
 
 
 def process_with_azure(azure_client, image_content: bytes) -> Optional[Dict]:
     """Processes image content with Azure Document Intelligence."""
     if azure_client is None:
-        print(
+        logging.info(
             "Azure Document Intelligence client not initialized. Skipping processing."
         )
         return None
@@ -120,5 +122,5 @@ def process_with_azure(azure_client, image_content: bytes) -> Optional[Dict]:
         result = poller.result()
         return result.as_dict()
     except Exception as e:
-        print(f"Error processing with Azure Document Intelligence: {e}")
+        logging.info(f"Error processing with Azure Document Intelligence: {e}")
         return None
