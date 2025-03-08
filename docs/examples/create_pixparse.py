@@ -2,9 +2,11 @@ import logging
 import os
 from pathlib import Path
 
+from docling.cli.main import OcrEngine
+
 from docling_eval.benchmarks.constants import BenchMarkNames
 from docling_eval.benchmarks.pixparse_idl_wds.create import create_pixparse_dataset
-from docling_eval.benchmarks.pixparse_idl_wds.utils import Hyperscaler, OcrEngine
+from docling_eval.benchmarks.pixparse_idl_wds.utils import Hyperscaler
 
 # Configure logging
 logging.basicConfig(
@@ -22,7 +24,6 @@ def main():
     odir = Path("/custom-dataset/ground-truth")
 
     os.makedirs(odir, exist_ok=True)
-
 
     os.environ["AWS_ACCESS_KEY_ID"] = ""
     os.environ["AWS_SECRET_ACCESS_KEY"] = ""
