@@ -57,7 +57,7 @@ def compute_stats(cers_list: List[float]) -> DatasetStatistics:
 
 def load_jsonl_dataset(jsonl_path: str) -> Dict[str, List[Dict]]:
     """Load dataset from JSONL file(s) and organize by source file"""
-    data_by_file = {}
+    data_by_file: Dict[str, List[Dict[str, Any]]] = {}
     for file_path in glob.glob(jsonl_path):
         file_name = os.path.basename(file_path)
         data_by_file[file_name] = []
@@ -133,7 +133,7 @@ class OCREvaluator:
                 )
 
                 file_evaluations_list.append(text_evaluation)
-                print(f"File: {file_name}, Document {doc_id} CER: {cer:.4f}")
+                logging.debug(f"File: {file_name}, Document {doc_id} CER: {cer:.4f}")
 
             # Compute statistics for this file
             file_cer_stats = compute_stats(file_cers_list)
@@ -146,13 +146,13 @@ class OCREvaluator:
 
             file_evaluations.append(file_evaluation)
 
-            print(f"\n{file_name} CER Statistics:")
-            print(f"  - Mean CER: {file_cer_stats.mean:.4f}")
-            print(f"  - Median CER: {file_cer_stats.median:.4f}")
-            print(f"  - Min CER: {file_cer_stats.min:.4f}")
-            print(f"  - Max CER: {file_cer_stats.max:.4f}")
-            print(f"  - Std Dev: {file_cer_stats.std:.4f}")
-            print(f"  - Count: {file_cer_stats.count}")
+            logging.debug(f"\n{file_name} CER Statistics:")
+            logging.debug(f"  - Mean CER: {file_cer_stats.mean:.4f}")
+            logging.debug(f"  - Median CER: {file_cer_stats.median:.4f}")
+            logging.debug(f"  - Min CER: {file_cer_stats.min:.4f}")
+            logging.debug(f"  - Max CER: {file_cer_stats.max:.4f}")
+            logging.debug(f"  - Std Dev: {file_cer_stats.std:.4f}")
+            logging.debug(f"  - Count: {file_cer_stats.count}")
 
         output_path.mkdir(parents=True, exist_ok=True)
 
@@ -181,8 +181,8 @@ class OCREvaluator:
         """Compute CER score with the HF evaluate and the default Tokenizer"""
         # separator = "-" * 40
 
-        # print(f"\n{separator}\nPredicted Text:\n{pred_txt}\n{separator}\n")
-        # print(f"\n{separator}\nTrue Text:\n{true_txt}\n{separator}\n")
+        # logging.debug(f"\n{separator}\nPredicted Text:\n{pred_txt}\n{separator}\n")
+        # logging.debug(f"\n{separator}\nTrue Text:\n{true_txt}\n{separator}\n")
         result = self._cer_eval.compute(predictions=[pred_txt], references=[true_txt])
 
         return result
@@ -243,5 +243,3 @@ class OCREvaluator:
             logging.warning(
                 "Could not create comparison chart: matplotlib is not installed"
             )
-
-

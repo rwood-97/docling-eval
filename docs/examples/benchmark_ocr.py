@@ -2,8 +2,10 @@ import logging
 import os
 from pathlib import Path
 
+from docling.cli.main import OcrEngine
+
 from docling_eval.benchmarks.pixparse_idl_wds.create import create_pixparse_dataset
-from docling_eval.benchmarks.pixparse_idl_wds.utils import Hyperscaler, OcrEngine
+from docling_eval.benchmarks.pixparse_idl_wds.utils import Hyperscaler
 from docling_eval.evaluators.ocr.ocr_evaluator import OCREvaluator
 
 # Configure logging
@@ -74,7 +76,7 @@ def main():
     dataset_path = Path("/Users/sami/Desktop/docling-eval/custom-dataset/ground-truth")
     output_path = Path("/Users/sami/Desktop/docling-eval/custom-dataset/ground-truth")
     evaluation_results = evaluator(dataset_path, output_path)
-    print(f"Completed evaluation. Results saved to {output_path}")
+    log.info(f"Completed evaluation. Results saved to {output_path}")
 
     # evaluate(
     #     modality=EvaluationModality.OCR,

@@ -73,7 +73,7 @@ def convert_textract_output_to_docling(response, image_path: Path) -> DoclingDoc
             cell_blocks = [
                 b
                 for b in response.get("Blocks", [])
-                if b["BlockType"] == "CELL" and b["ParentId"] == block["Id"]
+                if b["BlockType"] == "CELL" and b.get("ParentId", "") == block["Id"]
             ]
 
             for cell_block in cell_blocks:
@@ -81,7 +81,8 @@ def convert_textract_output_to_docling(response, image_path: Path) -> DoclingDoc
                 line_blocks_in_cell = [
                     b
                     for b in response.get("Blocks", [])
-                    if b["BlockType"] == "LINE" and b["ParentId"] == cell_block["Id"]
+                    if b["BlockType"] == "LINE"
+                    and b.get("ParentId", "") == cell_block["Id"]
                 ]
 
                 for line_block in line_blocks_in_cell:
@@ -376,7 +377,7 @@ def convert_azure_output_to_docling(analyze_result, image_path) -> DoclingDocume
 
             table_data.table_cells.append(table_cell)
 
-        doc.add_table(table_data=table_data, prov=table_prov)
+        doc.add_table(label=DocItemLabel.TABLE, prov=table_prov, data=table_data)
 
     return doc
 
