@@ -413,29 +413,26 @@ def create_xfund_dataset(
     if download:
         _LANGS = ["zh", "de", "es", "fr", "it", "ja", "pt"]
         _URL = "https://github.com/doc-analysis/XFUND/releases/download/v1.0/"
+        os.makedirs(input_dir, exist_ok=True)
         for split in splits:
             urls_to_download = []
             for lang in _LANGS:
                 urls_to_download.append(f"{_URL}{lang}.{split}.json")
                 urls_to_download.append(f"{_URL}{lang}.{split}.zip")
-            os.makedirs(input_dir, exist_ok=True)
-            os.chdir(input_dir)
-            # download the files to the current directory
+
+            # download the files and unzip them
             for url in urls_to_download:
                 os.system(f"wget {url}")
             urls_to_unzip = []
             for lang in _LANGS:
                 urls_to_unzip.append(f"{lang}.{split}.zip")
-            # unzip the files
             for url in urls_to_unzip:
-                os.system(f"unzip {url}")
-            # create train and val dir if not exists in one command
-            os.makedirs(f"{split}", exist_ok=True)
-            # put all files that contains "train" in the train dir
-            os.system(f"mv *{split}* {split}")
+                os.system(f"unzip {input_dir}/{url} -d {input_dir}")
+            os.makedirs(os.path.join(input_dir, split), exist_ok=True)
+            os.system(f"mv {input_dir}/*{split}* {os.path.join(input_dir, split)}")
 
     doc_converter = create_image_docling_converter(
-        do_ocr=True, ocr_lang=["zh, de, es, fr, it, ja, pt"]
+        do_ocr=True, ocr_lang=["zh", "de", "es", "fr", "it", "ja", "pt"]
     )
 
     num_train_rows = 0
@@ -448,7 +445,6 @@ def create_xfund_dataset(
 
         split_dir = output_dir / split
 
-        # Collect all JSON files and combine their data
         json_files = list(doc_dir.glob("*.json"))
         all_documents = []
         for json_file in json_files:
@@ -483,7 +479,7 @@ def create_xfund_dataset(
                     img_bytes = img_byte_stream.getvalue()
 
                 # process image with docling, as there is no groundtruth
-                # for the funsd dataset, we will use the docling conversion as true_doc
+                # for the xfund dataset, we will use the docling conversion as true_doc
                 true_doc = doc_converter.convert(img_path).document
                 image_ref = ImageRef(
                     mimetype="image/jpeg",
