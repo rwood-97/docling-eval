@@ -422,7 +422,7 @@ def create_xfund_dataset(
 
             # download the files and unzip them
             for url in urls_to_download:
-                os.system(f"wget {url}")
+                os.system(f"wget -P {input_dir} {url}")
             urls_to_unzip = []
             for lang in _LANGS:
                 urls_to_unzip.append(f"{lang}.{split}.zip")
