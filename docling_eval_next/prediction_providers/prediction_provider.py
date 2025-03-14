@@ -63,12 +63,13 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
     ):  # could be the docling converter options, the remote credentials for MS/Google, etc.
         super().__init__(**kwargs)
 
+        # TODO - Need a temp directory to save Azure outputs
         # Validate the required library
         try:
-            from azure.ai.documentintelligence import DocumentIntelligenceClient
+            from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
             from azure.core.credentials import AzureKeyCredential
         except ImportError:
-            raise ImportError("azure-ai-documentintelligence library is not installed..")
+            raise ImportError("azure-ai-formrecognizer library is not installed..")
 
 
         # Validate the required endpoints to call the API
@@ -80,7 +81,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                 "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY must be set in environment variables."
             )
 
-        self.doc_intelligence_client = DocumentIntelligenceClient(endpoint, AzureKeyCredential(key))
+        self.doc_intelligence_client = DocumentAnalysisClient(endpoint, AzureKeyCredential(key))
 
     def extract_bbox_from_polygon(self, polygon):
         """Helper function to extract bbox coordinates from polygon data."""
@@ -219,10 +220,20 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
 
         # Get the image from the stream
         # TODO - Convert the given stream?
-        print(f"stream - {type(stream)}")
-        print(f"stream.model_dump() - {type(stream.model_dump())}")
-        poller = self.doc_intelligence_client.begin_analyze_document("prebuilt-layout", stream.stream)
+        print(f"\nstream - {type(stream)}")
+        print(f"\nstream.model_dump() type - {type(stream.model_dump())}")
+        print(f"\nstream.stream) type - {type(stream.stream)}")
+        poller = self.doc_intelligence_client.begin_analyze_document("prebuilt-layout", stream.stream, features=[])
         result = poller.result()
+        result_json = result.to_dict()
+        print(result_json)
+        # poller = document_analysis_client.begin_analyze_document(
+        #             model_name, document=f, features=features
+        #         )
+        #         result = poller.result()
+
+        #     # Convert the result to a dictionary
+        #     result_json = result.to_dict()
         return self.convert_azure_output_to_docling(result, stream.name)
 
         
