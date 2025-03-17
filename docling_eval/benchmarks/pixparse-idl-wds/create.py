@@ -2,13 +2,6 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import hyperscaler_clients
-import utils
-from converters import (
-    convert_azure_output,
-    convert_google_output,
-    convert_textract_output,
-)
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
@@ -22,6 +15,12 @@ from PIL import Image
 from tqdm import tqdm
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.converters.hyperscalers import (
+    convert_azure_output_to_docling,
+    convert_google_output_to_docling,
+    convert_textract_output_to_docling,
+)
+from docling_eval.utils.hyperscalers import hyperscaler_clients, utils
 
 
 def process_image_with_services(
@@ -57,7 +56,7 @@ def process_image_with_services(
             lambda: hyperscaler_clients.process_with_textract(
                 clients["textract"], image_content
             ),
-            convert_textract_output,
+            convert_textract_output_to_docling,
         )
 
     if "google" in services_to_run:
@@ -74,7 +73,7 @@ def process_image_with_services(
                 image_content,
                 "image/tiff",
             ),
-            convert_google_output,
+            convert_google_output_to_docling,
         )
 
     if "azure" in services_to_run:
@@ -88,7 +87,7 @@ def process_image_with_services(
             lambda: hyperscaler_clients.process_with_azure(
                 clients["azure"], image_content
             ),
-            convert_azure_output,
+            convert_azure_output_to_docling,
         )
 
     return results
