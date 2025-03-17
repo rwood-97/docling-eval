@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 from huggingface_hub import snapshot_download
-from tabulate import tabulate  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
 from docling_eval.benchmarks.omnidocbench.create import (

@@ -1,9 +1,11 @@
-# OmniDocBench
+# OmniDocBench Benchmarks
+
+[OmniDocBench on HuggingFace](https://huggingface.co/datasets/opendatalab/OmniDocBench)
 
 Create and evaluate OmniDocBench using a single command:
 
 ```sh
-poetry run python ./docs/examples/benchmark_omnidocbench.py
+poetry run python docs/examples/benchmark_omnidocbench.py
 ```
 
 This command downloads runs the evaluations and produces the following files:
@@ -11,13 +13,7 @@ This command downloads runs the evaluations and produces the following files:
 
 ## Layout Evaluation
 
-<!--
-<details>
-<summary><b>Layout evaluation</b></summary>
-<br>
--->
-
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -41,24 +37,14 @@ poetry run evaluate \
     -o benchmarks/OmniDocBench-dataset/layout
 ```
 
-[mAP[0.5:0.95] report](evaluations/OmniDocBench/evaluation_OmniDocBench_layout_mAP[0.5_0.95].txt)
+[mAP[0.5:0.95] report](evaluations/OmniDocBench/evaluation_OmniDocBench_layout_mAP_0.5_0.95.txt)
 
-![mAP[0.5:0.95] plot](evaluations/OmniDocBench/evaluation_OmniDocBench_layout_mAP[0.5_0.95].png)
-
-<!--
-</details>
--->
+![mAP[0.5:0.95] plot](evaluations/OmniDocBench/evaluation_OmniDocBench_layout_mAP_0.5_0.95.png)
 
 
 ## Tableformer Evaluation
 
-<!--
-<details>
-<summary><b>Tableformer evaluation</b></summary>
-<br>
--->
-
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -93,20 +79,10 @@ poetry run evaluate \
 
 [TEDS struct with text report](evaluations/OmniDocBench/evaluation_OmniDocBench_tableformer_TEDS_struct-with-text.txt)
 
-<!--
-</details>
--->
-
 
 ## Reading order Evaluation
 
-<!--
-<details>
-<summary><b>Reading order evaluation</b></summary>
-<br>
--->
-
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -140,18 +116,9 @@ poetry run evaluate \
 ![Weighted ARD plot](evaluations/OmniDocBench/evaluation_OmniDocBench_reading_order_weighted_ARD.png)
 
 
-<!--
-</details>
--->
-
 ## Markdown text evaluation
-<!--
-<details>
-<summary><b>Markdown text evaluation</b></summary>
-<br>
--->
 
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -176,10 +143,16 @@ poetry run evaluate \
     -o benchmarks/OmniDocBench-dataset/layout
 ```
 
+[Markdown text report](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text.txt)
+
 ![BLEU plot](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text_BLEU.png)
 
-[BLEU report](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text_BLEU.txt)
+![Edit distance plot](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text_edit_distance.png)
 
-<!--
-</details>
--->
+![F1 plot](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text_F1.png)
+
+![Meteor plot](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text_Meteor.png)
+
+![Precision plot](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text_precision.png)
+
+![Recall plot](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text_recall.png)

@@ -1,22 +1,20 @@
 # DP-Bench Benchmarks
 
+[DP-Bench on HuggingFace](https://huggingface.co/datasets/upstage/dp-bench)
+
 Create and evaluate DP-Bench using a single command:
 
 ```sh
-poetry run python ./docs/examples/benchmark_dpbench.py
+poetry run python docs/examples/benchmark_dpbench.py
 ```
 
-This command downloads the DP-Bench dataset, runs the evaluations and produces the following files:
+This command downloads the DP-Bench dataset, runs the evaluations and produces the following files
+
+
 
 ## Layout Evaluation
 
-<!--
-<details>
-<summary><b>Layout evaluation</b></summary>
-<br>
--->
-
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -40,24 +38,14 @@ poetry run evaluate \
     -o benchmarks/DPBench-dataset/layout
 ```
 
-[mAP[0.5:0.95] report](evaluations/DPBench/evaluation_DPBench_layout_mAP[0.5_0.95].txt)
+[mAP[0.5:0.95] report](evaluations/DPBench/evaluation_DPBench_layout_mAP_0.5_0.95.txt)
 
-![mAP[0.5:0.95] plot](evaluations/DPBench/evaluation_DPBench_layout_mAP[0.5_0.95].png)
-
-<!--
-</details>
--->
+![mAP[0.5:0.95] plot](evaluations/DPBench/evaluation_DPBench_layout_mAP_0.5_0.95.png)
 
 
 ## TableFormer Evaluation
 
-<!--
-<details>
-<summary><b>Tableformer evaluation</b></summary>
-<br>
--->
-
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -91,20 +79,10 @@ poetry run evaluate \
 
 [TEDS struct with text report](evaluations/DPBench/evaluation_DPBench_tableformer_TEDS_struct-with-text.txt)
 
-<!--
-</details>
--->
-
 
 ## Reading order Evaluation
 
-<!--
-<details>
-<summary><b>Reading order evaluation</b></summary>
-<br>
--->
-
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -136,19 +114,10 @@ poetry run evaluate \
 
 [Weighted ARD report](evaluations/DPBench/evaluation_DPBench_reading_order_weighted_ARD.txt)
 
-<!--
-</details>
--->
 
 ## Markdown text Evaluation
 
-<!--
-<details>
-<summary><b>Markdown text evaluation</b></summary>
-<br>
--->
-
-Create the report:
+Create the evaluation report:
 
 ```sh
 poetry run evaluate \
@@ -161,6 +130,7 @@ poetry run evaluate \
 
 [Markdown text json](evaluations/DPBench/evaluation_DPBench_markdown_text.json)
 
+
 Visualize the report:
 
 ```sh
@@ -172,11 +142,17 @@ poetry run evaluate \
     -o benchmarks/DPBench-dataset/layout
 ```
 
+[Markdown text report](evaluations/DPBench/evaluation_DPBench_markdown_text.txt)
+
 
 ![BLEU plot](evaluations/DPBench/evaluation_DPBench_markdown_text_BLEU.png)
 
-[BLEU report](evaluations/DPBench/evaluation_DPBench_markdown_text_BLEU.txt)
+![Edit distance plot](evaluations/DPBench/evaluation_DPBench_markdown_text_edit_distance.png)
 
-<!--
-</details>
--->
+![F1 plot](evaluations/DPBench/evaluation_DPBench_markdown_text_F1.png)
+
+![Meteor plot](evaluations/DPBench/evaluation_DPBench_markdown_text_meteor.png)
+
+![Precision plot](evaluations/DPBench/evaluation_DPBench_markdown_text_precision.png)
+
+![Recall plot](evaluations/DPBench/evaluation_DPBench_markdown_text_recall.png)

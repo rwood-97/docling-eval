@@ -2,7 +2,6 @@ import glob
 import logging
 import random
 from pathlib import Path
-from typing import List, Optional
 
 import matplotlib.pyplot as plt
 from datasets import Dataset, load_dataset
@@ -14,7 +13,7 @@ from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
-from docling_eval.utils.teds import TEDScorer
+from docling_eval.evaluators.teds import TEDScorer
 
 _log = logging.getLogger(__name__)
 
@@ -236,7 +235,7 @@ class TableEvaluator:
                     pred_nrows=pred_table.data.num_rows,
                 )
                 table_evaluations.append(table_evaluation)
-            except Exception as exc:
+            except Exception:
                 logging.error(
                     f"Table {table_id} from document {doc_id} could not be compared!"
                 )

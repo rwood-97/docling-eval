@@ -1,11 +1,11 @@
-import argparse
 import io
 import json
+import logging
 import math
 import os
 from pathlib import Path
 
-from datasets import load_dataset, load_from_disk
+from datasets import load_dataset
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
@@ -13,7 +13,6 @@ from docling_core.types.doc import (
     DocItemLabel,
     GroupLabel,
     ImageRef,
-    PageItem,
     ProvenanceItem,
     Size,
     TableCell,
@@ -22,20 +21,32 @@ from docling_core.types.doc import (
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
-from docling_eval.docling.conversion import create_converter
-from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
     from_pil_to_base64uri,
     save_shard_to_disk,
+    write_datasets_info,
 )
+from docling_eval.converters.conversion import (
+    create_pdf_docling_converter,
+    create_smol_docling_converter,
+)
+from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+log = logging.getLogger(__name__)
+
 
 TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,
@@ -126,7 +137,7 @@ def update(true_doc, current_list, img, old_size, label, box, content):
                 uri=uri,
             )
         except Exception as e:
-            print(
+            log.error(
                 "Warning: failed to resolve image uri for content {} of doc {}. Caught exception is {}:{}. Setting null ImageRef".format(
                     str(content), str(true_doc.name), type(e).__name__, e
                 )
@@ -166,13 +177,18 @@ def create_dlnv1_e2e_dataset(
     name: str,
     split: str,
     output_dir: Path,
+    converter_type: ConverterTypes = ConverterTypes.DOCLING,
     do_viz: bool = False,
     max_items: int = -1,  # If -1 take the whole split
+    do_save_page_text: bool = False,
 ):
-    print(f"Downloading split: {split}")
-
     ds = load_dataset(name, split=split)
-    converter = create_converter(page_image_scale=1.0)
+
+    # Decide which converter type to initialize
+    if converter_type == ConverterTypes.DOCLING:
+        converter = create_pdf_docling_converter(page_image_scale=1.0)
+    else:
+        converter = create_smol_docling_converter()
 
     if do_viz:
         viz_dir = output_dir / "visualizations"
@@ -189,6 +205,8 @@ def create_dlnv1_e2e_dataset(
         ds,
         total=min(len(ds), max_items if max_items > -1 else math.inf),
     ):
+        page_hash = doc["metadata"]["page_hash"]
+
         pdf = doc["pdf"]
         pdf_stream = io.BytesIO(pdf)
         pdf_stream.seek(0)
@@ -200,7 +218,17 @@ def create_dlnv1_e2e_dataset(
 
         pred_doc = conv_results.document
 
-        true_doc = DoclingDocument(name=doc["metadata"]["page_hash"])
+        # Debugging code that dumps the VLM predicted text in files
+        if do_save_page_text:
+            debug_dir = output_dir / "debug"
+            os.makedirs(debug_dir, exist_ok=True)
+            if len(conv_results.pages):
+                for page_id, page in enumerate(conv_results.pages):
+                    page_text_fn = debug_dir / f"{page_hash}_{page_id}.txt"
+                    with open(page_text_fn, "w") as fd:
+                        fd.write(page.predictions.vlm_response.text)
+
+        true_doc = DoclingDocument(name=page_hash)
         true_doc, true_page_images = add_pages_to_true_doc(
             pdf_path=pdf_stream, true_doc=true_doc, image_scale=1.0
         )
@@ -241,9 +269,10 @@ def create_dlnv1_e2e_dataset(
         )
 
         record = {
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_TYPE: converter_type,
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
-            BenchMarkColumns.DOC_ID: doc["metadata"]["page_hash"],
+            BenchMarkColumns.DOC_ID: page_hash,
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
             BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
             BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
@@ -252,6 +281,10 @@ def create_dlnv1_e2e_dataset(
             BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.ORIGINAL: pdf_stream.getvalue(),
             BenchMarkColumns.MIMETYPE: "image/png",
+            BenchMarkColumns.MODALITIES: [
+                EvaluationModality.LAYOUT,
+                EvaluationModality.MARKDOWN_TEXT,
+            ],
         }
         pdf_stream.close()
         records.append(record)

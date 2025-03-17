@@ -7,7 +7,7 @@ To start creating ground-truth, you first need to have a dataset in parquet form
 The first way is to use an existing dataset (eg dpbench), which has potentially pre-annotated tables, formulas, etc. Hence you can run the create script of that particular benchmark.
 
 ```sh
-poetry run python ./docs/examples/benchmark_dpbench.py
+poetry run python docs/examples/benchmark_dpbench.py
 ```
 
 Another way is to create it from PDF or PNG files. In this case, simply run the following scripts,

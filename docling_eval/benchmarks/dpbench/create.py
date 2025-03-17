@@ -1,4 +1,3 @@
-import argparse
 import json
 import logging
 import os
@@ -6,14 +5,18 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from docling.datamodel.pipeline_options import TableFormerMode
-from tqdm import tqdm  # type: ignore
+from tqdm import tqdm
+
+from docling_eval.visualisation.visualisations import (  # type: ignore
+    save_comparison_html,
+    save_comparison_html_with_clusters,
+)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-from bs4 import BeautifulSoup  # type: ignore
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
     DoclingDocument,
@@ -25,25 +28,28 @@ from docling_core.types.doc.document import (
 from docling_core.types.doc.labels import DocItemLabel
 from PIL import Image  # as PILImage
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
-    save_comparison_html,
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
-from docling_eval.docling.conversion import create_converter
-from docling_eval.docling.models.tableformer.tf_model_prediction import (
-    TableFormerUpdater,
-)
-from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
     from_pil_to_base64uri,
     get_binary,
     save_shard_to_disk,
+    write_datasets_info,
+)
+from docling_eval.converters.conversion import (
+    create_pdf_docling_converter,
+    create_smol_docling_converter,
+)
+from docling_eval.converters.models.tableformer.tf_model_prediction import (
+    TableFormerUpdater,
 )
 
 TRUE_HTML_EXPORT_LABELS = {
@@ -237,18 +243,19 @@ def update(
 def create_dpbench_e2e_dataset(
     dpbench_dir: Path,
     output_dir: Path,
+    converter_type: ConverterTypes = ConverterTypes.DOCLING,
     image_scale: float = 1.0,
     do_viz: bool = False,
     artifacts_path: Optional[Path] = None,
 ):
-
     # Create Converter
-    doc_converter = create_converter(
-        page_image_scale=image_scale, artifacts_path=artifacts_path
-    )
+    if converter_type == ConverterTypes.DOCLING:
+        converter = create_pdf_docling_converter(page_image_scale=1.0)
+    else:
+        converter = create_smol_docling_converter()
 
     # load the groundtruth
-    with open(dpbench_dir / f"dataset/reference.json", "r") as fr:
+    with open(dpbench_dir / "dataset/reference.json", "r") as fr:
         gt = json.load(fr)
 
     viz_dir = output_dir / "vizualisations"
@@ -266,7 +273,7 @@ def create_dpbench_e2e_dataset(
         pdf_path = dpbench_dir / f"dataset/pdfs/{filename}"
 
         # Create the predicted Document
-        conv_results = doc_converter.convert(source=pdf_path, raises_on_error=True)
+        conv_results = converter.convert(source=pdf_path, raises_on_error=True)
         pred_doc = conv_results.document
 
         # Create the groundtruth Document
@@ -291,17 +298,6 @@ def create_dpbench_e2e_dataset(
             )
 
         if do_viz:
-            """
-            save_comparison_html(
-                filename=viz_dir / f"{os.path.basename(pdf_path)}-comp.html",
-                true_doc=true_doc,
-                pred_doc=pred_doc,
-                page_image=true_page_images[0],
-                true_labels=TRUE_HTML_EXPORT_LABELS,
-                pred_labels=PRED_HTML_EXPORT_LABELS,
-            )
-            """
-
             save_comparison_html_with_clusters(
                 filename=viz_dir / f"{os.path.basename(pdf_path)}-clusters.html",
                 true_doc=true_doc,
@@ -324,7 +320,8 @@ def create_dpbench_e2e_dataset(
         )
 
         record = {
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_TYPE: converter_type,
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: str(filename),
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
@@ -335,6 +332,12 @@ def create_dpbench_e2e_dataset(
             BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.ORIGINAL: get_binary(pdf_path),
             BenchMarkColumns.MIMETYPE: "application/pdf",
+            BenchMarkColumns.MODALITIES: [
+                EvaluationModality.LAYOUT,
+                EvaluationModality.MARKDOWN_TEXT,
+                EvaluationModality.READING_ORDER,
+                EvaluationModality.TABLE_STRUCTURE,
+            ],
         }
         records.append(record)
 
@@ -362,7 +365,7 @@ def create_dpbench_tableformer_dataset(
     tf_updater = TableFormerUpdater(mode, artifacts_path=artifacts_path)
 
     # load the groundtruth
-    with open(dpbench_dir / f"dataset/reference.json", "r") as fr:
+    with open(dpbench_dir / "dataset/reference.json", "r") as fr:
         gt = json.load(fr)
 
     viz_dir = output_dir / "vizualisations"
@@ -430,7 +433,8 @@ def create_dpbench_tableformer_dataset(
             )
 
             record = {
-                BenchMarkColumns.DOCLING_VERSION: docling_version(),
+                BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
+                BenchMarkColumns.CONVERTER_VERSION: docling_version(),
                 BenchMarkColumns.STATUS: "SUCCESS",
                 BenchMarkColumns.DOC_ID: str(os.path.basename(pdf_path)),
                 BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
@@ -441,6 +445,9 @@ def create_dpbench_tableformer_dataset(
                 BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
                 BenchMarkColumns.PREDICTION_PAGE_IMAGES: pred_page_images,
                 BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
+                BenchMarkColumns.MODALITIES: [
+                    EvaluationModality.TABLE_STRUCTURE,
+                ],
             }
             records.append(record)
 

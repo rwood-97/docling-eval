@@ -22,14 +22,12 @@ from tqdm import tqdm
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
-    get_binhash,
-    save_comparison_html_with_clusters,
-)
-from docling_eval.docling.utils import (
     crop_bounding_box,
     from_pil_to_base64uri,
     get_binary,
+    get_binhash,
 )
+from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval_next.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,

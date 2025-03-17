@@ -5,7 +5,7 @@ from docling.document_converter import DocumentConverter
 from docling_core.types import DoclingDocument
 from docling_core.types.io import DocumentStream
 
-from docling_eval.docling.utils import docling_version
+from docling_eval.benchmarks.utils import docling_version
 
 
 class BasePredictionProvider:
