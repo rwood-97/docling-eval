@@ -6,7 +6,7 @@ from docling.cli.main import OcrEngine
 
 from docling_eval.benchmarks.constants import BenchMarkNames
 from docling_eval.benchmarks.pixparse_idl_wds.create import create_pixparse_dataset
-from docling_eval.benchmarks.pixparse_idl_wds.utils import Hyperscaler
+from docling_eval.utils.hyperscalers.utils import Hyperscaler
 
 # Configure logging
 logging.basicConfig(
