@@ -6,7 +6,7 @@ from docling.cli.main import OcrEngine
 
 from docling_eval.benchmarks.constants import BenchMarkNames
 from docling_eval.benchmarks.pixparse_idl_wds.create import create_pixparse_dataset
-from docling_eval.benchmarks.pixparse_idl_wds.utils import Hyperscaler
+from docling_eval.utils.hyperscalers.utils import Hyperscaler
 
 # Configure logging
 logging.basicConfig(
@@ -20,19 +20,24 @@ log = logging.getLogger(__name__)
 def main():
     # idir = Path(f"./benchmarks/{BenchMarkNames.PIXPARSEIDL.value}-original")
     # odir = Path(f"./benchmarks/{BenchMarkNames.PIXPARSEIDL.value}-dataset")
-    idir = Path("/custom-dataset/ground-truth")
-    odir = Path("/custom-dataset/ground-truth")
+    idir = Path("docling-eval/pixparse-idl")
+    odir = Path("docling-eval/pixparse-idl")
 
     os.makedirs(odir, exist_ok=True)
 
-    os.environ["AWS_ACCESS_KEY_ID"] = ""
-    os.environ["AWS_SECRET_ACCESS_KEY"] = ""
-    os.environ["GOOGLE_PROJECT_ID"] = ""
-    os.environ["GOOGLE_PROCESSOR_ID"] = ""
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = ""
-
-    os.environ["AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"] = ""
-    os.environ["AZURE_DOCUMENT_INTELLIGENCE_KEY"] = ""
+    os.environ["AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID", "")
+    os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+    os.environ["GOOGLE_PROJECT_ID"] = os.environ.get("GOOGLE_PROJECT_ID", "")
+    os.environ["GOOGLE_PROCESSOR_ID"] = os.environ.get("GOOGLE_PROCESSOR_ID", "")
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.environ.get(
+        "GOOGLE_APPLICATION_CREDENTIALS", ""
+    )
+    os.environ["AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"] = os.environ.get(
+        "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", ""
+    )
+    os.environ["AZURE_DOCUMENT_INTELLIGENCE_KEY"] = os.environ.get(
+        "AZURE_DOCUMENT_INTELLIGENCE_KEY", ""
+    )
 
     log.info("Create the converted PIXPARSE dataset")
 

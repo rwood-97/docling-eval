@@ -17,27 +17,25 @@ from PIL import Image
 from tqdm import tqdm
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.pixparse_idl_wds.hyperscaler_clients import (
-    initialize_azure_document_intelligence_client,
-    initialize_google_doc_ai_client,
-    initialize_textract_client,
+from docling_eval.converters.conversion import create_image_docling_converter
+from docling_eval.converters.hyperscalers import (
+    convert_azure_output_to_docling,
+    convert_google_output_to_docling,
+    convert_textract_output_to_docling,
+)
+from docling_eval.utils.hyperscalers.hyperscaler_clients import (
+    initialize_hyperscaler_client,
     process_with_azure,
     process_with_google,
     process_with_textract,
 )
-from docling_eval.benchmarks.pixparse_idl_wds.utils import (
+from docling_eval.utils.hyperscalers.utils import (
     CustomJSONEncoder,
     Hyperscaler,
     check_service_env_vars,
     read_image_content,
     write_dataset_info,
     write_json_output,
-)
-from docling_eval.converters.conversion import create_image_docling_converter
-from docling_eval.converters.hyperscalers import (
-    convert_azure_output_to_docling,
-    convert_google_output_to_docling,
-    convert_textract_output_to_docling,
 )
 
 
@@ -135,22 +133,6 @@ def save_service_shard(
         for item in items:
             json_str = json.dumps(item, cls=CustomJSONEncoder)
             f.write(json_str + "\n")
-
-
-def initialize_hyperscaler_client(hyperscaler: Hyperscaler) -> Dict[str, Any]:
-    """Initialize a specific hyperscaler client."""
-    clients = {}
-
-    if hyperscaler == Hyperscaler.AWS:
-        clients["textract"] = initialize_textract_client()
-    elif hyperscaler == Hyperscaler.GOOGLE:
-        clients["google"], clients["google_processor_name"] = (
-            initialize_google_doc_ai_client()
-        )
-    elif hyperscaler == Hyperscaler.AZURE:
-        clients["azure"] = initialize_azure_document_intelligence_client()
-
-    return clients
 
 
 def create_docling_document(
@@ -254,7 +236,6 @@ def create_pixparse_dataset(
                             gt_data = json.load(f)
 
                         true_doc = create_docling_document(doc_id, gt_data, image_file)
-
                         # if no converted files exist, load and use the raw outputs
                         if converted_path.exists():
                             pred_doc = DoclingDocument.load_from_json(converted_path)

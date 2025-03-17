@@ -6,6 +6,8 @@ import boto3  # type: ignore
 from google.cloud import documentai
 from google.protobuf.json_format import MessageToDict
 
+from docling_eval.utils.hyperscalers.utils import Hyperscaler
+
 
 def initialize_textract_client():
     """Initializes and returns the AWS Textract client."""
@@ -124,3 +126,19 @@ def process_with_azure(azure_client, image_content: bytes) -> Optional[Dict]:
     except Exception as e:
         logging.info(f"Error processing with Azure Document Intelligence: {e}")
         return None
+
+
+def initialize_hyperscaler_client(hyperscaler: Hyperscaler) -> Dict[str, Any]:
+    """Initialize a specific hyperscaler client."""
+    clients = {}
+
+    if hyperscaler == Hyperscaler.AWS:
+        clients["textract"] = initialize_textract_client()
+    elif hyperscaler == Hyperscaler.GOOGLE:
+        clients["google"], clients["google_processor_name"] = (
+            initialize_google_doc_ai_client()
+        )
+    elif hyperscaler == Hyperscaler.AZURE:
+        clients["azure"] = initialize_azure_document_intelligence_client()
+
+    return clients
