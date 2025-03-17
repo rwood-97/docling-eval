@@ -6,7 +6,7 @@ import logging
 from importlib.metadata import version
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from bs4 import BeautifulSoup  # type: ignore
@@ -434,3 +434,22 @@ def crop_bounding_box(page_image: Image.Image, page: PageItem, bbox: BoundingBox
     cropped_image = page_image.crop((l, t, r, b))
 
     return cropped_image
+
+
+def set_selection_range(
+    begin_index: int, end_index: int, ds_len: int
+) -> Tuple[int, int]:
+    r"""
+    Set the final values of begin_index, end_index out of their initial values and dataset length
+    Raises exception if the indices are out of range
+    """
+    if end_index == -1 or end_index > ds_len:
+        end_index = ds_len
+
+    if begin_index > end_index:
+        raise RuntimeError("Cannot have from_sample_index > to_sample_index")
+
+    if begin_index >= ds_len or end_index > ds_len:
+        raise IndexError(f"The sample indices go beyond the dataset size: {ds_len}")
+
+    return begin_index, end_index

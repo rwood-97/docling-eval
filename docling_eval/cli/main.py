@@ -140,6 +140,8 @@ def create(
             create_dpbench_e2e_dataset(
                 dpbench_dir=idir,
                 output_dir=odir,
+                begin_index=begin_index,
+                end_index=end_index,
                 converter_type=converter_type,
                 image_scale=image_scale,
                 do_viz=True,
@@ -150,6 +152,8 @@ def create(
             create_dpbench_tableformer_dataset(
                 dpbench_dir=idir,
                 output_dir=odir,
+                begin_index=begin_index,
+                end_index=end_index,
                 image_scale=image_scale,
                 artifacts_path=artifacts_path,
             )
@@ -170,6 +174,8 @@ def create(
             create_omnidocbench_e2e_dataset(
                 omnidocbench_dir=idir,
                 output_dir=odir,
+                begin_index=begin_index,
+                end_index=end_index,
                 converter_type=converter_type,
                 image_scale=image_scale,
             )
@@ -178,6 +184,8 @@ def create(
             create_omnidocbench_tableformer_dataset(
                 omnidocbench_dir=idir,
                 output_dir=odir,
+                begin_index=begin_index,
+                end_index=end_index,
                 image_scale=image_scale,
                 artifacts_path=artifacts_path,
             )
@@ -189,6 +197,7 @@ def create(
             _log.info("Create the tableformer converted PubTabNet dataset")
             create_pubtabnet_tableformer_dataset(
                 output_dir=odir,
+                begin_index=begin_index,
                 end_index=end_index,
                 do_viz=True,
                 artifacts_path=artifacts_path,
@@ -201,6 +210,7 @@ def create(
             _log.info("Create the tableformer converted FinTabNet dataset")
             create_fintabnet_tableformer_dataset(
                 output_dir=odir,
+                begin_index=begin_index,
                 end_index=end_index,
                 do_viz=True,
                 artifacts_path=artifacts_path,
@@ -213,6 +223,7 @@ def create(
             _log.info("Create the tableformer converted Pub1M dataset")
             create_p1m_tableformer_dataset(
                 output_dir=odir,
+                begin_index=begin_index,
                 end_index=end_index,
                 do_viz=True,
                 artifacts_path=artifacts_path,

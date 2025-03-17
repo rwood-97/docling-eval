@@ -5,18 +5,6 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from docling.datamodel.pipeline_options import TableFormerMode
-from tqdm import tqdm
-
-from docling_eval.visualisation.visualisations import (  # type: ignore
-    save_comparison_html,
-    save_comparison_html_with_clusters,
-)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
     DoclingDocument,
@@ -27,6 +15,7 @@ from docling_core.types.doc.document import (
 )
 from docling_core.types.doc.labels import DocItemLabel
 from PIL import Image  # as PILImage
+from tqdm import tqdm
 
 from docling_eval.benchmarks.constants import (
     BenchMarkColumns,
@@ -42,6 +31,7 @@ from docling_eval.benchmarks.utils import (
     from_pil_to_base64uri,
     get_binary,
     save_shard_to_disk,
+    set_selection_range,
     write_datasets_info,
 )
 from docling_eval.converters.conversion import (
@@ -51,6 +41,13 @@ from docling_eval.converters.conversion import (
 from docling_eval.converters.models.tableformer.tf_model_prediction import (
     TableFormerUpdater,
 )
+from docling_eval.visualisation.visualisations import (  # type: ignore
+    save_comparison_html,
+    save_comparison_html_with_clusters,
+)
+
+# Get logger
+_log = logging.getLogger(__name__)
 
 TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,
@@ -243,6 +240,8 @@ def update(
 def create_dpbench_e2e_dataset(
     dpbench_dir: Path,
     output_dir: Path,
+    begin_index: int = 0,
+    end_index: int = -1,  # If -1 take the whole split
     converter_type: ConverterTypes = ConverterTypes.DOCLING,
     image_scale: float = 1.0,
     do_viz: bool = False,
@@ -263,13 +262,26 @@ def create_dpbench_e2e_dataset(
 
     records = []
 
+    # Apply index ranges
+    gt_selection = list(gt.items())
+    total_ds_len = len(gt_selection)
+    begin_index, end_index = set_selection_range(begin_index, end_index, total_ds_len)
+    gt_selection = gt_selection[begin_index:end_index]
+    selected_ds_len = len(gt_selection)
+    _log.info(
+        "Dataset len: %s. Selected range: [%s, %s] = %s",
+        total_ds_len,
+        begin_index,
+        end_index,
+        selected_ds_len,
+    )
+
     for filename, annots in tqdm(
-        gt.items(),
+        gt_selection,
         desc="Processing files for DP-Bench with end-to-end",
-        total=len(gt),
+        total=selected_ds_len,
         ncols=128,
     ):
-
         pdf_path = dpbench_dir / f"dataset/pdfs/{filename}"
 
         # Create the predicted Document
@@ -357,6 +369,8 @@ def create_dpbench_e2e_dataset(
 def create_dpbench_tableformer_dataset(
     dpbench_dir: Path,
     output_dir: Path,
+    begin_index: int = 0,
+    end_index: int = -1,  # If -1 take the whole split
     image_scale: float = 1.0,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
@@ -373,13 +387,26 @@ def create_dpbench_tableformer_dataset(
 
     records = []
 
+    # Apply index ranges
+    gt_selection = list(gt.items())
+    total_ds_len = len(gt_selection)
+    begin_index, end_index = set_selection_range(begin_index, end_index, total_ds_len)
+    gt_selection = gt_selection[begin_index:end_index]
+    selected_ds_len = len(gt_selection)
+    _log.info(
+        "Dataset len: %s. Selected range: [%s, %s] = %s",
+        total_ds_len,
+        begin_index,
+        end_index,
+        selected_ds_len,
+    )
+
     for filename, annots in tqdm(
-        gt.items(),
-        desc="Processing files for DP-Bench with TableFormer",
-        total=len(gt),
+        gt_selection,
+        desc="Processing files for DP-Bench with end-to-end",
+        total=selected_ds_len,
         ncols=128,
     ):
-
         pdf_path = dpbench_dir / f"dataset/pdfs/{filename}"
 
         # Create the groundtruth Document

@@ -27,10 +27,7 @@ from pydantic import BaseModel
 
 from docling_eval.benchmarks.utils import get_input_document, map_to_records
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+# Get logger
 log = logging.getLogger(__name__)
 
 

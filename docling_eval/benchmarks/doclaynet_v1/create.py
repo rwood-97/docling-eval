@@ -33,6 +33,7 @@ from docling_eval.benchmarks.utils import (
     extract_images,
     from_pil_to_base64uri,
     save_shard_to_disk,
+    set_selection_range,
     write_datasets_info,
 )
 from docling_eval.converters.conversion import (
@@ -43,6 +44,7 @@ from docling_eval.visualisation.visualisations import save_comparison_html_with_
 
 # Get logger
 _log = logging.getLogger(__name__)
+
 
 ###########################################################################################
 BLACKLISTED_DOC_IDS = [
@@ -212,22 +214,10 @@ def create_dlnv1_e2e_dataset(
     ds = load_dataset(name, split=split)
     total_ds_len = len(ds)
 
-    # Check sample ranges
-    if end_index == -1:
-        end_index = total_ds_len
-
-    if begin_index > end_index:
-        raise RuntimeError("Cannot have from_sample_index > to_sample_index")
-
-    if begin_index >= total_ds_len or end_index > total_ds_len:
-        raise IndexError(
-            f"The sample indices go beyond the dataset size: {total_ds_len}"
-        )
-
     # Select the asked rows
+    begin_index, end_index = set_selection_range(begin_index, end_index, total_ds_len)
     ds = ds.select(range(begin_index, end_index))
     selected_ds_len = len(ds)
-
     _log.info(
         "Dataset len: %s. Selected range: [%s, %s] = %s",
         total_ds_len,
