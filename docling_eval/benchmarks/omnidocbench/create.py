@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from docling.datamodel.pipeline_options import TableFormerMode
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
@@ -26,6 +26,7 @@ from docling_eval.benchmarks.utils import (
     from_pil_to_base64uri,
     get_binary,
     save_shard_to_disk,
+    set_selection_range,
     write_datasets_info,
 )
 from docling_eval.converters.conversion import (
@@ -40,10 +41,8 @@ from docling_eval.visualisation.visualisations import (
     save_comparison_html_with_clusters,
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+# Get logger
+_log = logging.getLogger(__name__)
 
 TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,
@@ -87,7 +86,7 @@ PRED_HTML_EXPORT_LABELS = {
 }
 
 
-def get_filenames(omnidocbench_dir: Path):
+def get_filenames(omnidocbench_dir: Path) -> List[Tuple[str, str]]:
 
     page_images = sorted(glob.glob(str(omnidocbench_dir / "images/*.jpg")))
     page_pdfs = sorted(glob.glob(str(omnidocbench_dir / "ori_pdfs/*.pdf")))
@@ -254,6 +253,8 @@ def update_doc_with_gt(
 def create_omnidocbench_e2e_dataset(
     omnidocbench_dir: Path,
     output_dir: Path,
+    begin_index: int = 0,
+    end_index: int = -1,  # If -1 take the whole split
     converter_type: ConverterTypes = ConverterTypes.DOCLING,
     image_scale: float = 1.0,
     do_viz: bool = False,
@@ -279,11 +280,22 @@ def create_omnidocbench_e2e_dataset(
 
     page_tuples = get_filenames(omnidocbench_dir)
 
-    cnt = 0
+    # Apply index ranges
+    total_ds_len = len(page_tuples)
+    begin_index, end_index = set_selection_range(begin_index, end_index, total_ds_len)
+    page_tuples = page_tuples[begin_index:end_index]
+    selected_ds_len = len(page_tuples)
+    _log.info(
+        "Dataset len: %s. Selected range: [%s, %s] = %s",
+        total_ds_len,
+        begin_index,
+        end_index,
+        selected_ds_len,
+    )
 
     for page_tuple in tqdm(
         page_tuples,
-        total=len(page_tuples),
+        total=selected_ds_len,
         ncols=128,
         desc="Processing files for OmniDocBench with end-to-end",
     ):
@@ -384,6 +396,8 @@ def create_omnidocbench_e2e_dataset(
 def create_omnidocbench_tableformer_dataset(
     omnidocbench_dir: Path,
     output_dir: Path,
+    begin_index: int = 0,
+    end_index: int = -1,  # If -1 take the whole split
     image_scale: float = 1.0,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
@@ -404,9 +418,22 @@ def create_omnidocbench_tableformer_dataset(
 
     page_tuples = get_filenames(omnidocbench_dir)
 
+    # Apply index ranges
+    total_ds_len = len(page_tuples)
+    begin_index, end_index = set_selection_range(begin_index, end_index, total_ds_len)
+    page_tuples = page_tuples[begin_index:end_index]
+    selected_ds_len = len(page_tuples)
+    _log.info(
+        "Dataset len: %s. Selected range: [%s, %s] = %s",
+        total_ds_len,
+        begin_index,
+        end_index,
+        selected_ds_len,
+    )
+
     for page_tuple in tqdm(
         page_tuples,
-        total=len(page_tuples),
+        total=selected_ds_len,
         ncols=128,
         desc="Processing files for OmniDocBench with end-to-end",
     ):
