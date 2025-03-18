@@ -27,10 +27,7 @@ from pydantic import BaseModel
 
 from docling_eval.benchmarks.utils import get_input_document, map_to_records
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+# Get logger
 log = logging.getLogger(__name__)
 
 
@@ -286,6 +283,9 @@ class TableFormerUpdater:
         # deep copy of the true-document
         pred_doc = copy.deepcopy(true_doc)
 
+        assert len(pred_doc.pages) == 1
+        page_size = pred_doc.pages[1].size
+
         # Replace the groundtruth tables with predictions from TableFormer
         for item, level in pred_doc.iterate_items():
             if isinstance(item, TableItem):
@@ -297,10 +297,18 @@ class TableFormerUpdater:
                     page_image = true_page_images[prov.page_no - 1]
                     # page_image.show()
 
+                    # Ensure that the bbox will be inside the min/max ranges
+                    table_bbox = (
+                        max(prov.bbox.l, 0.0),
+                        max(prov.bbox.b, 0.0),
+                        min(prov.bbox.r, page_size.width),
+                        min(prov.bbox.t, page_size.height),
+                    )
+
                     table_data = self._tf_predict_with_page_tokens(
                         page_image=page_image,
                         page_tokens=page_tokens,
-                        table_bbox=(prov.bbox.l, prov.bbox.b, prov.bbox.r, prov.bbox.t),
+                        table_bbox=table_bbox,
                     )
                     item.data = table_data
 

@@ -217,8 +217,8 @@ files = [
 lazy-object-proxy = ">=1.4.0"
 typing-extensions = {version = ">=4.0.0", markers = "python_version < \"3.11\""}
 wrapt = [
-    {version = ">=1.14,<2", markers = "python_version >= \"3.11\""},
     {version = ">=1.11,<2", markers = "python_version < \"3.11\""},
+    {version = ">=1.14,<2", markers = "python_version >= \"3.11\""},
 ]
 
 [[package]]
@@ -1013,14 +1013,14 @@ files = [
 
 [[package]]
 name = "docling"
-version = "2.27.0"
+version = "2.26.0"
 description = "SDK and CLI for parsing PDF, DOCX, HTML, and more, to a unified document representation for powering downstream workflows such as gen AI applications."
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "docling-2.27.0-py3-none-any.whl", hash = "sha256:faba35662612a2c687a3a463e501d95f645316436084af92a0442ce162429a3d"},
-    {file = "docling-2.27.0.tar.gz", hash = "sha256:1288ed75b27e33bf94daff34faffc6d11b7d7ccc13e3df84fb24adad3991f72d"},
+    {file = "docling-2.26.0-py3-none-any.whl", hash = "sha256:0ddebcd4c258c8fa9e4f84801940ae3c4fce59ad8ff81bc10939f686073323a0"},
+    {file = "docling-2.26.0.tar.gz", hash = "sha256:db7fc425b876023e4ad42a1fdfc0f285f507c38bc8a24ee2ae00e2eb8af0120d"},
 ]
 
 [package.dependencies]
@@ -3000,8 +3000,8 @@ files = [
 
 [package.dependencies]
 multiprocess = [
-    {version = ">=0.70.15", optional = true, markers = "python_version >= \"3.11\" and extra == \"dill\""},
     {version = "*", optional = true, markers = "python_version < \"3.11\" and extra == \"dill\""},
+    {version = ">=0.70.15", optional = true, markers = "python_version >= \"3.11\" and extra == \"dill\""},
 ]
 pygments = ">=2.0"
 pywin32 = {version = ">=301", markers = "platform_system == \"Windows\""}
@@ -3707,10 +3707,10 @@ files = [
 
 [package.dependencies]
 numpy = [
+    {version = ">=1.21.4", markers = "python_version >= \"3.10\" and platform_system == \"Darwin\" and python_version < \"3.11\""},
+    {version = ">=1.21.2", markers = "platform_system != \"Darwin\" and python_version >= \"3.10\" and python_version < \"3.11\""},
+    {version = ">=1.23.5", markers = "python_version >= \"3.11\" and python_version < \"3.12\""},
     {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
-    {version = ">=1.23.5", markers = "python_version == \"3.11\""},
-    {version = ">=1.21.4", markers = "python_version >= \"3.10\" and platform_system == \"Darwin\""},
-    {version = ">=1.21.2", markers = "platform_system != \"Darwin\" and python_version >= \"3.10\""},
 ]
 
 [[package]]
@@ -3794,9 +3794,9 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
-    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
     {version = ">=1.22.4", markers = "python_version < \"3.11\""},
+    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
+    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
 ]
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
@@ -4686,8 +4686,8 @@ files = [
 astroid = ">=2.15.8,<=2.17.0-dev0"
 colorama = {version = ">=0.4.5", markers = "sys_platform == \"win32\""}
 dill = [
-    {version = ">=0.3.6", markers = "python_version >= \"3.11\""},
     {version = ">=0.2", markers = "python_version < \"3.11\""},
+    {version = ">=0.3.6", markers = "python_version >= \"3.11\""},
 ]
 isort = ">=4.2.5,<6"
 mccabe = ">=0.6,<0.8"
@@ -7171,4 +7171,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "b16ffc76bd1e4f64b8ef755dcae2b39d90aedc4bbe8283362c2876c898723098"
+content-hash = "059e0c343e9d3804eb5715ceabfcad3103a001deaf4d7bcf6cae5f4e3d01a571"

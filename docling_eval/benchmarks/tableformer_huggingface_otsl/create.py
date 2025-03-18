@@ -1,5 +1,6 @@
 import glob
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, List, Optional
@@ -28,12 +29,16 @@ from docling_eval.benchmarks.utils import (
     extract_images,
     from_pil_to_base64uri,
     save_shard_to_disk,
+    set_selection_range,
 )
 from docling_eval.converters.models.tableformer.tf_model_prediction import (
     PageTokens,
     TableFormerUpdater,
 )
 from docling_eval.visualisation.visualisations import save_comparison_html
+
+# Get logger
+_log = logging.getLogger(__name__)
 
 HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,
@@ -96,7 +101,8 @@ def create_huggingface_otsl_tableformer_dataset(
     max_records: int = 1000,
     split: str = "test",
     do_viz: bool = False,
-    max_items: int = -1,  # If -1, then take the whole split
+    begin_index: int = 0,
+    end_index: int = -1,  # If -1, then take the whole split
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
 ):
@@ -123,21 +129,31 @@ def create_huggingface_otsl_tableformer_dataset(
     tf_updater = TableFormerUpdater(mode, artifacts_path=artifacts_path)
 
     ds = load_dataset(name, split=split)
+    total_ds_len = len(ds)
 
-    if max_items == -1:
-        max_items = len(ds)
+    # Select the asked rows
+    begin_index, end_index = set_selection_range(begin_index, end_index, total_ds_len)
+    ds = ds.select(range(begin_index, end_index))
+    selected_ds_len = len(ds)
+    _log.info(
+        "Dataset len: %s. Selected range: [%s, %s] = %s",
+        total_ds_len,
+        begin_index,
+        end_index,
+        selected_ds_len,
+    )
 
     records = []
     tid, sid = 0, 0
 
     for i, item in tqdm(
         enumerate(ds),
-        total=max_items,
+        total=selected_ds_len,
         ncols=128,
         desc=f"create {name} tableformer dataset",
     ):
 
-        if i >= max_items:
+        if i >= end_index:
             break
 
         filename = item["filename"]
@@ -286,18 +302,20 @@ def create_fintabnet_tableformer_dataset(
     image_scale: float = 1.0,
     max_records: int = 1000,
     do_viz: bool = False,
-    max_items: int = 1000,
+    begin_index: int = 0,
+    end_index: int = 1000,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
 ):
     create_huggingface_otsl_tableformer_dataset(
-        name="ds4sd/FinTabNet_OTSL",
+        name="ds4sd/FinTabNet_OTSL-v1.1",
         output_dir=output_dir,
         image_scale=image_scale,
         max_records=max_records,
         split="test",
         do_viz=do_viz,
-        max_items=max_items,
+        begin_index=begin_index,
+        end_index=end_index,
         mode=mode,
         artifacts_path=artifacts_path,
     )
@@ -308,7 +326,8 @@ def create_pubtabnet_tableformer_dataset(
     image_scale: float = 1.0,
     max_records: int = 1000,
     do_viz: bool = False,
-    max_items: int = 1000,
+    begin_index: int = 0,
+    end_index: int = 1000,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
 ):
@@ -319,7 +338,8 @@ def create_pubtabnet_tableformer_dataset(
         max_records=max_records,
         split="val",
         do_viz=do_viz,
-        max_items=max_items,
+        begin_index=begin_index,
+        end_index=end_index,
         mode=mode,
         artifacts_path=artifacts_path,
     )
@@ -330,18 +350,20 @@ def create_p1m_tableformer_dataset(
     image_scale: float = 1.0,
     max_records: int = 1000,
     do_viz: bool = True,
-    max_items: int = 1000,
+    begin_index: int = 0,
+    end_index: int = 1000,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
 ):
     create_huggingface_otsl_tableformer_dataset(
-        name="ds4sd/PubTables-1M_OTSL",
+        name="ds4sd/PubTables-1M_OTSL-v1.1",
         output_dir=output_dir,
         image_scale=image_scale,
         max_records=max_records,
         split="test",
         do_viz=do_viz,
-        max_items=max_items,
+        begin_index=begin_index,
+        end_index=end_index,
         mode=mode,
         artifacts_path=artifacts_path,
     )
