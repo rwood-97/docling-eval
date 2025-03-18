@@ -2,8 +2,6 @@ import logging
 import os
 from pathlib import Path
 
-from tabulate import tabulate  # type: ignore
-
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
 from docling_eval.benchmarks.doclaynet_v1.create import create_dlnv1_e2e_dataset
 from docling_eval.cli.main import evaluate, visualise
@@ -32,7 +30,6 @@ def main():
             split=split,
             output_dir=odir_lay,
             do_viz=True,
-            max_items=2000,
         )
 
         # Layout

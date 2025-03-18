@@ -9,8 +9,7 @@ from docling_core.types.io import DocumentStream
 from huggingface_hub import snapshot_download
 from pydantic import BaseModel
 
-from docling_eval.benchmarks.utils import write_datasets_info
-from docling_eval.docling.utils import save_shard_to_disk
+from docling_eval.benchmarks.utils import save_shard_to_disk, write_datasets_info
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval_next.prediction_providers.prediction_provider import (
     BasePredictionProvider,

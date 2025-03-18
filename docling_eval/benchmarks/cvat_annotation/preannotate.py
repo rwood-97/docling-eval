@@ -1,27 +1,15 @@
 import argparse
-import copy
 import glob
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import List
 
-from datasets import Dataset, load_dataset
-from docling_core.types.doc.base import BoundingBox, CoordOrigin, ImageRefMode, Size
-from docling_core.types.doc.document import (
-    DocItem,
-    DoclingDocument,
-    PictureItem,
-    TableItem,
-)
-from docling_core.types.doc.labels import (
-    DocItemLabel,
-    GroupLabel,
-    PictureClassificationLabel,
-    TableCellLabel,
-)
-from pydantic import BaseModel
+from datasets import load_dataset
+from docling_core.types.doc.base import BoundingBox, ImageRefMode
+from docling_core.types.doc.document import DocItem, DoclingDocument
+from docling_core.types.doc.labels import DocItemLabel, PictureClassificationLabel
 from tqdm import tqdm  # type: ignore
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
@@ -29,15 +17,13 @@ from docling_eval.benchmarks.cvat_annotation.utils import (
     AnnotatedDoc,
     AnnotatedImage,
     AnnotationBBox,
-    AnnotationLine,
     AnnotationOverview,
     BenchMarkDirs,
     DocLinkLabel,
     TableComponentLabel,
     rgb_to_hex,
 )
-from docling_eval.benchmarks.utils import get_binhash
-from docling_eval.docling.utils import insert_images
+from docling_eval.benchmarks.utils import get_binhash, insert_images
 
 # Configure logging
 logging.basicConfig(
@@ -252,11 +238,11 @@ def create_cvat_preannotation_file_for_single_page(
                     annotated_image.page_nos = [page_no]
                     overview.img_annotations[filename] = annotated_image
                 else:
-                    logging.warning(f"missing pillow image of the page, skipping ...")
+                    logging.warning("missing pillow image of the page, skipping ...")
                     continue
 
             else:
-                logging.warning(f"missing image-ref of the page, skipping ...")
+                logging.warning("missing image-ref of the page, skipping ...")
                 continue
 
             page_bboxes: List[AnnotationBBox] = []

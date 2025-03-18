@@ -1,12 +1,10 @@
-import argparse
 import glob
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Tuple
 
-from bs4 import BeautifulSoup  # type: ignore
 from docling.datamodel.pipeline_options import TableFormerMode
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import DoclingDocument, ImageRef, ProvenanceItem
@@ -14,31 +12,37 @@ from docling_core.types.doc.labels import DocItemLabel
 from PIL import Image  # as PILImage
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.benchmarks.constants import (
+    BenchMarkColumns,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
-    save_comparison_html,
-    save_comparison_html_with_clusters,
-    write_datasets_info,
-)
-from docling_eval.docling.conversion import create_converter
-from docling_eval.docling.models.tableformer.tf_model_prediction import (
-    TableFormerUpdater,
-)
-from docling_eval.docling.utils import (
     crop_bounding_box,
     docling_version,
     extract_images,
     from_pil_to_base64uri,
     get_binary,
     save_shard_to_disk,
+    set_selection_range,
+    write_datasets_info,
+)
+from docling_eval.converters.conversion import (
+    create_pdf_docling_converter,
+    create_smol_docling_converter,
+)
+from docling_eval.converters.models.tableformer.tf_model_prediction import (
+    TableFormerUpdater,
+)
+from docling_eval.visualisation.visualisations import (
+    save_comparison_html,
+    save_comparison_html_with_clusters,
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+# Get logger
+_log = logging.getLogger(__name__)
 
 TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,
@@ -82,7 +86,7 @@ PRED_HTML_EXPORT_LABELS = {
 }
 
 
-def get_filenames(omnidocbench_dir: Path):
+def get_filenames(omnidocbench_dir: Path) -> List[Tuple[str, str]]:
 
     page_images = sorted(glob.glob(str(omnidocbench_dir / "images/*.jpg")))
     page_pdfs = sorted(glob.glob(str(omnidocbench_dir / "ori_pdfs/*.pdf")))
@@ -249,18 +253,22 @@ def update_doc_with_gt(
 def create_omnidocbench_e2e_dataset(
     omnidocbench_dir: Path,
     output_dir: Path,
+    begin_index: int = 0,
+    end_index: int = -1,  # If -1 take the whole split
+    converter_type: ConverterTypes = ConverterTypes.DOCLING,
     image_scale: float = 1.0,
     do_viz: bool = False,
     artifacts_path: Optional[Path] = None,
 ):
 
     # Create Converter
-    doc_converter = create_converter(
-        page_image_scale=image_scale, artifacts_path=artifacts_path
-    )
+    if converter_type == ConverterTypes.DOCLING:
+        converter = create_pdf_docling_converter(page_image_scale=1.0)
+    else:
+        converter = create_smol_docling_converter()
 
     # load the groundtruth
-    with open(omnidocbench_dir / f"OmniDocBench.json", "r") as fr:
+    with open(omnidocbench_dir / "OmniDocBench.json", "r") as fr:
         gt = json.load(fr)
 
     gt = update_gt_into_map(gt)
@@ -272,11 +280,22 @@ def create_omnidocbench_e2e_dataset(
 
     page_tuples = get_filenames(omnidocbench_dir)
 
-    cnt = 0
+    # Apply index ranges
+    total_ds_len = len(page_tuples)
+    begin_index, end_index = set_selection_range(begin_index, end_index, total_ds_len)
+    page_tuples = page_tuples[begin_index:end_index]
+    selected_ds_len = len(page_tuples)
+    _log.info(
+        "Dataset len: %s. Selected range: [%s, %s] = %s",
+        total_ds_len,
+        begin_index,
+        end_index,
+        selected_ds_len,
+    )
 
     for page_tuple in tqdm(
         page_tuples,
-        total=len(page_tuples),
+        total=selected_ds_len,
         ncols=128,
         desc="Processing files for OmniDocBench with end-to-end",
     ):
@@ -285,14 +304,14 @@ def create_omnidocbench_e2e_dataset(
         pdf_path = Path(page_tuple[1])
 
         # logging.info(f"file: {pdf_path}")
-        if not os.path.basename(jpg_path) in gt:
+        if os.path.basename(jpg_path) not in gt:
             logging.error(f"did not find ground-truth for {os.path.basename(jpg_path)}")
             continue
 
         gt_doc = gt[os.path.basename(jpg_path)]
 
         # Create the predicted Document
-        conv_results = doc_converter.convert(source=pdf_path, raises_on_error=True)
+        conv_results = converter.convert(source=pdf_path, raises_on_error=True)
         pred_doc = conv_results.document
 
         # Create the groundtruth Document
@@ -317,17 +336,6 @@ def create_omnidocbench_e2e_dataset(
         )
 
         if do_viz:
-            """
-            save_comparison_html(
-                filename=viz_dir / f"{os.path.basename(pdf_path)}-comp.html",
-                true_doc=true_doc,
-                pred_doc=pred_doc,
-                page_image=true_page_images[0],
-                true_labels=TRUE_HTML_EXPORT_LABELS,
-                pred_labels=PRED_HTML_EXPORT_LABELS,
-            )
-            """
-
             save_comparison_html_with_clusters(
                 filename=viz_dir / f"{os.path.basename(pdf_path)}-clusters.html",
                 true_doc=true_doc,
@@ -350,7 +358,8 @@ def create_omnidocbench_e2e_dataset(
         )
 
         record = {
-            BenchMarkColumns.DOCLING_VERSION: docling_version(),
+            BenchMarkColumns.CONVERTER_TYPE: converter_type,
+            BenchMarkColumns.CONVERTER_VERSION: docling_version(),
             BenchMarkColumns.STATUS: "SUCCESS",
             BenchMarkColumns.DOC_ID: str(os.path.basename(jpg_path)),
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
@@ -362,6 +371,12 @@ def create_omnidocbench_e2e_dataset(
             BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
             BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
+            BenchMarkColumns.MODALITIES: [
+                EvaluationModality.LAYOUT,
+                EvaluationModality.MARKDOWN_TEXT,
+                EvaluationModality.READING_ORDER,
+                EvaluationModality.TABLE_STRUCTURE,
+            ],
         }
         records.append(record)
 
@@ -381,6 +396,8 @@ def create_omnidocbench_e2e_dataset(
 def create_omnidocbench_tableformer_dataset(
     omnidocbench_dir: Path,
     output_dir: Path,
+    begin_index: int = 0,
+    end_index: int = -1,  # If -1 take the whole split
     image_scale: float = 1.0,
     mode: TableFormerMode = TableFormerMode.ACCURATE,
     artifacts_path: Optional[Path] = None,
@@ -389,7 +406,7 @@ def create_omnidocbench_tableformer_dataset(
     tf_updater = TableFormerUpdater(mode, artifacts_path=artifacts_path)
 
     # load the groundtruth
-    with open(omnidocbench_dir / f"OmniDocBench.json", "r") as fr:
+    with open(omnidocbench_dir / "OmniDocBench.json", "r") as fr:
         gt = json.load(fr)
 
     gt = update_gt_into_map(gt)
@@ -401,9 +418,22 @@ def create_omnidocbench_tableformer_dataset(
 
     page_tuples = get_filenames(omnidocbench_dir)
 
+    # Apply index ranges
+    total_ds_len = len(page_tuples)
+    begin_index, end_index = set_selection_range(begin_index, end_index, total_ds_len)
+    page_tuples = page_tuples[begin_index:end_index]
+    selected_ds_len = len(page_tuples)
+    _log.info(
+        "Dataset len: %s. Selected range: [%s, %s] = %s",
+        total_ds_len,
+        begin_index,
+        end_index,
+        selected_ds_len,
+    )
+
     for page_tuple in tqdm(
         page_tuples,
-        total=len(page_tuples),
+        total=selected_ds_len,
         ncols=128,
         desc="Processing files for OmniDocBench with end-to-end",
     ):
@@ -412,7 +442,7 @@ def create_omnidocbench_tableformer_dataset(
         pdf_path = Path(page_tuple[1])
 
         # logging.info(f"file: {pdf_path}")
-        if not os.path.basename(jpg_path) in gt:
+        if os.path.basename(jpg_path) not in gt:
             logging.error(f"did not find ground-truth for {os.path.basename(jpg_path)}")
             continue
 
@@ -467,7 +497,8 @@ def create_omnidocbench_tableformer_dataset(
             )
 
             record = {
-                BenchMarkColumns.DOCLING_VERSION: docling_version(),
+                BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
+                BenchMarkColumns.CONVERTER_VERSION: docling_version(),
                 BenchMarkColumns.STATUS: "SUCCESS",
                 BenchMarkColumns.DOC_ID: str(os.path.basename(jpg_path)),
                 BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
@@ -478,6 +509,7 @@ def create_omnidocbench_tableformer_dataset(
                 BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
                 BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
                 BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
+                BenchMarkColumns.MODALITIES: [EvaluationModality.TABLE_STRUCTURE],
             }
             records.append(record)
 

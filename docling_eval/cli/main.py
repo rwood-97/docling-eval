@@ -8,7 +8,11 @@ from typing import Annotated, Optional
 import typer
 from tabulate import tabulate  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
+from docling_eval.benchmarks.constants import (
+    BenchMarkNames,
+    ConverterTypes,
+    EvaluationModality,
+)
 from docling_eval.benchmarks.doclaynet_v1.create import create_dlnv1_e2e_dataset
 from docling_eval.benchmarks.dpbench.create import (
     create_dpbench_e2e_dataset,
@@ -23,6 +27,10 @@ from docling_eval.benchmarks.tableformer_huggingface_otsl.create import (
     create_p1m_tableformer_dataset,
     create_pubtabnet_tableformer_dataset,
 )
+from docling_eval.evaluators.base_readingorder_evaluator import (
+    DatasetReadingOrderEvaluation,
+    ReadingOrderVisualizer,
+)
 from docling_eval.evaluators.bbox_text_evaluator import BboxTextEvaluator
 from docling_eval.evaluators.layout_evaluator import (
     DatasetLayoutEvaluation,
@@ -32,11 +40,7 @@ from docling_eval.evaluators.markdown_text_evaluator import (
     DatasetMarkdownEvaluation,
     MarkdownTextEvaluator,
 )
-from docling_eval.evaluators.readingorder_evaluator import (
-    DatasetReadingOrderEvaluation,
-    ReadingOrderEvaluator,
-    ReadingOrderVisualizer,
-)
+from docling_eval.evaluators.readingorder_evaluator import ReadingOrderEvaluator
 from docling_eval.evaluators.stats import DatasetStatistics
 from docling_eval.evaluators.table_evaluator import (
     DatasetTableEvaluation,
@@ -44,10 +48,8 @@ from docling_eval.evaluators.table_evaluator import (
 )
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-log = logging.getLogger(__name__)
+logging.getLogger("docling").setLevel(logging.WARNING)
+_log = logging.getLogger(__name__)
 
 app = typer.Typer(
     name="docling-eval",
@@ -100,10 +102,10 @@ def log_and_save_stats(
     content += tabulate(data, headers=headers, tablefmt="github")
     content += "\n\n\n"
 
-    log.info(content)
+    _log.info(content)
     with open(log_filename, log_mode) as fd:
         fd.write(content)
-        log.info("Saving statistics report to %s", log_filename)
+        _log.info("Saving statistics report to %s", log_filename)
 
     return log_filename, fig_filename
 
@@ -114,9 +116,12 @@ def create(
     odir: Path,
     idir: Optional[Path] = None,
     image_scale: float = 1.0,
+    converter_type: ConverterTypes = ConverterTypes.DOCLING,
     artifacts_path: Optional[Path] = None,
     split: str = "test",
-    max_items: int = 1000,
+    begin_index: int = 0,
+    end_index: int = 1000,
+    debug: bool = False,
 ):
     r""""""
     if odir is None:
@@ -124,7 +129,7 @@ def create(
 
     if benchmark == BenchMarkNames.DPBENCH:
         if idir is None:
-            log.error("The input dir for %s must be provided", BenchMarkNames.DPBENCH)
+            _log.error("The input dir for %s must be provided", BenchMarkNames.DPBENCH)
         assert idir is not None
 
         if (
@@ -135,6 +140,9 @@ def create(
             create_dpbench_e2e_dataset(
                 dpbench_dir=idir,
                 output_dir=odir,
+                begin_index=begin_index,
+                end_index=end_index,
+                converter_type=converter_type,
                 image_scale=image_scale,
                 do_viz=True,
             )
@@ -144,16 +152,18 @@ def create(
             create_dpbench_tableformer_dataset(
                 dpbench_dir=idir,
                 output_dir=odir,
+                begin_index=begin_index,
+                end_index=end_index,
                 image_scale=image_scale,
                 artifacts_path=artifacts_path,
             )
 
         else:
-            log.error(f"{modality} is not yet implemented for {benchmark}")
+            _log.error(f"{modality} is not yet implemented for {benchmark}")
 
     elif benchmark == BenchMarkNames.OMNIDOCBENCH:
         if idir is None:
-            log.error("The input dir for %s must be provided", BenchMarkNames.DPBENCH)
+            _log.error("The input dir for %s must be provided", BenchMarkNames.DPBENCH)
         assert idir is not None
 
         if (
@@ -162,54 +172,64 @@ def create(
         ):
             # No support for max_items
             create_omnidocbench_e2e_dataset(
-                omnidocbench_dir=idir, output_dir=odir, image_scale=image_scale
+                omnidocbench_dir=idir,
+                output_dir=odir,
+                begin_index=begin_index,
+                end_index=end_index,
+                converter_type=converter_type,
+                image_scale=image_scale,
             )
         elif modality == EvaluationModality.TABLE_STRUCTURE:
             # No support for max_items
             create_omnidocbench_tableformer_dataset(
                 omnidocbench_dir=idir,
                 output_dir=odir,
+                begin_index=begin_index,
+                end_index=end_index,
                 image_scale=image_scale,
                 artifacts_path=artifacts_path,
             )
         else:
-            log.error(f"{modality} is not yet implemented for {benchmark}")
+            _log.error(f"{modality} is not yet implemented for {benchmark}")
 
     elif benchmark == BenchMarkNames.PUBTABNET:
         if modality == EvaluationModality.TABLE_STRUCTURE:
-            log.info("Create the tableformer converted PubTabNet dataset")
+            _log.info("Create the tableformer converted PubTabNet dataset")
             create_pubtabnet_tableformer_dataset(
                 output_dir=odir,
-                max_items=max_items,
+                begin_index=begin_index,
+                end_index=end_index,
                 do_viz=True,
                 artifacts_path=artifacts_path,
             )
         else:
-            log.error(f"{modality} is not yet implemented for {benchmark}")
+            _log.error(f"{modality} is not yet implemented for {benchmark}")
 
     elif benchmark == BenchMarkNames.FINTABNET:
         if modality == EvaluationModality.TABLE_STRUCTURE:
-            log.info("Create the tableformer converted FinTabNet dataset")
+            _log.info("Create the tableformer converted FinTabNet dataset")
             create_fintabnet_tableformer_dataset(
                 output_dir=odir,
-                max_items=max_items,
+                begin_index=begin_index,
+                end_index=end_index,
                 do_viz=True,
                 artifacts_path=artifacts_path,
             )
         else:
-            log.error(f"{modality} is not yet implemented for {benchmark}")
+            _log.error(f"{modality} is not yet implemented for {benchmark}")
 
     elif benchmark == BenchMarkNames.PUB1M:
         if modality == EvaluationModality.TABLE_STRUCTURE:
-            log.info("Create the tableformer converted Pub1M dataset")
+            _log.info("Create the tableformer converted Pub1M dataset")
             create_p1m_tableformer_dataset(
                 output_dir=odir,
-                max_items=max_items,
+                begin_index=begin_index,
+                end_index=end_index,
                 do_viz=True,
                 artifacts_path=artifacts_path,
             )
         else:
-            log.error(f"{modality} is not yet implemented for {benchmark}")
+            _log.error(f"{modality} is not yet implemented for {benchmark}")
 
     elif benchmark == BenchMarkNames.DOCLAYNETV1:
         if modality == EvaluationModality.LAYOUT:
@@ -217,14 +237,17 @@ def create(
                 name="ds4sd/DocLayNet-v1.2",
                 split=split,
                 output_dir=odir,
+                converter_type=converter_type,
                 do_viz=True,
-                max_items=max_items,
+                begin_index=begin_index,
+                end_index=end_index,
+                do_debug=debug,
             )
         else:
-            log.error(f"{modality} is not yet implemented for {benchmark}")
+            _log.error(f"{modality} is not yet implemented for {benchmark}")
 
     else:
-        log.error(f"{benchmark} is not yet implemented")
+        _log.error(f"{benchmark} is not yet implemented")
 
 
 def evaluate(
@@ -236,13 +259,13 @@ def evaluate(
 ):
     r""""""
     if not os.path.exists(idir):
-        log.error(f"Benchmark directory not found: {idir}")
+        _log.error(f"Benchmark directory not found: {idir}")
 
     # Save the evaluation
     save_fn = odir / f"evaluation_{benchmark.value}_{modality.value}.json"
 
     if modality == EvaluationModality.END2END:
-        log.error("not supported")
+        _log.error("not supported")
 
     elif modality == EvaluationModality.LAYOUT:
         layout_evaluator = LayoutEvaluator()
@@ -259,7 +282,9 @@ def evaluate(
             json.dump(table_evaluation.model_dump(), fd, indent=2, sort_keys=True)
 
     elif modality == EvaluationModality.READING_ORDER:
+        # readingorder_evaluator = ReadingOrderEvaluatorGlm()
         readingorder_evaluator = ReadingOrderEvaluator()
+
         readingorder_evaluation = readingorder_evaluator(idir, split=split)
 
         with open(save_fn, "w") as fd:
@@ -300,7 +325,7 @@ def evaluate(
     elif modality == EvaluationModality.CODE_TRANSCRIPTION:
         pass
 
-    log.info("The evaluation has been saved in '%s'", save_fn)
+    _log.info("The evaluation has been saved in '%s'", save_fn)
 
 
 def visualise(
@@ -334,7 +359,7 @@ def visualise(
         content += "\n\nTotal mAP[0.5:0.05:0.95] (reported as %): {:.2f}".format(
             100.0 * layout_evaluation.mAP
         )
-        log.info(content)
+        _log.info(content)
         with open(log_filename, "a") as fd:
             fd.write(content)
 
@@ -488,6 +513,15 @@ def main(
             help="Input directory",
         ),
     ] = None,
+    converter_type: Annotated[
+        ConverterTypes,
+        typer.Option(
+            ...,
+            "-c",  # Short name
+            "--converter_type",  # Long name
+            help="Type of document converter",
+        ),
+    ] = ConverterTypes.DOCLING,
     split: Annotated[
         str,
         typer.Option(
@@ -506,16 +540,40 @@ def main(
             help="Load artifacts from local path",
         ),
     ] = None,
-    max_items: Annotated[
+    begin_index: Annotated[
         int,
         typer.Option(
             ...,
-            "-n",  # Short name
-            "--max-items",  # Long name
-            help="How many items to load from the original dataset",
+            "-bi",  # Short name
+            "--begin_index",  # Long name
+            help="Begin converting from the given sample index (inclusive). Zero based.",
+        ),
+    ] = 0,
+    end_index: Annotated[
+        int,
+        typer.Option(
+            ...,
+            "-ei",  # Short name
+            "--end_index",  # Long name
+            help="End converting to the given sample index (exclusive). Zero based. -1 indicates to take all",
         ),
     ] = 1000,
+    debug: Annotated[
+        bool,
+        typer.Option(
+            ...,
+            help="Enable debugging",
+        ),
+    ] = False,
 ):
+    # Set the log level
+    log_format = "%(asctime)s - %(levelname)s - %(message)s"
+    # if debug:
+    #     logging.basicConfig(level=logging.DEBUG, format=log_format)
+    # else:
+    #     logging.basicConfig(level=logging.INFO, format=log_format)
+    logging.basicConfig(level=logging.INFO, format=log_format)
+
     # Dispatch the command
     if task == EvaluationTask.CREATE:
         create(
@@ -523,9 +581,12 @@ def main(
             benchmark,
             odir,
             idir=idir,
+            converter_type=converter_type,
             artifacts_path=artifacts_path,
             split=split,
-            max_items=max_items,
+            begin_index=begin_index,
+            end_index=end_index,
+            debug=debug,
         )
 
     elif task == EvaluationTask.EVALUATE:
@@ -537,7 +598,7 @@ def main(
         visualise(modality, benchmark, idir, odir, split)
 
     else:
-        log.error("Unsupported command: '%s'", task.value)
+        _log.error("Unsupported command: '%s'", task.value)
 
 
 if __name__ == "__main__":

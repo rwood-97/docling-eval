@@ -4,6 +4,9 @@ from enum import Enum
 class BenchMarkColumns(str, Enum):
     DOCLING_VERSION = "docling_version"
     AZURE_VERSION = "azure_version"
+    CONVERTER_TYPE = "converter_type"
+    CONVERTER_VERSION = "converter_version"
+    DOCLING_PIPELINE = "docling_pipeline"
 
     STATUS = "status"
     DOC_ID = "document_id"
@@ -53,6 +56,7 @@ class BenchMarkNames(str, Enum):
     DOCLAYNETV1 = "DocLayNetV1"
     DOCLAYNETV2 = "DocLayNetV2"
     FUNSD = "FUNSD"
+    XFUND = "XFUND"
 
     # Table
     PUB1M = "Pub1M"
@@ -65,3 +69,8 @@ class BenchMarkNames(str, Enum):
 
     # OCR
     # ???
+
+
+class ConverterTypes(str, Enum):
+    DOCLING = "Docling"
+    SMOL_DOCLING = "SmolDocling"
