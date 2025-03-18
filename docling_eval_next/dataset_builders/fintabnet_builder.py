@@ -359,6 +359,8 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
             filename = item["filename"]
             table_image = item["image"]
 
+            print(f"Processing file - [{filename}]...")
+
             true_page_images = [table_image]
             # page_tokens = self.create_page_tokens(
             #     data=item["cells"], height=table_image.height, width=table_image.width
@@ -422,7 +424,6 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
             image = item["image"]
             image.save(bytes_io, format="png")
             image_bytes = bytes_io.getvalue()
-            # image_bytes = str.encode(from_pil_to_base64(item["image"]))
             image_stream = DocumentStream(name=filename, stream=BytesIO(image_bytes))
             record = DatasetRecord(
                 predictor_info=self.prediction_provider.info(),
@@ -445,5 +446,5 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
                     pred_labels=PRED_HTML_EXPORT_LABELS,
                 )
 
-            # yield record
-            return record #try only one
+            # print(f"record = {record}")
+            yield record

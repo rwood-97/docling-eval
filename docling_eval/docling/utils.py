@@ -190,7 +190,7 @@ def save_shard_to_disk(
     batch = Dataset.from_list(items)  # , features=features)
 
     output_file = dataset_path / f"shard_{thread_id:06}_{shard_id:06}.{shard_format}"
-    logging.info(f"Saved shard {shard_id} to {output_file} with {len(items)} documents")
+    logging.info(f"Saving shard {shard_id} to {output_file} with {len(items)} documents")
 
     if shard_format == "json":
         batch.to_json(output_file)

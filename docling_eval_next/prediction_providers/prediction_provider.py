@@ -105,21 +105,15 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
             return {"l": 0, "t": 0, "r": 0, "b": 0}
 
 
-    def convert_azure_output_to_docling(self, analyze_result, image_path) -> DoclingDocument:
+    def convert_azure_output_to_docling(self, analyze_result, filename) -> DoclingDocument:
         """Converts Azure Document Intelligence output to DoclingDocument format."""
-        doc_id = Path(image_path).parent.stem
-        doc = DoclingDocument(name=doc_id)
-        try:
-            w, h = Image.open(image_path).size
-        except Exception:
-            # Default if image can't be opened
-            w, h = 0, 0
-
+        doc = DoclingDocument(name=filename)
+       
         for page in analyze_result.get("pages", []):
             page_no = page.get("page_number", 1)
 
-            page_width = page.get("width", w)
-            page_height = page.get("height", h)
+            page_width = page.get("width")
+            page_height = page.get("height")
             doc.pages[page_no] = PageItem(
                 size=Size(width=float(page_width), height=float(page_height)),
                 page_no=page_no,
@@ -166,7 +160,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                 coord_origin=CoordOrigin.TOPLEFT,
             )
 
-            table_prov = ProvenanceItem(page_no=page_no, bbox=table_bbox_obj, charspan=[])
+            table_prov = ProvenanceItem(page_no=page_no, bbox=table_bbox_obj, charspan=(0, 0))
 
             table_data = TableData(
                 table_cells=[], num_rows=row_count, num_cols=col_count, grid=[]
@@ -226,7 +220,8 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
         poller = self.doc_intelligence_client.begin_analyze_document("prebuilt-layout", stream.stream, features=[])
         result = poller.result()
         result_json = result.to_dict()
-        print(result_json)
+        print("Successfully processed using Azure API..!!")
+        # print(result_json)
         # poller = document_analysis_client.begin_analyze_document(
         #             model_name, document=f, features=features
         #         )
@@ -234,7 +229,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
 
         #     # Convert the result to a dictionary
         #     result_json = result.to_dict()
-        return self.convert_azure_output_to_docling(result, stream.name)
+        return self.convert_azure_output_to_docling(result_json, stream.name)
 
         
     def info(self) -> Dict:
