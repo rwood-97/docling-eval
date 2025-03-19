@@ -20,6 +20,29 @@ class Hyperscaler(str, Enum):
     GOOGLE = "google"
 
 
+class CustomHyperscaler:
+    def __init__(self, value):
+        self.value = value
+        self.name = value.upper()
+
+    def __str__(self):
+        return self.value
+
+    def __repr__(self):
+        return f"<CustomHyperscaler.{self.name}: '{self.value}'>"
+
+    def __bool__(self):
+        return True
+
+
+def get_hyperscaler(value):
+    try:
+        return Hyperscaler(value)
+    except ValueError:
+        # Create a custom string-like object that mimics an enum member
+        return CustomHyperscaler(value)
+
+
 def get_required_env_vars_by_service() -> Dict[str, List[str]]:
     """Required environment variables for each service."""
     return {
@@ -69,9 +92,14 @@ def check_required_env_vars(services: Optional[List[str]] = None) -> bool:
     return True
 
 
-def check_service_env_vars(service: Union[Hyperscaler, OcrEngine]) -> bool:
+def check_service_env_vars(
+    service: Union[Hyperscaler, CustomHyperscaler, OcrEngine],
+) -> bool:
     """Check if the required environment variables for a specific service are set."""
     if isinstance(service, OcrEngine):
+        return True
+
+    if isinstance(service, CustomHyperscaler):
         return True
 
     # For hyperscalers, check the appropriate environment variables

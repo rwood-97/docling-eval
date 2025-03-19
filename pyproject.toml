@@ -45,6 +45,7 @@ beautifulsoup4 = "^4.12.3"
 boto3 = "^1.37.8"
 google-cloud-documentai = "^3.2.0"
 azure-ai-documentintelligence = "^1.0.0"
+jiwer = "^3.1.0"
 
 [tool.poetry.group.dev.dependencies]
 black = {extras = ["jupyter"], version = "^24.4.2"}

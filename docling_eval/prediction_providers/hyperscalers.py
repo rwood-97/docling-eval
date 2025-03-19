@@ -24,6 +24,7 @@ from docling_eval.utils.hyperscalers.hyperscaler_clients import (
     process_with_textract,
 )
 from docling_eval.utils.hyperscalers.utils import (
+    CustomHyperscaler,
     Hyperscaler,
     check_service_env_vars,
     read_image_content,
@@ -48,7 +49,7 @@ class PixparsePredictionProvider(BasePredictionProvider):
         image_file: Path,
         doc_id: str,
         input_dir: Path,
-        service: Union[Hyperscaler, OcrEngine],
+        service: Union[Hyperscaler, CustomHyperscaler, OcrEngine],
     ) -> DoclingDocument:
         """Process an image with a specific service and return standardized record."""
         if service is None:

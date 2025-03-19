@@ -3,7 +3,7 @@ import logging
 import os
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, List, Optional, Union
 
 from docling.cli.main import OcrEngine
 from docling_core.types import DoclingDocument
@@ -19,31 +19,14 @@ from docling_core.types.io import DocumentStream
 from PIL import Image
 from tqdm import tqdm
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
-from docling_eval.benchmarks.utils import add_pages_to_true_doc, get_binary, get_binhash
-from docling_eval.converters.conversion import create_image_docling_converter
-from docling_eval.converters.hyperscalers import (
-    convert_azure_output_to_docling,
-    convert_google_output_to_docling,
-    convert_textract_output_to_docling,
-)
+from docling_eval.benchmarks.utils import get_binary, get_binhash
 from docling_eval.datamodels.dataset_record import DatasetRecord
 from docling_eval.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,
     HFSource,
 )
 from docling_eval.prediction_providers.base import BasePredictionProvider
-from docling_eval.utils.hyperscalers.hyperscaler_clients import (
-    process_with_azure,
-    process_with_google,
-    process_with_textract,
-)
-from docling_eval.utils.hyperscalers.utils import (
-    Hyperscaler,
-    check_service_env_vars,
-    read_image_content,
-    write_json_output,
-)
+from docling_eval.utils.hyperscalers.utils import CustomHyperscaler, Hyperscaler
 from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 
 TRUE_HTML_EXPORT_LABELS = {
@@ -116,7 +99,7 @@ class OCRBenchmarkDatasetBuilder(OCRDatasetBuilder):
         target: Path,
         do_visualization: bool = True,
         ocr_engine: Optional[OcrEngine] = None,
-        hyperscaler: Optional[Hyperscaler] = None,
+        hyperscaler: Optional[Union[Hyperscaler, CustomHyperscaler]] = None,
         ocr_lang: List[str] = ["en"],
         reprocess: bool = False,
         max_items: int = -1,
@@ -188,7 +171,7 @@ class OCRBenchmarkDatasetBuilder(OCRDatasetBuilder):
             ground_truth_files = ground_truth_files[: self.max_items]
 
         # Determine which services to process
-        services_to_process: list[Union[Hyperscaler, OcrEngine]] = []
+        services_to_process: list[Union[Hyperscaler, CustomHyperscaler, OcrEngine]] = []
 
         if self.hyperscaler:
             services_to_process.append(self.hyperscaler)
