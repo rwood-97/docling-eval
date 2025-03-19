@@ -34,7 +34,7 @@ from docling_eval.benchmarks.utils import (
     get_binhash,
 )
 
-from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
+from docling_eval.visualisation.visualisations import save_comparison_html
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval_next.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,
@@ -359,7 +359,11 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
             filename = item["filename"]
             table_image = item["image"]
 
-            print(f"Processing file - [{filename}]...")
+            # TODO - For now, process a single file
+            if filename not in ["HAL.2015.page_43.pdf_125177.png", "HAL.2009.page_77.pdf_125051.png"]:
+                continue
+
+            print(f"\nProcessing file - [{filename}]...")
 
             true_page_images = [table_image]
             # page_tokens = self.create_page_tokens(
@@ -437,7 +441,7 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
             self.update_prediction(record)
 
             if self.do_visualization and record.predicted_doc is not None:
-                save_comparison_html_with_clusters(
+                save_comparison_html(
                     filename=viz_dir / f"{os.path.basename(filename)}-clusters.html",
                     true_doc=true_doc,
                     pred_doc=record.predicted_doc,
