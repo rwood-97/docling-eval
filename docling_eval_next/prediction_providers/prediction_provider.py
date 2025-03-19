@@ -215,8 +215,8 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
         # Get the image from the stream
         # TODO - Convert the given stream?
         print(f"\nstream - {type(stream)}")
-        print(f"\nstream.model_dump() type - {type(stream.model_dump())}")
-        print(f"\nstream.stream) type - {type(stream.stream)}")
+        print(f"stream.model_dump() type - {type(stream.model_dump())}")
+        print(f"stream.stream type - {type(stream.stream)}")
         poller = self.doc_intelligence_client.begin_analyze_document("prebuilt-layout", stream.stream, features=[])
         result = poller.result()
         result_json = result.to_dict()

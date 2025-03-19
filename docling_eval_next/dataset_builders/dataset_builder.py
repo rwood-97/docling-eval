@@ -107,7 +107,9 @@ class BaseEvaluationDatasetBuilder:
         os.makedirs(test_dir, exist_ok=True)
 
         count = 0
-        for record_chunk in chunkify(self.iterate(), 80):
+        # TODO: Try with just 1 file for now
+        # for record_chunk in chunkify(self.iterate(), 80):
+        for record_chunk in chunkify(self.iterate(), 1):
             record_chunk = [r.as_record_dict() for r in record_chunk]
             save_shard_to_disk(items=record_chunk, dataset_path=test_dir)
             count += len(record_chunk)

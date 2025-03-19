@@ -28,17 +28,13 @@ from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.benchmarks.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
-    get_binhash,
-    save_comparison_html_with_clusters,
-    save_comparison_html
-)
-from docling_eval.docling.utils import (
     crop_bounding_box,
     extract_images,
     from_pil_to_base64uri,
-    from_pil_to_base64,
-    get_binary,
+    get_binhash,
 )
+
+from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval_next.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,
@@ -47,7 +43,7 @@ from docling_eval_next.dataset_builders.dataset_builder import (
 from docling_eval_next.prediction_providers.prediction_provider import (
     BasePredictionProvider,
 )
-from docling_eval.docling.models.tableformer.tf_model_prediction import (
+from docling_eval.converters.models.tableformer.tf_model_prediction import (
     PageTokens,
     TableFormerUpdater,
 )
@@ -96,6 +92,7 @@ PRED_HTML_EXPORT_LABELS = {
 
 
 class FintabnetDatasetBuilder(BaseEvaluationDatasetBuilder):
+    """ Base Fintabnet Dataset Builder that will pull dataset from Hugging face."""
     def __init__(
         self,
         name: str,
@@ -113,6 +110,8 @@ class FintabnetDatasetBuilder(BaseEvaluationDatasetBuilder):
 
 
 class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
+    """ Subclass of FintabnetDatasetBuilder that will define the "iterate" method on how to iterate
+    the table structure from the dataset."""
     def __init__(
         self,
         prediction_provider: BasePredictionProvider,
@@ -282,7 +281,8 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
 
 
     def create_page_tokens(self, data: List[Any], height: float, width: float) -> PageTokens:
-
+        """Needed for tableformer model only, where it additionally needs the page tokens for extraction.
+        TODO: Not needed?? - Remove for hyperscalers"""
         tokens = []
         # text_lines = []
 
@@ -313,6 +313,8 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
         return PageTokens.parse_obj(result)
 
     def iterate(self) -> Iterable[DatasetRecord]:
+        """Iterate and yield each record of the dataset.
+        Prediction will be run on the yielded record in the calling function."""
         if not self.retrieved:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
@@ -320,16 +322,14 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
 
         assert self.dataset_local_path is not None
 
-        # Use glob to find all .parquet files in the directory
+        # Create the folders for saving the intermediate files (test) and visualizations
         test_dir = self.target / "test"
         viz_dir = self.target / "vizualisations"
         for _ in [test_dir, viz_dir]:
             os.makedirs(_, exist_ok=True)
 
-        # Use glob to find all .parquet files in the directory
+        # Use glob to find all .parquet files in the directory and clean up the intermediate files
         parquet_files = glob.glob(os.path.join(str(test_dir), "*.parquet"))
-
-        # Loop through and remove each file
         for file in parquet_files:
             try:
                 os.remove(file)
@@ -413,7 +413,7 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
 
             true_doc.add_table(data=table_data, caption=None, prov=prov)
 
-            true_doc, true_pictures, true_page_images = extract_images(
+            true_doc, _, true_page_images = extract_images(
                 document=true_doc,
                 pictures_column=BenchMarkColumns.GROUNDTRUTH_PICTURES.value,  # pictures_column,
                 page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES.value,  # page_images_column,
