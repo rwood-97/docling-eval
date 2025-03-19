@@ -1,4 +1,5 @@
 import os
+import sys
 from abc import abstractmethod
 from io import BytesIO
 from pathlib import Path
@@ -99,7 +100,7 @@ class BaseEvaluationDatasetBuilder:
 
         record.validate_model()  # type: ignore
 
-    def save_to_disk(self):
+    def save_to_disk(self, chunk_size: int = 80, max_num_chunks: int = sys.maxsize):
         if not self.retrieved:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
@@ -109,10 +110,15 @@ class BaseEvaluationDatasetBuilder:
         os.makedirs(test_dir, exist_ok=True)
 
         count = 0
-        for record_chunk in chunkify(self.iterate(), 80):
+        chunk_count = 0
+        for record_chunk in chunkify(self.iterate(), chunk_size):
             record_chunk = [r.as_record_dict() for r in record_chunk]
             save_shard_to_disk(items=record_chunk, dataset_path=test_dir)
             count += len(record_chunk)
+            chunk_count += 1
+
+            if chunk_count >= max_num_chunks:
+                break
 
         write_datasets_info(
             name=self.name,

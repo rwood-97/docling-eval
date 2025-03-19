@@ -19,6 +19,7 @@ from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
 from docling_eval.cli.main import evaluate
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval_next.dataset_builders.dpbench_builder import DPBenchDatasetBuilder
+from docling_eval_next.dataset_builders.omnidocbench_builder import OmniDocBenchDatasetBuilder
 from docling_eval_next.prediction_providers.prediction_provider import (
     DoclingPredictionProvider,
     TableFormerPredictionProvider,
@@ -71,8 +72,7 @@ def create_docling_prediction_provider(
         }
     )
 
-
-def main():
+def test_run_dpbench_e2e():
     target_path = Path("./scratch/dpbench-builer-test/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
 
@@ -82,7 +82,7 @@ def main():
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_layout.save_to_disk(chunk_size=20, max_num_chunks=1)  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     evaluate(
         modality=EvaluationModality.LAYOUT,
@@ -91,6 +91,29 @@ def main():
         odir=target_path / "e2e" / "layout",
     )
 
+def test_run_omnidocbench_e2e():
+    target_path = Path("./scratch/omnidocbench-builer-test/")
+    docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
+
+    dataset_layout = OmniDocBenchDatasetBuilder(
+        prediction_provider=docling_provider,
+        target=target_path / "e2e",
+    )
+
+    dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset_layout.save_to_disk(chunk_size=20, max_num_chunks=1)  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+
+    evaluate(
+        modality=EvaluationModality.LAYOUT,
+        benchmark=BenchMarkNames.OMNIDOCBENCH,
+        idir=target_path / "e2e",
+        odir=target_path / "e2e" / "layout",
+    )
+
+
+
+def test_run_dpbench_tables():
+    target_path = Path("./scratch/dpbench-builer-test/")
     tableformer_provider = TableFormerPredictionProvider()
 
     dataset_tables = DPBenchDatasetBuilder(
@@ -99,7 +122,7 @@ def main():
     )
 
     dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_tables.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_tables.save_to_disk(chunk_size=20, max_num_chunks=1)  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
@@ -108,6 +131,22 @@ def main():
         odir=target_path / "tables" / "tableformer",
     )
 
+def test_run_omnidocbench_tables():
+    target_path = Path("./scratch/omnidocbench-builer-test/")
+    tableformer_provider = TableFormerPredictionProvider()
 
-if __name__ == "__main__":
-    main()
+    dataset_tables = OmniDocBenchDatasetBuilder(
+        prediction_provider=tableformer_provider,
+        target=target_path / "tables",
+    )
+
+    dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset_tables.save_to_disk(chunk_size=20, max_num_chunks=1)  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+
+    evaluate(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.OMNIDOCBENCH,
+        idir=target_path / "tables",
+        odir=target_path / "tables" / "tableformer",
+    )
+
