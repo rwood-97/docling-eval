@@ -27,6 +27,9 @@ from docling_eval.benchmarks.utils import (
     get_binary,
     get_binhash,
 )
+from docling_eval.converters.models.tableformer.tf_model_prediction import (
+    TableFormerUpdater,
+)
 from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval_next.dataset_builders.dataset_builder import (
@@ -82,33 +85,17 @@ PRED_HTML_EXPORT_LABELS = {
 class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
     def __init__(
         self,
-        name: str,
-        prediction_provider: BasePredictionProvider,
-        target: Path,
-        do_visualization: bool = True,
-    ):
-        super().__init__(
-            name=name,
-            dataset_source=HFSource(repo_id="upstage/dp-bench"),
-            prediction_provider=prediction_provider,
-            target=target,
-        )
-        self.do_visualization = do_visualization
-
-
-class DPBenchE2EDatasetBuilder(DPBenchDatasetBuilder):
-    def __init__(
-        self,
         prediction_provider: BasePredictionProvider,
         target: Path,
         do_visualization: bool = True,
     ):
         super().__init__(
             name="DPBench: end-to-end",
+            dataset_source=HFSource(repo_id="upstage/dp-bench"),
             prediction_provider=prediction_provider,
             target=target,
-            do_visualization=do_visualization,
         )
+        self.do_visualization = do_visualization
 
     def _update_gt_doc(
         self,
@@ -276,11 +263,11 @@ class DPBenchE2EDatasetBuilder(DPBenchDatasetBuilder):
         with open(self.dataset_local_path / f"dataset/reference.json", "r") as fr:
             gt = json.load(fr)
 
-        odir_lay = self.target / "layout"
-        odir_tab = self.target / "tableformer"
+        # odir_lay = self.target / "layout"
+        # odir_tab = self.target / "tables"
         viz_dir = self.target / "vizualisations"
 
-        for _ in [odir_lay, odir_tab, viz_dir]:
+        for _ in [viz_dir]:
             os.makedirs(_, exist_ok=True)
 
         records: List[DatasetRecord] = []

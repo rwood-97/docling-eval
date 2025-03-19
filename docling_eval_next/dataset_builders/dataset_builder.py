@@ -91,7 +91,9 @@ class BaseEvaluationDatasetBuilder:
                     name=input_data.name, stream=BytesIO(input_data.open("rb").read())
                 )
 
-        pred_doc = self.prediction_provider.predict(input_data)
+        pred_doc = self.prediction_provider.predict(
+            record.ground_truth_doc, stream=input_data
+        )
 
         record.predicted_doc = pred_doc
 

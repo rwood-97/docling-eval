@@ -18,9 +18,10 @@ from docling.document_converter import PdfFormatOption
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
 from docling_eval.cli.main import evaluate
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
-from docling_eval_next.dataset_builders.dpbench_builder import DPBenchE2EDatasetBuilder
+from docling_eval_next.dataset_builders.dpbench_builder import DPBenchDatasetBuilder
 from docling_eval_next.prediction_providers.prediction_provider import (
     DoclingPredictionProvider,
+    TableFormerPredictionProvider,
 )
 
 
@@ -73,21 +74,38 @@ def create_docling_prediction_provider(
 
 def main():
     target_path = Path("./scratch/dpbench-builer-test/")
-    provider = create_docling_prediction_provider(page_image_scale=2.0)
+    docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
 
-    dataset = DPBenchE2EDatasetBuilder(
-        prediction_provider=provider,
-        target=target_path,
+    dataset_layout = DPBenchDatasetBuilder(
+        prediction_provider=docling_provider,
+        target=target_path / "e2e",
     )
 
-    dataset.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path,
-        odir=target_path / "layout",
+        idir=target_path / "e2e",
+        odir=target_path / "e2e" / "layout",
+    )
+
+    tableformer_provider = TableFormerPredictionProvider()
+
+    dataset_tables = DPBenchDatasetBuilder(
+        prediction_provider=tableformer_provider,
+        target=target_path / "tables",
+    )
+
+    dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset_tables.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+
+    evaluate(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "tables",
+        odir=target_path / "tables" / "tableformer",
     )
 
 
