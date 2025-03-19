@@ -12,8 +12,8 @@ def main():
     """Main function that will run Fintabnet Table Structure Benchmark.
     Pulls the 'fintabnet' dataset from HF and saves it to disk.
     """
-    # Define the place where the dataset has to be pulled
-    target_path = Path("./scratch/fintabnet-builer-test/")
+    # Define the place where the temporary output has to be saved
+    target_path = Path("./output/FinTabNet_OTSL/")
 
     # Define the predictor that needs to be run on each item of the dataset
     provider = AzureDocIntelligencePredictionProvider() # Microsoft Azure Document Intelligence API Provider

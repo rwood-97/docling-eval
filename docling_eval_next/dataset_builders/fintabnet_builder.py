@@ -442,7 +442,7 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
 
             if self.do_visualization and record.predicted_doc is not None:
                 save_comparison_html(
-                    filename=viz_dir / f"{os.path.basename(filename)}-clusters.html",
+                    filename=viz_dir / f"{os.path.basename(filename)}.html",
                     true_doc=true_doc,
                     pred_doc=record.predicted_doc,
                     page_image=true_page_images[0],
