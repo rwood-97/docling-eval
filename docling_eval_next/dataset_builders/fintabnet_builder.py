@@ -1,5 +1,6 @@
 import glob
 import io
+import json
 import os
 from datasets import load_dataset
 from io import BytesIO
@@ -311,6 +312,7 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
     def iterate(self) -> Iterable[DatasetRecord]:
         """Iterate and yield each record of the dataset.
         Prediction will be run on the yielded record in the calling function."""
+
         if not self.retrieved:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
@@ -336,16 +338,13 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
         print(f"self.dataset_local_path={self.dataset_local_path}")
         print(f"self.name={self.name}")
         ds = load_dataset(os.path.join(self.dataset_local_path, "data"), split="test") # TODO - pass the split as argument?
-        # ds = glob.glob(os.path.join(str(self.dataset_local_path)), "*.arrow"))
 
         # TODO - Pass this as an argument? Do we need to run all items..
         max_items = -1
         if max_items == -1:
             max_items = len(ds)
 
-        # records: List[DatasetRecord] = []
-        # tid, sid = 0, 0
-
+        # Iterate each of the record in the dataset
         for i, item in tqdm(
             enumerate(ds),
             total=max_items,
@@ -366,7 +365,7 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
             #     data=item["cells"], height=table_image.height, width=table_image.width
             # )
 
-            # Ground truth document
+            # Create the Ground truth document
             true_doc = DoclingDocument(name=f"ground-truth {filename}")
 
             page_index = 1
@@ -434,8 +433,18 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
                 mime_type="image/png",
             )
 
+            # Create the prediction, convert it to doclingDocument and update the dataset record
+            # Note: This saves the prediction and its doclingDocument as .json in the target directory
             self.update_prediction(record)
 
+            # Save the ground truth data as well - for debugging
+            output_dir = self.target / "microsoft" / "ground_truth_docling_document"
+            os.makedirs(output_dir, exist_ok=True)
+            docling_document_file_name = os.path.join(output_dir, f"{filename}.json")
+            with open(docling_document_file_name, 'w') as f:
+                json.dump(true_doc.export_to_dict(), f, indent=2)
+
+            # If visualization flag is set, run the visualizations and save them a well
             if self.do_visualization and record.predicted_doc is not None:
                 save_comparison_html(
                     filename=viz_dir / f"{os.path.basename(filename)}.html",
@@ -446,5 +455,4 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
                     pred_labels=PRED_HTML_EXPORT_LABELS,
                 )
 
-            # print(f"record = {record}")
             yield record

@@ -14,7 +14,7 @@ from docling_core.types.doc.document import (
     TableData,
 )
 from docling_eval_next.prediction_providers.prediction_provider import BasePredictionProvider
-from docling_core.types.doc.labels import DocItemLabel
+#from docling_core.types.doc.labels import DocItemLabel
 
 
 class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
@@ -104,12 +104,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
             row_count = table.get("row_count", 0)
             col_count = table.get("column_count", 0)
 
-            table_bounds = (
-                table.get("boundingRegions", [{}])[0]
-                if table.get("boundingRegions")
-                else {}
-            )
-            table_polygon = table_bounds.get("polygon", [])
+            table_polygon = table.get("bounding_regions", [{}])[0].get("polygon", [])
             table_bbox = self.extract_bbox_from_polygon(table_polygon)
 
             table_bbox_obj = BoundingBox(
@@ -122,9 +117,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
 
             table_prov = ProvenanceItem(page_no=page_no, bbox=table_bbox_obj, charspan=(0, 0))
 
-            table_data = TableData(
-                table_cells=[], num_rows=row_count, num_cols=col_count, grid=[]
-            )
+            table_cells = []
 
             for cell in table.get("cells", []):
 
@@ -134,12 +127,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                 row_span = cell.get("row_span", 1)
                 col_span = cell.get("column_span", 1)
 
-                cell_bounds = (
-                    cell.get("boundingRegions", [{}])[0]
-                    if cell.get("boundingRegions")
-                    else {}
-                )
-                cell_polygon = cell_bounds.get("polygon", [])
+                cell_polygon = cell.get("bounding_regions", [{}])[0].get("polygon", [])
                 cell_bbox = self.extract_bbox_from_polygon(cell_polygon)
 
                 table_cell = TableCell(
@@ -153,18 +141,22 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                     row_span=row_span,
                     col_span=col_span,
                     start_row_offset_idx=row_index,
-                    end_row_offset_idx=row_index + row_span - 1,
+                    end_row_offset_idx=row_index + row_span,
                     start_col_offset_idx=col_index,
-                    end_col_offset_idx=col_index + col_span - 1,
+                    end_col_offset_idx=col_index + col_span,
                     text=cell_text,
                     column_header=False,
                     row_header=False,
                     row_section=False,
                 )
 
-                table_data.table_cells.append(table_cell)
+                table_cells.append(table_cell)
 
-            doc.add_table(label=DocItemLabel.TABLE, prov=table_prov, data=table_data)
+            table_data = TableData(
+                table_cells=table_cells, num_rows=row_count, num_cols=col_count
+            )
+            # doc.add_table(label=DocItemLabel.TABLE, prov=table_prov, data=table_data)
+            doc.add_table(prov=table_prov, data=table_data, caption=None)
 
         return doc
 

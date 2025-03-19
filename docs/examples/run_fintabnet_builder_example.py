@@ -37,6 +37,7 @@ def main():
         benchmark=BenchMarkNames.FINTABNET,
         idir=target_path,
         odir=target_path / "tables",
+        split="intermediate_files"
     )
 
 
