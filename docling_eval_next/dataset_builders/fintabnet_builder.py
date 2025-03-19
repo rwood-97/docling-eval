@@ -1,14 +1,12 @@
 import glob
 import io
-import json
 import os
 from datasets import load_dataset
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List
 
 from docling_core.types import DoclingDocument
-from docling.datamodel.base_models import ConversionStatus
 from docling_core.types.doc import (
     BoundingBox,
     CoordOrigin,
@@ -26,7 +24,6 @@ from tqdm import tqdm
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
 from docling_eval.benchmarks.utils import (
-    add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
     crop_bounding_box,
     extract_images,
@@ -45,7 +42,6 @@ from docling_eval_next.prediction_providers.prediction_provider import (
 )
 from docling_eval.converters.models.tableformer.tf_model_prediction import (
     PageTokens,
-    TableFormerUpdater,
 )
 
 TRUE_HTML_EXPORT_LABELS = {
@@ -323,13 +319,13 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
         assert self.dataset_local_path is not None
 
         # Create the folders for saving the intermediate files (test) and visualizations
-        test_dir = self.target / "test"
+        intermediate_dir = self.target / "intermediate_files"
         viz_dir = self.target / "vizualisations"
-        for _ in [test_dir, viz_dir]:
+        for _ in [intermediate_dir, viz_dir]:
             os.makedirs(_, exist_ok=True)
 
         # Use glob to find all .parquet files in the directory and clean up the intermediate files
-        parquet_files = glob.glob(os.path.join(str(test_dir), "*.parquet"))
+        parquet_files = glob.glob(os.path.join(str(intermediate_dir), "*.parquet"))
         for file in parquet_files:
             try:
                 os.remove(file)

@@ -91,7 +91,7 @@ class BaseEvaluationDatasetBuilder:
                     name=input_data.name, stream=BytesIO(input_data.open("rb").read())
                 )
 
-        pred_doc = self.prediction_provider.predict(input_data)
+        pred_doc = self.prediction_provider.predict(input_data, save_output_to_dir = self.target)
 
         record.predicted_doc = pred_doc
 
@@ -103,7 +103,7 @@ class BaseEvaluationDatasetBuilder:
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )
 
-        test_dir = self.target / "test"
+        test_dir = self.target / "intermediate_files"
         os.makedirs(test_dir, exist_ok=True)
 
         count = 0

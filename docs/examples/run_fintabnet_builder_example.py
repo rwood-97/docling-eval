@@ -3,7 +3,7 @@ from pathlib import Path
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
 from docling_eval.cli.main import evaluate
 from docling_eval_next.dataset_builders.fintabnet_builder import FintabnetTableStructureDatasetBuilder
-from docling_eval_next.prediction_providers.prediction_provider import (
+from docling_eval_next.prediction_providers.azure_prediction_provider import (
     AzureDocIntelligencePredictionProvider,
 )
 
@@ -32,12 +32,12 @@ def main():
     dataset.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     # 4. Run evaluation using the saved data in step 3 above
-    # evaluate(
-    #     modality=EvaluationModality.LAYOUT,
-    #     benchmark=BenchMarkNames.DPBENCH,
-    #     idir=target_path,
-    #     odir=target_path / "layout",
-    # )
+    evaluate(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.FINTABNET,
+        idir=target_path,
+        odir=target_path / "tables",
+    )
 
 
 if __name__ == "__main__":
