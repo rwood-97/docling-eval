@@ -20,14 +20,14 @@ from PIL import Image
 from tqdm import tqdm
 
 from docling_eval.benchmarks.utils import get_binary, get_binhash
-from docling_eval.datamodels.dataset_record import DatasetRecord
-from docling_eval.dataset_builders.dataset_builder import (
+from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
+from docling_eval_next.datamodels.dataset_record import DatasetRecord
+from docling_eval_next.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,
     HFSource,
 )
-from docling_eval.prediction_providers.base import BasePredictionProvider
-from docling_eval.utils.hyperscalers.utils import CustomHyperscaler, Hyperscaler
-from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
+from docling_eval_next.prediction_providers.base import BasePredictionProvider
+from docling_eval_next.utils.hyperscalers.utils import CustomHyperscaler, Hyperscaler
 
 TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.TITLE,

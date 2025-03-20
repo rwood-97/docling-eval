@@ -4,15 +4,19 @@ from pathlib import Path
 
 from docling.datamodel.pipeline_options import OcrEngine
 
-from docling_eval.dataset_builders.pixparse_builder import OCRBenchmarkDatasetBuilder
 from docling_eval.evaluators.ocr.ocr_evaluator import OCREvaluator
-from docling_eval.prediction_providers.hyperscalers import PixparsePredictionProvider
-from docling_eval.utils.hyperscalers.utils import Hyperscaler
+from docling_eval_next.dataset_builders.pixparse_builder import (
+    OCRBenchmarkDatasetBuilder,
+)
+from docling_eval_next.prediction_providers.hyperscalers import (
+    PixparsePredictionProvider,
+)
+from docling_eval_next.utils.hyperscalers.utils import Hyperscaler, get_hyperscaler
 
 
 def main():
-    idir = Path("docling-eval/pixparse-idl")
-    odir = Path("docling-eval/pixparse-idl/output")
+    idir = Path("/Users/sami/Desktop/IBM/docling-eval/pixparse-idl")
+    odir = Path("/Users/sami/Desktop/IBM/docling-eval/pixparse-idl/output")
 
     os.makedirs(odir, exist_ok=True)
 
@@ -78,10 +82,22 @@ def main():
 
     google_dataset.save_to_disk()
 
+    hyperscaler = get_hyperscaler("wdu")
+    wdu_dataset = OCRBenchmarkDatasetBuilder(
+        name="wdu",
+        prediction_provider=provider,
+        dataset_local_path=idir,
+        target=odir / "wdu",
+        hyperscaler=hyperscaler,
+        reprocess=False,
+    )
+
+    wdu_dataset.save_to_disk()
+
     logging.info("Evaluate the OCR for the Pixparse dataset")
     evaluator = OCREvaluator()
-    dataset_path = Path("docling-eval/pixparse-idl/output")
-    output_path = Path("docling-eval/pixparse-idl")
+    dataset_path = Path("/Users/sami/Desktop/IBM/docling-eval/pixparse-idl/output")
+    output_path = Path("/Users/sami/Desktop/IBM/docling-eval/pixparse-idl")
     evaluation_results = evaluator(dataset_path, output_path)
     logging.info(f"Completed evaluation. Results saved to {output_path}")
 

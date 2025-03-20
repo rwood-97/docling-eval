@@ -6,7 +6,7 @@ import boto3  # type: ignore
 from google.cloud import documentai
 from google.protobuf.json_format import MessageToDict
 
-from docling_eval.utils.hyperscalers.utils import Hyperscaler
+from docling_eval_next.utils.hyperscalers.utils import Hyperscaler
 
 
 def initialize_textract_client():

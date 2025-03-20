@@ -16,14 +16,14 @@ from docling_eval.converters.hyperscalers import (
     convert_google_output_to_docling,
     convert_textract_output_to_docling,
 )
-from docling_eval.prediction_providers.base import BasePredictionProvider
-from docling_eval.utils.hyperscalers.hyperscaler_clients import (
+from docling_eval_next.prediction_providers.base import BasePredictionProvider
+from docling_eval_next.utils.hyperscalers.hyperscaler_clients import (
     initialize_hyperscaler_client,
     process_with_azure,
     process_with_google,
     process_with_textract,
 )
-from docling_eval.utils.hyperscalers.utils import (
+from docling_eval_next.utils.hyperscalers.utils import (
     CustomHyperscaler,
     Hyperscaler,
     check_service_env_vars,
