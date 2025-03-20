@@ -339,6 +339,12 @@ def populate_key_value_item_from_xfund(
 
     cell_by_id = {}
     for item in form_items:
+        # We omit the items that are not relevant for key-value pairs.
+        if not item.get("linking", []) and item.get("label", "other") in [
+            "header",
+            "other",
+        ]:
+            continue
         cell_id = item["id"]
         # Use the text as both the sanitized and original text (or adjust if needed).
         cell_text = item.get("text", "")
@@ -432,7 +438,7 @@ def create_xfund_dataset(
             os.system(f"mv {input_dir}/*{split}* {os.path.join(input_dir, split)}")
 
     doc_converter = create_image_docling_converter(
-        do_ocr=True, ocr_lang=["zh", "de", "es", "fr", "it", "ja", "pt"]
+        do_ocr=True, ocr_lang=["de", "es", "fr"]
     )
 
     num_train_rows = 0
