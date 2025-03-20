@@ -33,7 +33,7 @@ class BaseEvaluationDatasetBuilder:
         self,
         name: str,
         dataset_source: Union[HFSource, S3Source, Path],
-        prediction_provider: BasePredictionProvider,
+        prediction_provider: Optional[BasePredictionProvider],
         target: Path,
     ):
         self.name = name
@@ -80,6 +80,9 @@ class BaseEvaluationDatasetBuilder:
         pass
 
     def update_prediction(self, record: DatasetRecord):
+        if self.prediction_provider is None:
+            return
+
         # This might need customization depending on the input the dataset has.
         # The default implementation assumes that there is an original file in binary format which is accepted.
         input_data = record.original
