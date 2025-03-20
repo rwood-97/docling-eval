@@ -27,6 +27,9 @@ from docling_eval_next.dataset_builders.omnidocbench_builder import (
     OmniDocBenchDatasetBuilder,
 )
 from docling_eval_next.dataset_builders.xfund_builder import XFUNDDatasetBuilder
+from docling_eval_next.dataset_builders.omnidocbench_builder import (
+    OmniDocBenchDatasetBuilder,
+)
 from docling_eval_next.prediction_providers.prediction_provider import (
     DoclingPredictionProvider,
     NullPredictionProvider,
