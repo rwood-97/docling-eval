@@ -31,6 +31,7 @@ from docling_eval_next.dataset_builders.omnidocbench_builder import (
 )
 from docling_eval_next.prediction_providers.prediction_provider import (
     DoclingPredictionProvider,
+    NullPredictionProvider,
     TableFormerPredictionProvider,
 )
 
@@ -216,12 +217,13 @@ def test_run_doclaynet_v1_e2e():
 #             odir=target_path / "e2e" / "layout",
 #         )
 
+
 def test_run_funsd():
     target_path = Path("./scratch/funsd-builder-test/")
 
     dataset_layout = FUNSDDatasetBuilder(
         dataset_source=target_path / "input_dataset",
-        prediction_provider=None,
+        prediction_provider=NullPredictionProvider(),
         target=target_path / "e2e",
     )
 

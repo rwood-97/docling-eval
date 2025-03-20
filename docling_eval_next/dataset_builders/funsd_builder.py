@@ -61,6 +61,7 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
 
     def retrieve_input_dataset(self) -> Path:
         """Download and extract the FUNSD dataset if needed."""
+        assert isinstance(self.dataset_source, Path)
         dataset_path = self.dataset_source
 
         # Check if the dataset already exists
@@ -234,6 +235,8 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )
 
+        assert isinstance(self.dataset_source, Path)
+
         # Determine image directory based on split
         if self.split == "train":
             image_dir = self.dataset_source / "training_data" / "images"
@@ -307,6 +310,7 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
 
                 # Create dataset record
                 record = DatasetRecord(
+                    predictor_info=self.prediction_provider.info(),
                     doc_id=img_path.stem,
                     doc_hash=get_binhash(img_bytes),
                     ground_truth_doc=true_doc,
@@ -316,7 +320,6 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
                     ground_truth_pictures=true_pictures,
                     ground_truth_page_images=true_page_images,
                 )
-                record.predictor_info = self.prediction_provider.info() if self.prediction_provider else {}
 
                 # Update prediction
                 self.update_prediction(record)
