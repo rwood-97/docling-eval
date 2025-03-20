@@ -29,6 +29,7 @@ from docling_eval_next.dataset_builders.funsd_builder import FUNSDDatasetBuilder
 from docling_eval_next.dataset_builders.omnidocbench_builder import (
     OmniDocBenchDatasetBuilder,
 )
+from docling_eval_next.dataset_builders.xfund_builder import XFUNDDatasetBuilder
 from docling_eval_next.prediction_providers.prediction_provider import (
     DoclingPredictionProvider,
     NullPredictionProvider,
@@ -222,6 +223,21 @@ def test_run_funsd():
     target_path = Path("./scratch/funsd-builder-test/")
 
     dataset_layout = FUNSDDatasetBuilder(
+        dataset_source=target_path / "input_dataset",
+        prediction_provider=NullPredictionProvider(),
+        target=target_path / "e2e",
+    )
+
+    dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset_layout.save_to_disk(
+        chunk_size=20, max_num_chunks=1
+    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+
+
+def test_run_xfund():
+    target_path = Path("./scratch/xfund-builder-test/")
+
+    dataset_layout = XFUNDDatasetBuilder(
         dataset_source=target_path / "input_dataset",
         prediction_provider=NullPredictionProvider(),
         target=target_path / "e2e",

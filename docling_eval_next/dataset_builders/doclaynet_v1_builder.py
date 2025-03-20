@@ -127,7 +127,6 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
         prediction_provider: BasePredictionProvider,
         target: Path,
         do_visualization: bool = True,
-        do_debug: bool = False,
         split: str = "test",
         begin_index: int = 0,
         end_index: int = -1,
@@ -139,7 +138,6 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
             target=target,
         )
         self.do_visualization = do_visualization
-        self.do_debug = do_debug
         self.split = split
         self.begin_index = begin_index
         self.end_index = end_index
@@ -307,9 +305,6 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
                     _log.info("Skip blacklisted doc id: %s", page_hash)
                     continue
 
-                if self.do_debug:
-                    _log.info("Converting: %s", page_hash)
-
                 # Get PDF data
                 pdf = doc["pdf"]
                 pdf_stream = io.BytesIO(pdf)
@@ -400,7 +395,6 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
             except Exception as ex:
                 _log.error("Error processing document: %s", str(ex))
                 skipped_rows += 1
-                raise ex
 
         _log.info(
             "Exported rows: %s. Skipped rows: %s.",
