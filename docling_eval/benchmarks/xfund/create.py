@@ -37,6 +37,7 @@ from docling_eval.benchmarks.utils import (
     extract_images,
     from_pil_to_base64uri,
     save_shard_to_disk,
+    sort_cell_ids,
     write_datasets_info,
 )
 from docling_eval.converters.conversion import create_image_docling_converter
@@ -404,6 +405,7 @@ def populate_key_value_item_from_xfund(
     graph = GraphData(cells=cells, links=links)
 
     doc.add_key_values(graph=graph, prov=prov)
+    sort_cell_ids(doc=doc)
 
     return doc
 
