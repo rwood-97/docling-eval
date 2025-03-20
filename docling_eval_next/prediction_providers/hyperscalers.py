@@ -16,7 +16,9 @@ from docling_eval.converters.hyperscalers import (
     convert_google_output_to_docling,
     convert_textract_output_to_docling,
 )
-from docling_eval_next.prediction_providers.base import BasePredictionProvider
+from docling_eval_next.prediction_providers.prediction_provider import (
+    BasePredictionProvider,
+)
 from docling_eval_next.utils.hyperscalers.hyperscaler_clients import (
     initialize_hyperscaler_client,
     process_with_azure,
@@ -135,7 +137,12 @@ class PixparsePredictionProvider(BasePredictionProvider):
             )
         return pred_doc
 
-    def predict(self, stream: DocumentStream, **extra_args) -> DoclingDocument:
+    def predict(
+        self,
+        gt_doc: DoclingDocument,
+        stream: Optional[DocumentStream] = None,
+        **extra_args,
+    ) -> DoclingDocument:
         reprocess = extra_args.get("reprocess", False)
         image_file = extra_args.get("image_file", "")
         doc_id = extra_args.get("doc_id", "")

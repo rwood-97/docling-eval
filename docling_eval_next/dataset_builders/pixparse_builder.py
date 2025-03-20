@@ -26,7 +26,9 @@ from docling_eval_next.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,
     HFSource,
 )
-from docling_eval_next.prediction_providers.base import BasePredictionProvider
+from docling_eval_next.prediction_providers.prediction_provider import (
+    BasePredictionProvider,
+)
 from docling_eval_next.utils.hyperscalers.utils import CustomHyperscaler, Hyperscaler
 
 TRUE_HTML_EXPORT_LABELS = {

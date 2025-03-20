@@ -1,4 +1,5 @@
 import os
+import sys
 from abc import abstractmethod
 from io import BytesIO
 from pathlib import Path
@@ -11,7 +12,9 @@ from pydantic import BaseModel
 
 from docling_eval.benchmarks.utils import save_shard_to_disk, write_datasets_info
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
-from docling_eval_next.prediction_providers.base import BasePredictionProvider
+from docling_eval_next.prediction_providers.prediction_provider import (
+    BasePredictionProvider,
+)
 
 
 class HFSource(BaseModel):
@@ -89,7 +92,9 @@ class BaseEvaluationDatasetBuilder:
                     name=input_data.name, stream=BytesIO(input_data.open("rb").read())
                 )
 
-        pred_doc = self.prediction_provider.predict(input_data, **extra_args)
+        pred_doc = self.prediction_provider.predict(
+            record.ground_truth_doc, stream=input_data, **extra_args
+        )
 
         record.predicted_doc = pred_doc
 
@@ -105,10 +110,15 @@ class BaseEvaluationDatasetBuilder:
         os.makedirs(test_dir, exist_ok=True)
 
         count = 0
-        for record_chunk in chunkify(self.iterate(), 80):
+        chunk_count = 0
+        for record_chunk in chunkify(self.iterate(), chunk_size):
             record_chunk = [r.as_record_dict() for r in record_chunk]
             save_shard_to_disk(items=record_chunk, dataset_path=test_dir)
             count += len(record_chunk)
+            chunk_count += 1
+
+            if chunk_count >= max_num_chunks:
+                break
 
         write_datasets_info(
             name=self.name,
