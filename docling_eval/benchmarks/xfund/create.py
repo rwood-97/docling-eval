@@ -37,7 +37,6 @@ from docling_eval.benchmarks.utils import (
     extract_images,
     from_pil_to_base64uri,
     save_shard_to_disk,
-    sort_cell_ids,
     write_datasets_info,
 )
 from docling_eval.converters.conversion import create_image_docling_converter
@@ -340,12 +339,6 @@ def populate_key_value_item_from_xfund(
 
     cell_by_id = {}
     for item in form_items:
-        # We omit the items that are not relevant for key-value pairs.
-        if not item.get("linking", []) and item.get("label", "other") in [
-            "header",
-            "other",
-        ]:
-            continue
         cell_id = item["id"]
         # Use the text as both the sanitized and original text (or adjust if needed).
         cell_text = item.get("text", "")
@@ -405,7 +398,6 @@ def populate_key_value_item_from_xfund(
     graph = GraphData(cells=cells, links=links)
 
     doc.add_key_values(graph=graph, prov=prov)
-    sort_cell_ids(doc=doc)
 
     return doc
 
@@ -440,7 +432,7 @@ def create_xfund_dataset(
             os.system(f"mv {input_dir}/*{split}* {os.path.join(input_dir, split)}")
 
     doc_converter = create_image_docling_converter(
-        do_ocr=True, ocr_lang=["de", "es", "fr"]
+        do_ocr=True, ocr_lang=["zh", "de", "es", "fr", "it", "ja", "pt"]
     )
 
     num_train_rows = 0
