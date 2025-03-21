@@ -84,8 +84,6 @@ class BaseEvaluationDatasetBuilder:
         # The default implementation assumes that there is an original file in binary format which is accepted.
         input_data = record.original
 
-        assert input_data is not None
-
         if not isinstance(input_data, DocumentStream):
             if isinstance(input_data, Path):
                 input_data = DocumentStream(

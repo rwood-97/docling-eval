@@ -33,6 +33,19 @@ class BasePredictionProvider:
         return {}
 
 
+class NullPredictionProvider(BasePredictionProvider):
+    def predict(
+        self,
+        gt_doc: DoclingDocument,
+        stream: Optional[DocumentStream] = None,
+        **extra_kwargs,
+    ) -> DoclingDocument:
+        return gt_doc
+
+    def info(self) -> Dict:
+        return {"asset": "NullProvider", "version": "0.0.0"}
+
+
 class DoclingPredictionProvider(BasePredictionProvider):
     def __init__(
         self, **kwargs
