@@ -186,7 +186,8 @@ class BaseEvaluationDatasetBuilder:
         count = 0
         for record_chunk in chunkify(self.iterate(), 80):
             record_chunk = [r.as_record_dict() for r in record_chunk]
-            save_shard_to_disk(items=record_chunk, dataset_path=test_dir)
+            shard_id = count # set the id based on the count of records..
+            save_shard_to_disk(items=record_chunk, dataset_path=test_dir, shard_id=shard_id)
             count += len(record_chunk)
 
         write_datasets_info(
