@@ -21,9 +21,6 @@ from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval_next.dataset_builders.doclaynet_v1_builder import (
     DocLayNetV1DatasetBuilder,
 )
-from docling_eval_next.dataset_builders.doclaynet_v2_builder import (
-    DocLayNetV2DatasetBuilder,
-)
 from docling_eval_next.dataset_builders.dpbench_builder import DPBenchDatasetBuilder
 from docling_eval_next.dataset_builders.funsd_builder import FUNSDDatasetBuilder
 from docling_eval_next.dataset_builders.omnidocbench_builder import (
