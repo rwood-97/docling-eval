@@ -2,11 +2,11 @@ import glob
 import io
 import json
 import os
-from datasets import load_dataset
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
+import jsonlines
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
@@ -20,7 +20,7 @@ from docling_core.types.doc import (
     TableData,
 )
 from docling_core.types.io import DocumentStream
-from PIL.Image import Image
+from PIL import Image
 from tqdm import tqdm
 
 from docling_eval.benchmarks.constants import BenchMarkColumns
@@ -31,18 +31,15 @@ from docling_eval.benchmarks.utils import (
     from_pil_to_base64uri,
     get_binhash,
 )
-
+from docling_eval.converters.models.tableformer.tf_model_prediction import PageTokens
 from docling_eval.visualisation.visualisations import save_comparison_html
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval_next.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,
-    HFSource,
+    S3Source,
 )
 from docling_eval_next.prediction_providers.prediction_provider import (
     BasePredictionProvider,
-)
-from docling_eval.converters.models.tableformer.tf_model_prediction import (
-    PageTokens,
 )
 
 TRUE_HTML_EXPORT_LABELS = {
@@ -87,8 +84,7 @@ PRED_HTML_EXPORT_LABELS = {
 }
 
 
-
-class FintabnetDatasetBuilder(BaseEvaluationDatasetBuilder):
+class FintabnetCOSDatasetBuilder(BaseEvaluationDatasetBuilder):
     """ Base Fintabnet Dataset Builder that will pull dataset from Hugging face."""
     def __init__(
         self,
@@ -97,16 +93,36 @@ class FintabnetDatasetBuilder(BaseEvaluationDatasetBuilder):
         target: Path,
         do_visualization: bool = True,
     ):
+        endpoint = os.environ.get("S3_ENDPOINT")
+        access_key = os.environ.get("S3_ACCESS_KEY")
+        secret_key = os.environ.get("S3_SECRET_KEY")
+        cos_bucket = os.environ.get("S3_COS_BUCKET")
+
+        if not endpoint:
+            raise ValueError("Please set the S3_ENDPOINT environment variable")
+        if not access_key:
+            raise ValueError("Please set the S3_ACCESS_KEY environment variable")
+        if not secret_key:
+            raise ValueError("Please set the S3_SECRET_KEY environment variable")
+        if not cos_bucket:
+            raise ValueError("Please set the S3_COS_BUCKET environment variable")
+
         super().__init__(
             name=name,
-            dataset_source=HFSource(repo_id="ds4sd/FinTabNet_OTSL"),
+            dataset_source=S3Source(
+                endpoint=endpoint,
+                access_key=access_key,
+                secret_key=secret_key,
+                cos_bucket=cos_bucket,
+                cos_dir="model_evaluation_artifacts/data/tables_quality_fintabnet_crops",
+            ),
             prediction_provider=prediction_provider,
             target=target,
         )
         self.do_visualization = do_visualization
 
 
-class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
+class FintabnetCOSTableStructureDatasetBuilder(FintabnetCOSDatasetBuilder):
     """ Subclass of FintabnetDatasetBuilder that will define the "iterate" method on how to iterate
     the table structure from the dataset."""
     def __init__(
@@ -337,32 +353,57 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
 
         print(f"self.dataset_local_path={self.dataset_local_path}")
         print(f"self.name={self.name}")
-        ds = load_dataset(os.path.join(self.dataset_local_path, "data"), split="test") # TODO - pass the split as argument?
+
+        # Get all image files
+        image_files_path = os.path.join(self.dataset_local_path, "images")
+        print(f"{image_files_path=}")
+        image_files = list(glob.glob(f"{image_files_path}/*"))
+
+        # Read the ground truth into a dictionary structure
+        ground_truth_location = os.path.join(self.dataset_local_path, "gt/ftn_150_dpi_test_selection.jsonl")
+        ground_truth_per_filename = {}
+        with jsonlines.open(ground_truth_location, "r") as reader:
+            for line in reader:
+                filename = line["filename"] 
+                # Each line is of the form
+                # {   "filename": "xx",
+                #     "split": "text",
+                #     "imgid": "xx",
+                #     "html": {
+                #         "cells": [
+                #             { "tokens": ['char1', 'char2'], "bbox": []}
+                #         ],
+                #         "structure": {
+                #             "tokens":
+                #                 [ "<tr>", "<td> .."]
+                #         }
+                #     }
+                # }
+                html_structure = "<table>" + "".join(line["html"]["structure"]["tokens"]) + "</table>"
+                ground_truth_per_filename[filename] = { "table_html": html_structure,
+                                                        "table_cells": line["html"]["cells"] }
 
         # TODO - Pass this as an argument? Do we need to run all items..
         max_items = -1
         if max_items == -1:
-            max_items = len(ds)
+            max_items = len(image_files)
 
         # Iterate each of the record in the dataset
         for i, item in tqdm(
-            enumerate(ds),
+            enumerate(image_files),
             total=max_items,
             ncols=128,
-            desc=f"create Fintabnet dataset",
+            desc=f"create Fintabnet dataset from cos",
         ):
-            filename = item["filename"]
-            table_image = item["image"]
-
-            # TODO - For now, process two files instead of the whole dataset
-            if filename not in ["HAL.2015.page_43.pdf_125177.png", "HAL.2009.page_77.pdf_125051.png"]:
-                continue
+            print(f"{item=}")
+            filename = os.path.basename(item)
+            table_image = Image.open(item)
 
             print(f"\nProcessing file - [{filename}]...")
 
             true_page_images = [table_image]
             # page_tokens = self.create_page_tokens(
-            #     data=item["cells"], height=table_image.height, width=table_image.width
+            #     data=ground_truth_per_filename[filename]["cells"], height=table_image.height, width=table_image.width
             # )
 
             # Create the Ground truth document
@@ -384,9 +425,9 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
                 image=image_ref,
             )
 
-            html = "<table>" + "".join(item["html"]) + "</table>"
             table_data = convert_html_table_into_docling_tabledata(
-                html, text_cells=item["cells"][0]
+                table_html=ground_truth_per_filename[filename]["table_html"],
+                text_cells=ground_truth_per_filename[filename]["table_cells"],
             )
 
             l = 0.0
@@ -420,7 +461,7 @@ class FintabnetTableStructureDatasetBuilder(FintabnetDatasetBuilder):
 
             # In the dataset, item["image"] is a PIL Image. Convert it to bytes
             bytes_io = io.BytesIO()
-            image = item["image"]
+            image = table_image
             image.save(bytes_io, format="png")
             image_bytes = bytes_io.getvalue()
             image_stream = DocumentStream(name=filename, stream=BytesIO(image_bytes))

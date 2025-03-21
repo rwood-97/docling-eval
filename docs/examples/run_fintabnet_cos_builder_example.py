@@ -2,7 +2,9 @@ from pathlib import Path
 
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
 from docling_eval.cli.main import evaluate
-from docling_eval_next.dataset_builders.fintabnet_builder import FintabnetTableStructureDatasetBuilder
+from docling_eval_next.dataset_builders.fintabnet_cos_builder import (
+    FintabnetCOSTableStructureDatasetBuilder,
+)
 from docling_eval_next.prediction_providers.azure_prediction_provider import (
     AzureDocIntelligencePredictionProvider,
 )
@@ -13,13 +15,15 @@ def main():
     Pulls the 'fintabnet' dataset from HF and saves it to disk.
     """
     # Define the place where the temporary output has to be saved
-    target_path = Path("./output/FinTabNet_OTSL/")
+    target_path = Path("./output/tables_quality_fintabnet_crops/")
 
     # Define the predictor that needs to be run on each item of the dataset
-    provider = AzureDocIntelligencePredictionProvider() # Microsoft Azure Document Intelligence API Provider
+    provider_args = { "skip_api_if_prediction_is_present": True,
+                          "predictions_dir": target_path /  "microsoft" }
+    provider = AzureDocIntelligencePredictionProvider(**provider_args) # Microsoft Azure Document Intelligence API Provider
 
     # 1. Create the dataset builder
-    dataset = FintabnetTableStructureDatasetBuilder(
+    dataset = FintabnetCOSTableStructureDatasetBuilder(
         prediction_provider=provider,
         target=target_path,
     )

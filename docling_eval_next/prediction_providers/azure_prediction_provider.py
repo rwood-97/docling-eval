@@ -1,10 +1,9 @@
 import json
 import os
+from pathlib import Path
 from typing import Dict
 
 from docling_core.types import DoclingDocument
-from docling_core.types.io import DocumentStream
-
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
     DoclingDocument,
@@ -13,11 +12,14 @@ from docling_core.types.doc.document import (
     TableCell,
     TableData,
 )
+from docling_core.types.io import DocumentStream
+
 from docling_eval_next.prediction_providers.prediction_provider import BasePredictionProvider
 #from docling_core.types.doc.labels import DocItemLabel
 
 
 class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
+    """Provider that calls the Microsoft Azure Document Intelligence API for predicting the tables in document."""
     def __init__(
         self, **kwargs
     ):  # could be the docling converter options, the remote credentials for MS/Google, etc.
@@ -26,11 +28,10 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
         # TODO - Need a temp directory to save Azure outputs
         # Validate the required library
         try:
-            from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
+            from azure.ai.formrecognizer import AnalysisFeature, DocumentAnalysisClient
             from azure.core.credentials import AzureKeyCredential
         except ImportError:
             raise ImportError("azure-ai-formrecognizer library is not installed..")
-
 
         # Validate the required endpoints to call the API
         endpoint = os.getenv("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
@@ -42,6 +43,11 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
             )
 
         self.doc_intelligence_client = DocumentAnalysisClient(endpoint, AzureKeyCredential(key))
+
+        # Save the flags for intermediate results and processing
+        self.skip_api_if_prediction_is_present = bool(kwargs.get("skip_api_if_prediction_is_present", False) is True)
+        self.predictions_dir = kwargs.get("predictions_dir")
+        os.makedirs(self.predictions_dir, exist_ok=True)
 
     def extract_bbox_from_polygon(self, polygon):
         """Helper function to extract bbox coordinates from polygon data."""
@@ -64,11 +70,10 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
         else:
             return {"l": 0, "t": 0, "r": 0, "b": 0}
 
-
     def convert_azure_output_to_docling(self, analyze_result, filename) -> DoclingDocument:
         """Converts Azure Document Intelligence output to DoclingDocument format."""
         doc = DoclingDocument(name=filename)
-       
+
         for page in analyze_result.get("pages", []):
             page_no = page.get("page_number", 1)
 
@@ -155,48 +160,57 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
             table_data = TableData(
                 table_cells=table_cells, num_rows=row_count, num_cols=col_count
             )
-            # doc.add_table(label=DocItemLabel.TABLE, prov=table_prov, data=table_data)
+
             doc.add_table(prov=table_prov, data=table_data, caption=None)
 
         return doc
 
 
     def predict(self, stream: DocumentStream, **extra_args) -> DoclingDocument:
-        # For the given document stream (single document), run the API and create the doclingDocument
+        """For the given document stream (single document), run the API and create the doclingDocument."""
 
-        # Get the image from the stream
-        # TODO - Convert the given stream?
-        print(f"\nstream - {type(stream)}")
-        print(f"stream.model_dump() type - {type(stream.model_dump())}")
-        print(f"stream.stream type - {type(stream.stream)}")
-        poller = self.doc_intelligence_client.begin_analyze_document("prebuilt-layout", stream.stream, features=[])
-        result = poller.result()
-        result_json = result.to_dict()
-        print(f"Successfully processed [{stream.name}] using Azure API..!!")
+        print(f"Creating prediction for file - {stream.name}..")
+        stream_file_basename = Path(stream.name).stem
 
-        pred_docling_doc = self.convert_azure_output_to_docling(result_json, stream.name)
+        prediction_file_name = os.path.join(self.predictions_dir, f"{stream_file_basename}.json")
+        print(f"{prediction_file_name=}")
+        prediction_file_exists = False
+        # Check if the prediction exists, if so - reuse it
+        if (self.skip_api_if_prediction_is_present and os.path.exists(prediction_file_name)):
+            prediction_file_exists = True
+            print(f"Skipping Azure API call and re-using existing prediction from [{prediction_file_name}].")
+            with open(prediction_file_name, "r", encoding="utf-8") as f:
+                result_json = json.load(f)
+            result_json
+        else:
+            # Call the Azure API by passing in the image for prediction
+            poller = self.doc_intelligence_client.begin_analyze_document(
+                "prebuilt-layout", stream.stream, features=[]
+            )
+            result = poller.result()
+            result_json = result.to_dict()
+            print(f"Successfully processed [{stream.name}] using Azure API..!!")
 
-        # If the additional argument "save_output_to_dir" is passed in, 
+        # Convert the prediction to doclingDocument
+        pred_docling_doc = self.convert_azure_output_to_docling(
+            result_json, stream.name
+        )
+
         # save both the prediction json as well as converted docling_document into the subfolders underneath
-        if extra_args.get("save_output_to_dir"):
-            # Directory for storing API output
-            output_dir = os.path.join(extra_args["save_output_to_dir"], "microsoft")
-            os.makedirs(output_dir, exist_ok=True)
-            prediction_file_name = os.path.join(output_dir, f"{stream.name}.json")
-
-            with open(prediction_file_name, 'w') as f:
+        if not prediction_file_exists:
+            with open(prediction_file_name, 'w', encoding="utf-8") as f:
                 json.dump(result_json, f, indent=2)
+            print(f"Saved Prediction output to - {prediction_file_name}")
 
-            # Directory for storing docling_document output
-            output_dir = os.path.join(output_dir, "docling_document")
-            os.makedirs(output_dir, exist_ok=True)
-            docling_document_file_name = os.path.join(output_dir, f"{stream.name}.json")
-
-            with open(docling_document_file_name, 'w') as f:
-                json.dump(pred_docling_doc.export_to_dict(), f, indent=2)
+        # Directory for storing docling_document output
+        output_dir = os.path.join(self.predictions_dir, "docling_document")
+        os.makedirs(output_dir, exist_ok=True)
+        docling_document_file_name = os.path.join(output_dir, f"{stream.name}.json")    # include full name
+        with open(docling_document_file_name, 'w', encoding="utf-8") as f:
+            json.dump(pred_docling_doc.export_to_dict(), f, indent=2)
+        print(f"Saved Docling Document output of prediction to - {docling_document_file_name}")
 
         return pred_docling_doc
 
-        
     def info(self) -> Dict:
         return {"asset": "Azure AI Document Intelligence", "version": "1.0.0"}
