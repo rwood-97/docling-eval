@@ -164,6 +164,12 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
 
         cell_by_id = {}
         for item in form_items:
+            # We omit the items that are not relevant for key-value pairs.
+            if not item.get("linking", []) and item.get("label", "other") in [
+                "header",
+                "other",
+            ]:
+                continue
             cell_id = item["id"]
             cell_text = item.get("text", "")
 
