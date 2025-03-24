@@ -1,15 +1,32 @@
+import copy
+import os
+import sys
 from abc import abstractmethod
+from io import BytesIO
+from pathlib import Path
 from typing import Dict, Optional
 
+from datasets import load_dataset
 from docling.datamodel.pipeline_options import TableFormerMode
 from docling.document_converter import DocumentConverter
+from docling.utils.utils import chunkify
 from docling_core.types import DoclingDocument
 from docling_core.types.io import DocumentStream
+from tqdm import tqdm
 
-from docling_eval.benchmarks.utils import docling_models_version, docling_version
+from docling_eval.benchmarks.utils import (
+    docling_models_version,
+    docling_version,
+    save_shard_to_disk,
+    write_datasets_info,
+)
 from docling_eval.converters.models.tableformer.tf_model_prediction import (
     PageToken,
     TableFormerUpdater,
+)
+from docling_eval_next.datamodels.dataset_record import (
+    DatasetRecord,
+    DatasetRecordWithPrediction,
 )
 
 
@@ -20,7 +37,7 @@ class BasePredictionProvider:
         self.provider_args = kwargs
 
     @abstractmethod
-    def predict(
+    def predict(  # give this method the full record.
         self,
         gt_doc: DoclingDocument,
         stream: Optional[DocumentStream] = None,
@@ -31,6 +48,79 @@ class BasePredictionProvider:
     @abstractmethod
     def info(self) -> Dict:
         return {}
+
+    def add_prediction(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
+        # This might need customization depending on the input the dataset has.
+        # The default implementation assumes that there is an original file in binary format which is accepted.
+        input_data = copy.deepcopy(record.original)
+
+        if not isinstance(input_data, DocumentStream):
+            if isinstance(input_data, Path):
+                input_data = DocumentStream(
+                    name=input_data.name, stream=BytesIO(input_data.open("rb").read())
+                )
+
+        pred_doc = self.predict(record.ground_truth_doc, stream=input_data)
+
+        pred_record = DatasetRecordWithPrediction.model_validate(
+            {
+                **record.as_record_dict(),
+                "predicted_doc": pred_doc,
+                "original_prediction": None,
+                "prediction_format": None,
+            }
+        )
+
+        pred_record.validate_images()  # type: ignore
+
+        return pred_record
+
+    def update_dataset_with_predictions(
+        self, name: str, dataset_dir: Path, output_dir: Path, split: str = "test"
+    ):
+        parquet_files = str(dataset_dir / split / "*.parquet")
+        ds = load_dataset("parquet", data_files={split: parquet_files})
+        # _log.info(f"oveview of dataset: {ds}")
+        if ds is not None:
+            ds_selection = ds[split]
+
+        def _iterate_predictions():
+            for i, data in tqdm(
+                enumerate(ds_selection),
+                desc="Creating predictions",
+                ncols=120,
+                total=len(ds_selection),
+            ):
+                record = DatasetRecord.model_validate(data)
+                pred_record = self.add_prediction(record)
+
+                yield pred_record
+
+        test_dir = output_dir / "test"
+        os.makedirs(test_dir, exist_ok=True)
+
+        chunk_size = 80
+        max_num_chunks = sys.maxsize
+
+        count = 0
+        chunk_count = 0
+        for record_chunk in chunkify(_iterate_predictions(), chunk_size):
+            record_chunk = [r.as_record_dict() for r in record_chunk]
+            save_shard_to_disk(
+                items=record_chunk, dataset_path=test_dir, shard_id=chunk_count
+            )
+            count += len(record_chunk)
+            chunk_count += 1
+
+            if chunk_count >= max_num_chunks:
+                break
+
+        write_datasets_info(
+            name=name,
+            output_dir=output_dir,
+            num_train_rows=0,
+            num_test_rows=count,
+        )
 
 
 class NullPredictionProvider(BasePredictionProvider):

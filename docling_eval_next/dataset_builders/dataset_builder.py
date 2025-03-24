@@ -33,12 +33,12 @@ class BaseEvaluationDatasetBuilder:
         self,
         name: str,
         dataset_source: Union[HFSource, S3Source, Path],
-        prediction_provider: BasePredictionProvider,
+        # prediction_provider: BasePredictionProvider,
         target: Path,
     ):
         self.name = name
         self.target: Path = target
-        self.prediction_provider = prediction_provider
+        # self.prediction_provider = prediction_provider
         self.dataset_source = dataset_source
 
         self.dataset_local_path: Optional[Path] = None  # TBD
@@ -79,24 +79,24 @@ class BaseEvaluationDatasetBuilder:
     def iterate(self) -> Iterable[DatasetRecord]:
         pass
 
-    def update_prediction(self, record: DatasetRecord):
-        # This might need customization depending on the input the dataset has.
-        # The default implementation assumes that there is an original file in binary format which is accepted.
-        input_data = record.original
-
-        if not isinstance(input_data, DocumentStream):
-            if isinstance(input_data, Path):
-                input_data = DocumentStream(
-                    name=input_data.name, stream=BytesIO(input_data.open("rb").read())
-                )
-
-        pred_doc = self.prediction_provider.predict(
-            record.ground_truth_doc, stream=input_data
-        )
-
-        record.predicted_doc = pred_doc
-
-        record.validate_model()  # type: ignore
+    # def update_prediction(self, record: DatasetRecord):
+    #     # This might need customization depending on the input the dataset has.
+    #     # The default implementation assumes that there is an original file in binary format which is accepted.
+    #     input_data = record.original
+    #
+    #     if not isinstance(input_data, DocumentStream):
+    #         if isinstance(input_data, Path):
+    #             input_data = DocumentStream(
+    #                 name=input_data.name, stream=BytesIO(input_data.open("rb").read())
+    #             )
+    #
+    #     pred_doc = self.prediction_provider.predict(
+    #         record.ground_truth_doc, stream=input_data
+    #     )
+    #
+    #     record.predicted_doc = pred_doc
+    #
+    #     record.validate_model()  # type: ignore
 
     def save_to_disk(self, chunk_size: int = 80, max_num_chunks: int = sys.maxsize):
         if not self.retrieved:
@@ -111,7 +111,9 @@ class BaseEvaluationDatasetBuilder:
         chunk_count = 0
         for record_chunk in chunkify(self.iterate(), chunk_size):
             record_chunk = [r.as_record_dict() for r in record_chunk]
-            save_shard_to_disk(items=record_chunk, dataset_path=test_dir)
+            save_shard_to_disk(
+                items=record_chunk, dataset_path=test_dir, shard_id=chunk_count
+            )
             count += len(record_chunk)
             chunk_count += 1
 

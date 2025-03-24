@@ -85,14 +85,14 @@ PRED_HTML_EXPORT_LABELS = {
 class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
     def __init__(
         self,
-        prediction_provider: BasePredictionProvider,
+        # prediction_provider: BasePredictionProvider,
         target: Path,
         do_visualization: bool = True,
     ):
         super().__init__(
             name="DPBench: end-to-end",
             dataset_source=HFSource(repo_id="upstage/dp-bench"),
-            prediction_provider=prediction_provider,
+            # prediction_provider=prediction_provider,
             target=target,
         )
         self.do_visualization = do_visualization
@@ -313,7 +313,7 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
             pdf_stream = DocumentStream(name=pdf_path.name, stream=BytesIO(pdf_bytes))
 
             record = DatasetRecord(
-                predictor_info=self.prediction_provider.info(),
+                # predictor_info=self.prediction_provider.info(),
                 doc_id=str(filename),
                 doc_hash=get_binhash(pdf_bytes),
                 ground_truth_doc=true_doc,
@@ -321,16 +321,16 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
                 mime_type="application/pdf",
             )
 
-            self.update_prediction(record)
+            # self.update_prediction(record)
 
-            if self.do_visualization and record.predicted_doc is not None:
-                save_comparison_html_with_clusters(
-                    filename=viz_dir / f"{os.path.basename(pdf_path)}-clusters.html",
-                    true_doc=true_doc,
-                    pred_doc=record.predicted_doc,
-                    page_image=true_page_images[0],
-                    true_labels=TRUE_HTML_EXPORT_LABELS,
-                    pred_labels=PRED_HTML_EXPORT_LABELS,
-                )
+            # if self.do_visualization and record.predicted_doc is not None:
+            #     save_comparison_html_with_clusters(
+            #         filename=viz_dir / f"{os.path.basename(pdf_path)}-clusters.html",
+            #         true_doc=true_doc,
+            #         pred_doc=record.predicted_doc,
+            #         page_image=true_page_images[0],
+            #         true_labels=TRUE_HTML_EXPORT_LABELS,
+            #         pred_labels=PRED_HTML_EXPORT_LABELS,
+            #     )
 
             yield record

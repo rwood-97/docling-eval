@@ -43,7 +43,7 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
     def __init__(
         self,
         dataset_source: Path,
-        prediction_provider: BasePredictionProvider,
+        # prediction_provider: BasePredictionProvider,
         target: Path,
         do_visualization: bool = True,
         split: str = "test",
@@ -52,7 +52,7 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
         super().__init__(
             name="FUNSD",
             dataset_source=dataset_source,  # Standard location
-            prediction_provider=prediction_provider,
+            # prediction_provider=prediction_provider,
             target=target,
         )
         self.do_visualization = do_visualization
@@ -310,7 +310,7 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
 
                 # Create dataset record
                 record = DatasetRecord(
-                    predictor_info=self.prediction_provider.info(),
+                    # predictor_info=self.prediction_provider.info(),
                     doc_id=img_path.stem,
                     doc_hash=get_binhash(img_bytes),
                     ground_truth_doc=true_doc,
@@ -322,7 +322,7 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
                 )
 
                 # Update prediction
-                self.update_prediction(record)
+                # self.update_prediction(record)
 
                 yield record
 

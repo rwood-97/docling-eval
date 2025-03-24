@@ -124,7 +124,7 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
 
     def __init__(
         self,
-        prediction_provider: BasePredictionProvider,
+        # prediction_provider: BasePredictionProvider,
         target: Path,
         do_visualization: bool = True,
         split: str = "test",
@@ -134,7 +134,7 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
         super().__init__(
             name="DocLayNetV1: end-to-end",
             dataset_source=HFSource(repo_id="ds4sd/DocLayNet-v1.2"),
-            prediction_provider=prediction_provider,
+            # prediction_provider=prediction_provider,
             target=target,
         )
         self.do_visualization = do_visualization
@@ -349,7 +349,7 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
 
                 # Create dataset record
                 record = DatasetRecord(
-                    predictor_info=self.prediction_provider.info(),
+                    # predictor_info=self.prediction_provider.info(),
                     doc_id=page_hash,
                     doc_hash=get_binhash(pdf),
                     ground_truth_doc=true_doc,
@@ -364,30 +364,30 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
                 )
 
                 # Update prediction
-                self.update_prediction(record)
+                # self.update_prediction(record)
 
                 # Extract images from the predicted document if available
-                if record.predicted_doc is not None:
-                    pred_doc, pred_pictures, pred_page_images = extract_images(
-                        document=record.predicted_doc,
-                        pictures_column=BenchMarkColumns.PREDICTION_PICTURES,
-                        page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES,
-                    )
-                    record.predicted_doc = pred_doc
-                    record.predicted_pictures = pred_pictures
-                    record.predicted_page_images = pred_page_images
+                # if record.predicted_doc is not None:
+                #     pred_doc, pred_pictures, pred_page_images = extract_images(
+                #         document=record.predicted_doc,
+                #         pictures_column=BenchMarkColumns.PREDICTION_PICTURES,
+                #         page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES,
+                #     )
+                #     record.predicted_doc = pred_doc
+                #     record.predicted_pictures = pred_pictures
+                #     record.predicted_page_images = pred_page_images
 
-                # Create visualization if requested
-                if self.do_visualization and record.predicted_doc is not None:
-                    save_comparison_html_with_clusters(
-                        filename=viz_dir / f"{page_hash}-clusters.html",
-                        true_doc=true_doc,
-                        pred_doc=record.predicted_doc,
-                        page_image=img,
-                        true_labels=TRUE_HTML_EXPORT_LABELS,
-                        pred_labels=PRED_HTML_EXPORT_LABELS,
-                        draw_reading_order=False,
-                    )
+                # # Create visualization if requested
+                # if self.do_visualization and record.predicted_doc is not None:
+                #     save_comparison_html_with_clusters(
+                #         filename=viz_dir / f"{page_hash}-clusters.html",
+                #         true_doc=true_doc,
+                #         pred_doc=record.predicted_doc,
+                #         page_image=img,
+                #         true_labels=TRUE_HTML_EXPORT_LABELS,
+                #         pred_labels=PRED_HTML_EXPORT_LABELS,
+                #         draw_reading_order=False,
+                #     )
 
                 exported_rows += 1
                 yield record
