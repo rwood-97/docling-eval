@@ -76,5 +76,8 @@ class ConverterTypes(str, Enum):
 
 
 class PredictionFormats(str, Enum):
-    DOCLING_DOCUMENT = "DoclingDocument"
-    MARKDOWN = "MarkDown"
+    DOCLING_DOCUMENT = "doclingdocument"
+    MARKDOWN = "markdown"
+    HTML = "html"
+    JSON = "json"
+    DOCTAGS = "doctags"

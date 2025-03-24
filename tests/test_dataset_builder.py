@@ -27,12 +27,8 @@ from docling_eval_next.dataset_builders.omnidocbench_builder import (
     OmniDocBenchDatasetBuilder,
 )
 from docling_eval_next.dataset_builders.xfund_builder import XFUNDDatasetBuilder
-from docling_eval_next.dataset_builders.omnidocbench_builder import (
-    OmniDocBenchDatasetBuilder,
-)
 from docling_eval_next.prediction_providers.prediction_provider import (
     DoclingPredictionProvider,
-    NullPredictionProvider,
     TableFormerPredictionProvider,
 )
 
@@ -97,11 +93,20 @@ def test_run_dpbench_e2e():
         chunk_size=5, max_num_chunks=1
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
-    docling_provider.update_dataset_with_predictions(
+    docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
-        dataset_dir=target_path / "gt",
-        output_dir=target_path / "e2e",
+        gt_dataset_dir=target_path / "gt",
+        target_dataset_dir=target_path / "e2e",
     )
+
+    # To be implemented...
+    # file_directory_provider.create_prediction_dataset(
+    #     name=dataset_layout.name,
+    #     prediction_dir=...,
+    #     prediction_format=PredictionFormats.MARKDOWN, # move to __init__ ?
+    #     gt_dataset_dir=target_path / "gt",
+    #     target_dataset_dir=target_path / "e2e",
+    # )
 
     evaluate(
         modality=EvaluationModality.LAYOUT,
@@ -124,10 +129,10 @@ def test_run_omnidocbench_e2e():
         chunk_size=5, max_num_chunks=1
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
-    docling_provider.update_dataset_with_predictions(
+    docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
-        dataset_dir=target_path / "gt",
-        output_dir=target_path / "e2e",
+        gt_dataset_dir=target_path / "gt",
+        target_dataset_dir=target_path / "e2e",
     )
 
     evaluate(
@@ -151,10 +156,10 @@ def test_run_dpbench_tables():
         chunk_size=5, max_num_chunks=1
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
-    tableformer_provider.update_dataset_with_predictions(
+    tableformer_provider.create_prediction_dataset(
         name=dataset_tables.name,
-        dataset_dir=target_path / "gt",
-        output_dir=target_path / "tables",
+        gt_dataset_dir=target_path / "gt",
+        target_dataset_dir=target_path / "tables",
     )
 
     evaluate(
@@ -178,10 +183,10 @@ def test_run_omnidocbench_tables():
         chunk_size=5, max_num_chunks=1
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
-    tableformer_provider.update_dataset_with_predictions(
+    tableformer_provider.create_prediction_dataset(
         name=dataset_tables.name,
-        dataset_dir=target_path / "gt",
-        output_dir=target_path / "tables",
+        gt_dataset_dir=target_path / "gt",
+        target_dataset_dir=target_path / "tables",
     )
 
     evaluate(
@@ -207,10 +212,10 @@ def test_run_doclaynet_v1_e2e():
         chunk_size=5, max_num_chunks=1
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
-    docling_provider.update_dataset_with_predictions(
+    docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
-        dataset_dir=target_path / "gt",
-        output_dir=target_path / "e2e",
+        gt_dataset_dir=target_path / "gt",
+        target_dataset_dir=target_path / "e2e",
     )
 
     evaluate(

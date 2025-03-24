@@ -13,7 +13,7 @@ from docling_core.types.io import DocumentStream
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.fields import FieldInfo
 
-from docling_eval.benchmarks.constants import EvaluationModality
+from docling_eval.benchmarks.constants import EvaluationModality, PredictionFormats
 
 
 class DatasetRecord(
@@ -172,8 +172,8 @@ class DatasetRecordWithPrediction(DatasetRecord):
     predicted_doc: Optional[DoclingDocument] = Field(
         alias="PredictedDocument", default=None
     )
-    original_prediction: Optional[Any] = None
-    prediction_format: Any  # some enum type
+    original_prediction: Optional[str] = None
+    prediction_format: PredictionFormats  # some enum type
 
     predicted_page_images: List[PIL.Image.Image] = Field(
         alias="GroundTruthPageImages", default=[]

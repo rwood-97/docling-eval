@@ -4,7 +4,7 @@ import sys
 from abc import abstractmethod
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 from datasets import load_dataset
 from docling.datamodel.pipeline_options import TableFormerMode
@@ -14,6 +14,7 @@ from docling_core.types import DoclingDocument
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm
 
+from docling_eval.benchmarks.constants import PredictionFormats
 from docling_eval.benchmarks.utils import (
     docling_models_version,
     docling_version,
@@ -37,17 +38,17 @@ class BasePredictionProvider:
         self.provider_args = kwargs
 
     @abstractmethod
-    def predict(  # give this method the full record.
-        self,
-        gt_doc: DoclingDocument,
-        stream: Optional[DocumentStream] = None,
-        **extra_kwargs,
-    ) -> DoclingDocument:
-        return DoclingDocument(name="dummy")
+    def predict(self, record: DatasetRecord) -> Tuple[DoclingDocument, Optional[str]]:
+        return DoclingDocument(name="dummy"), None
 
     @abstractmethod
     def info(self) -> Dict:
         return {}
+
+    @property
+    @abstractmethod
+    def prediction_format(self) -> PredictionFormats:
+        pass
 
     def add_prediction(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
         # This might need customization depending on the input the dataset has.
@@ -60,14 +61,15 @@ class BasePredictionProvider:
                     name=input_data.name, stream=BytesIO(input_data.open("rb").read())
                 )
 
-        pred_doc = self.predict(record.ground_truth_doc, stream=input_data)
+        record.original = input_data
+        pred_doc, orig_pred = self.predict(record)
 
         pred_record = DatasetRecordWithPrediction.model_validate(
             {
                 **record.as_record_dict(),
                 "predicted_doc": pred_doc,
-                "original_prediction": None,
-                "prediction_format": None,
+                "original_prediction": orig_pred,
+                "prediction_format": self.prediction_format,
             }
         )
 
@@ -75,10 +77,14 @@ class BasePredictionProvider:
 
         return pred_record
 
-    def update_dataset_with_predictions(
-        self, name: str, dataset_dir: Path, output_dir: Path, split: str = "test"
+    def create_prediction_dataset(
+        self,
+        name: str,
+        gt_dataset_dir: Path,
+        target_dataset_dir: Path,
+        split: str = "test",
     ):
-        parquet_files = str(dataset_dir / split / "*.parquet")
+        parquet_files = str(gt_dataset_dir / split / "*.parquet")
         ds = load_dataset("parquet", data_files={split: parquet_files})
         # _log.info(f"oveview of dataset: {ds}")
         if ds is not None:
@@ -96,7 +102,7 @@ class BasePredictionProvider:
 
                 yield pred_record
 
-        test_dir = output_dir / "test"
+        test_dir = target_dataset_dir / "test"
         os.makedirs(test_dir, exist_ok=True)
 
         chunk_size = 80
@@ -117,23 +123,10 @@ class BasePredictionProvider:
 
         write_datasets_info(
             name=name,
-            output_dir=output_dir,
+            output_dir=target_dataset_dir,
             num_train_rows=0,
             num_test_rows=count,
         )
-
-
-class NullPredictionProvider(BasePredictionProvider):
-    def predict(
-        self,
-        gt_doc: DoclingDocument,
-        stream: Optional[DocumentStream] = None,
-        **extra_kwargs,
-    ) -> DoclingDocument:
-        return gt_doc
-
-    def info(self) -> Dict:
-        return {"asset": "NullProvider", "version": "0.0.0"}
 
 
 class DoclingPredictionProvider(BasePredictionProvider):
@@ -150,17 +143,19 @@ class DoclingPredictionProvider(BasePredictionProvider):
             else:
                 self.doc_converter = DocumentConverter()
 
+    @property
+    def prediction_format(self) -> PredictionFormats:
+        return PredictionFormats.DOCLING_DOCUMENT
+
     def predict(
         self,
-        gt_doc: DoclingDocument,
-        stream: Optional[DocumentStream] = None,
-        **extra_kwargs,
-    ) -> DoclingDocument:
+        record: DatasetRecord,
+    ) -> Tuple[DoclingDocument, Optional[str]]:
         assert (
-            stream is not None
+            record.original is not None
         ), "stream must be given for docling prediction provider to work."
 
-        return self.doc_converter.convert(stream).document
+        return self.doc_converter.convert(copy.deepcopy(record.original)).document, None
 
     def info(self) -> Dict:
         return {"asset": "Docling", "version": docling_version()}
@@ -174,29 +169,33 @@ class TableFormerPredictionProvider(BasePredictionProvider):
 
         self.tf_updater = TableFormerUpdater(TableFormerMode.ACCURATE)
 
+    @property
+    def prediction_format(self) -> PredictionFormats:
+        return PredictionFormats.DOCLING_DOCUMENT
+
     def predict(
-        self,
-        gt_doc: DoclingDocument,
-        stream: Optional[DocumentStream] = None,
-        page_tokens: Optional[PageToken] = None,
-        **extra_kwargs,
-    ) -> DoclingDocument:
+        self, record: DatasetRecord, page_tokens: Optional[List[PageToken]] = None
+    ) -> Tuple[DoclingDocument, Optional[str]]:
 
         assert (
-            gt_doc is not None
+            record.ground_truth_doc is not None
         ), "true_doc must be given for TableFormer prediction provider to work."
 
-        if stream is not None and page_tokens is None:
-            updated, pred_doc = self.tf_updater.replace_tabledata(stream.stream, gt_doc)
+        assert record.original is None or isinstance(record.original, DocumentStream)
+
+        if record.original is not None and page_tokens is None:
+            updated, pred_doc = self.tf_updater.replace_tabledata(
+                copy.deepcopy(record.original.stream), record.ground_truth_doc
+            )
         elif page_tokens is not None:
             updated, pred_doc = self.tf_updater.replace_tabledata_with_page_tokens(
-                page_tokens, gt_doc, []
+                page_tokens, record.ground_truth_doc, []
             )  # FIXME: Must not expect page images.
         else:
             raise RuntimeError(
                 "TableFormerPredictionProvider.predict must be called with a stream or page_tokens."
             )
-        return pred_doc
+        return pred_doc, None
 
     def info(self) -> Dict:
         return {"asset": "TableFormer", "version": docling_models_version()}
