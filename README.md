@@ -1,3 +1,9 @@
+<p align="center">
+  <a href="https://github.com/docling-project/docling-eval">
+    <img loading="lazy" alt="Docling" src="docs/assets/docling-eval-pic.png" width="50%"/>
+  </a>
+</p>
+
 # Docling-eval
 
 
