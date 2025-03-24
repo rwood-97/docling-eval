@@ -73,3 +73,8 @@ class BenchMarkNames(str, Enum):
 class ConverterTypes(str, Enum):
     DOCLING = "Docling"
     SMOL_DOCLING = "SmolDocling"
+
+
+class PredictionFormats(str, Enum):
+    DOCLING_DOCUMENT = "DoclingDocument"
+    MARKDOWN = "MarkDown"
