@@ -1,7 +1,7 @@
 import json
 from io import BytesIO
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import PIL
 from datasets import Features
@@ -25,7 +25,7 @@ class DatasetRecord(
     doc_hash: Optional[str] = Field(alias="document_filehash")
 
     ground_truth_doc: DoclingDocument = Field(alias="GroundTruthDocument")
-    original: Optional[Union[DocumentStream | Path]] = Field(
+    original: Optional[Union[DocumentStream, Path]] = Field(
         alias="BinaryDocument", default=None
     )
     # TODO add optional columns to store the SegmentedPage, both for GT and prediction
@@ -166,7 +166,7 @@ class DatasetRecord(
 
 
 class DatasetRecordWithPrediction(DatasetRecord):
-    predictor_info: dict = Field(alias="predictor_info", default={})
+    predictor_info: Dict = Field(alias="predictor_info", default={})
     status: ConversionStatus = Field(alias="status", default=ConversionStatus.PENDING)
 
     predicted_doc: Optional[DoclingDocument] = Field(
