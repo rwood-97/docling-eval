@@ -76,22 +76,19 @@ def create_page_tokens(data: List[Any], height: float, width: float) -> PageToke
                 {
                     "bbox": {
                         "l": item["bbox"][0],
-                        # "t": height - item["bbox"][3],
                         "t": item["bbox"][1],
                         "r": item["bbox"][2],
-                        # "b": height - item["bbox"][1],
                         "b": item["bbox"][3],
-                        # "coord_origin": str(CoordOrigin.BOTTOMLEFT.value)
                         "coord_origin": str(CoordOrigin.TOPLEFT.value),
                     },
-                    "text": "".join(item["tokens"]),
+                    "text": text,
                     "id": cnt,
                 }
             )
             cnt += 1
 
     result = {"tokens": tokens, "height": height, "width": width}
-    return PageTokens.parse_obj(result)
+    return PageTokens.model_validate(result)
 
 
 def create_huggingface_otsl_tableformer_dataset(
@@ -211,9 +208,9 @@ def create_huggingface_otsl_tableformer_dataset(
 
         # Create the updated Document
         updated, pred_doc = tf_updater.replace_tabledata_with_page_tokens(
-            page_tokens=page_tokens,
             true_doc=true_doc,
             true_page_images=true_page_images,
+            page_tokens=page_tokens,
         )
 
         true_doc, true_pictures, true_page_images = extract_images(

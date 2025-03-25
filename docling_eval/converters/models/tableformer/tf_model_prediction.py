@@ -227,9 +227,9 @@ class TableFormerUpdater:
 
     def replace_tabledata_with_page_tokens(
         self,
-        page_tokens: PageTokens,
         true_doc: DoclingDocument,
         true_page_images: List[Image.Image],
+        page_tokens: Optional[PageTokens] = None,
     ) -> Tuple[bool, DoclingDocument]:
 
         updated = False
@@ -258,6 +258,19 @@ class TableFormerUpdater:
                         min(prov.bbox.r, page_size.width),
                         min(prov.bbox.t, page_size.height),
                     )
+
+                    if page_tokens is None:
+                        ptokens = []
+                        for ix, table_cell in enumerate(item.data.table_cells):
+                            pt = PageToken(
+                                bbox=table_cell.bbox, text=table_cell.text, id=ix
+                            )
+                            ptokens.append(pt)
+                        page_tokens = PageTokens(
+                            tokens=ptokens,
+                            height=prov.bbox.height,
+                            width=prov.bbox.width,
+                        )
 
                     table_data = self._tf_predict_with_page_tokens(
                         page_image=page_image,

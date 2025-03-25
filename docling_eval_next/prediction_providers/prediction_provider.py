@@ -173,27 +173,26 @@ class TableFormerPredictionProvider(BasePredictionProvider):
     def prediction_format(self) -> PredictionFormats:
         return PredictionFormats.DOCLING_DOCUMENT
 
-    def predict(
-        self, record: DatasetRecord, page_tokens: Optional[List[PageToken]] = None
-    ) -> Tuple[DoclingDocument, Optional[str]]:
+    def predict(self, record: DatasetRecord) -> Tuple[DoclingDocument, Optional[str]]:
 
         assert (
             record.ground_truth_doc is not None
         ), "true_doc must be given for TableFormer prediction provider to work."
 
-        assert record.original is None or isinstance(record.original, DocumentStream)
+        if record.mime_type == "application/pdf":
+            assert isinstance(record.original, DocumentStream)
 
-        if record.original is not None and page_tokens is None:
             updated, pred_doc = self.tf_updater.replace_tabledata(
                 copy.deepcopy(record.original.stream), record.ground_truth_doc
             )
-        elif page_tokens is not None:
+        elif record.mime_type == "image/png":
             updated, pred_doc = self.tf_updater.replace_tabledata_with_page_tokens(
-                page_tokens, record.ground_truth_doc, []
-            )  # FIXME: Must not expect page images.
+                record.ground_truth_doc,
+                record.ground_truth_page_images,
+            )
         else:
             raise RuntimeError(
-                "TableFormerPredictionProvider.predict must be called with a stream or page_tokens."
+                "TableFormerPredictionProvider is missing data to predict on."
             )
         return pred_doc, None
 
