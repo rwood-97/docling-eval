@@ -27,9 +27,6 @@ from docling_eval_next.dataset_builders.omnidocbench_builder import (
     OmniDocBenchDatasetBuilder,
 )
 from docling_eval_next.dataset_builders.xfund_builder import XFUNDDatasetBuilder
-from docling_eval_next.dataset_builders.omnidocbench_builder import (
-    OmniDocBenchDatasetBuilder,
-)
 from docling_eval_next.prediction_providers.prediction_provider import (
     DoclingPredictionProvider,
     NullPredictionProvider,
@@ -170,6 +167,7 @@ def test_run_omnidocbench_tables():
         idir=target_path / "tables",
         odir=target_path / "tables" / "tableformer",
     )
+
 
 def test_run_doclaynet_v1_e2e():
     target_path = Path("./scratch/doclaynet-v1-builder-test/")

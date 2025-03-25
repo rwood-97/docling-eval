@@ -98,11 +98,11 @@ class BaseEvaluationDatasetBuilder:
 
         record.validate_model()  # type: ignore
 
-    def save_to_disk(self):
-        # if not self.retrieved:
-        #     raise RuntimeError(
-        #         "You must first retrieve the source dataset. Call retrieve_input_dataset()."
-        #     )
+    def save_to_disk(self, chunk_size: int = 80, max_num_chunks: int = sys.maxsize):
+        if not self.retrieved:
+            raise RuntimeError(
+                "You must first retrieve the source dataset. Call retrieve_input_dataset()."
+            )
 
         test_dir = self.target / "test"
         os.makedirs(test_dir, exist_ok=True)
