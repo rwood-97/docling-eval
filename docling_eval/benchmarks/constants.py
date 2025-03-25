@@ -80,4 +80,5 @@ class PredictionFormats(str, Enum):
     MARKDOWN = "markdown"
     HTML = "html"
     JSON = "json"
+    YAML = "yaml"
     DOCTAGS = "doctags"
