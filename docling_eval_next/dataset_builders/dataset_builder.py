@@ -1,4 +1,5 @@
 import os
+import sys
 from abc import abstractmethod
 from io import BytesIO
 from pathlib import Path
@@ -80,23 +81,23 @@ class S3Source(BaseModel):
                     continue
                 if file_meta["Size"] == 0:
                     continue
-                
+
                 # Identify the path to the file on disk.
                 local_file_path = os.path.join(download_dir, relative_path)
                 print(f"Download {file_meta['Key']} to {local_file_path}")
-                
+
                 # If the option to overwrite downloads is ON, and the file already exists, skip it.
                 if self.overwrite_downloads and os.path.exists(local_file_path):
                     print(f"File {local_file_path} already exists. Skipping.")
                     continue
-                
+
                 # Create the directories as required
                 local_dir = os.path.dirname(local_file_path)
                 if not os.path.exists(local_dir):
                     os.makedirs(local_dir)
-                
+
                 self.cos_resource.Bucket(self.cos_bucket).download_file(file_meta["Key"], local_file_path)
-        
+
         return download_dir
 
 class BaseEvaluationDatasetBuilder:
@@ -104,12 +105,12 @@ class BaseEvaluationDatasetBuilder:
         self,
         name: str,
         dataset_source: Union[HFSource, S3Source, Path],
-        prediction_provider: BasePredictionProvider,
+        # prediction_provider: BasePredictionProvider,
         target: Path,
     ):
         self.name = name
         self.target: Path = target
-        self.prediction_provider = prediction_provider
+        # self.prediction_provider = prediction_provider
         self.dataset_source = dataset_source
 
         self.dataset_local_path: Optional[Path] = None  # TBD
@@ -155,40 +156,46 @@ class BaseEvaluationDatasetBuilder:
     def iterate(self) -> Iterable[DatasetRecord]:
         pass
 
-    def update_prediction(self, record: DatasetRecord):
-        # This might need customization depending on the input the dataset has.
-        # The default implementation assumes that there is an original file in binary format which is accepted.
-        input_data = record.original
+    # def update_prediction(self, record: DatasetRecord):
+    #     # This might need customization depending on the input the dataset has.
+    #     # The default implementation assumes that there is an original file in binary format which is accepted.
+    #     input_data = record.original
+    #
+    #     if not isinstance(input_data, DocumentStream):
+    #         if isinstance(input_data, Path):
+    #             input_data = DocumentStream(
+    #                 name=input_data.name, stream=BytesIO(input_data.open("rb").read())
+    #             )
+    #
+    #     pred_doc = self.prediction_provider.predict(
+    #         record.ground_truth_doc, stream=input_data
+    #     )
+    #
+    #     record.predicted_doc = pred_doc
+    #
+    #     record.validate_model()  # type: ignore
 
-        assert input_data is not None
-
-        if not isinstance(input_data, DocumentStream):
-            if isinstance(input_data, Path):
-                input_data = DocumentStream(
-                    name=input_data.name, stream=BytesIO(input_data.open("rb").read())
-                )
-
-        pred_doc = self.prediction_provider.predict(input_data)
-
-        record.predicted_doc = pred_doc
-
-        record.validate_model()  # type: ignore
-
-    def save_to_disk(self):
+    def save_to_disk(self, chunk_size: int = 80, max_num_chunks: int = sys.maxsize):
         if not self.retrieved:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )
 
-        test_dir = self.target / "intermediate_files"
+        test_dir = self.target / "test"
         os.makedirs(test_dir, exist_ok=True)
 
         count = 0
-        for record_chunk in chunkify(self.iterate(), 80):
+        chunk_count = 0
+        for record_chunk in chunkify(self.iterate(), chunk_size):
             record_chunk = [r.as_record_dict() for r in record_chunk]
-            shard_id = count # set the id based on the count of records..
-            save_shard_to_disk(items=record_chunk, dataset_path=test_dir, shard_id=shard_id)
+            save_shard_to_disk(
+                items=record_chunk, dataset_path=test_dir, shard_id=chunk_count
+            )
             count += len(record_chunk)
+            chunk_count += 1
+
+            if chunk_count >= max_num_chunks:
+                break
 
         write_datasets_info(
             name=self.name,
