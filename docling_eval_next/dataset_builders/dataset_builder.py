@@ -5,7 +5,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Iterable, Optional, Union
 
-import ibm_boto3
 from docling.utils.utils import chunkify
 from docling_core.types.io import DocumentStream
 from huggingface_hub import snapshot_download
@@ -44,6 +43,8 @@ class S3Source(BaseModel):
         """Initializes boto3 resource - s3 instance
         Returns the s3 instance
         """
+        import ibm_boto3
+
         return ibm_boto3.client(
             "s3",
             endpoint_url=self.endpoint,
@@ -55,6 +56,7 @@ class S3Source(BaseModel):
         """Initializes boto3 resource - s3 instance
         Returns the s3 instance
         """
+        import ibm_boto3
 
         return ibm_boto3.resource(
             "s3",
@@ -105,7 +107,6 @@ class BaseEvaluationDatasetBuilder:
         self,
         name: str,
         dataset_source: Union[HFSource, S3Source, Path],
-        # prediction_provider: BasePredictionProvider,
         target: Path,
     ):
         self.name = name

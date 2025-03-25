@@ -22,6 +22,7 @@ from docling_eval_next.dataset_builders.doclaynet_v1_builder import (
     DocLayNetV1DatasetBuilder,
 )
 from docling_eval_next.dataset_builders.dpbench_builder import DPBenchDatasetBuilder
+from docling_eval_next.dataset_builders.fintabnet_builder import FintabnetTableStructureDatasetBuilder
 from docling_eval_next.dataset_builders.funsd_builder import FUNSDDatasetBuilder
 from docling_eval_next.dataset_builders.omnidocbench_builder import (
     OmniDocBenchDatasetBuilder,
@@ -255,7 +256,7 @@ def test_run_funsd():
 
     dataset_layout = FUNSDDatasetBuilder(
         dataset_source=target_path / "input_dataset",
-        target=target_path / "e2e",
+        target=target_path / "gt",
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -269,10 +270,36 @@ def test_run_xfund():
 
     dataset_layout = XFUNDDatasetBuilder(
         dataset_source=target_path / "input_dataset",
-        target=target_path / "e2e",
+        target=target_path / "gt",
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk(
         chunk_size=5, max_num_chunks=1
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+
+def test_run_fintabnet():
+    target_path = Path("./scratch/fintabnet-builder-test/")
+    tableformer_provider = TableFormerPredictionProvider()
+
+    dataset_ftn = FintabnetTableStructureDatasetBuilder(
+        target=target_path / "gt",
+    )
+
+    dataset_ftn.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset_ftn.save_to_disk(
+        chunk_size=5, max_num_chunks=1
+    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+
+    tableformer_provider.create_prediction_dataset(
+        name=dataset_ftn.name,
+        gt_dataset_dir=target_path / "gt",
+        target_dataset_dir=target_path / "tables",
+    )
+
+    evaluate(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "tables",
+        odir=target_path / "tables" / "tableformer",
+    )

@@ -124,7 +124,6 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
 
     def __init__(
         self,
-        # prediction_provider: BasePredictionProvider,
         target: Path,
         do_visualization: bool = True,
         split: str = "test",
