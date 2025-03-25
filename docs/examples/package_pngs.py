@@ -3,8 +3,8 @@ import json
 import logging
 from pathlib import Path
 
-from docling.cli.main import OcrEngine
 from docling.datamodel.base_models import ConversionStatus
+from docling.datamodel.pipeline_options import OcrMacOptions
 from docling_core.types.doc.document import ImageRefMode
 from docling_core.types.doc.labels import DocItemLabel
 from tqdm import tqdm  # type: ignore
@@ -140,7 +140,7 @@ def main():
 
     # Create Converter
     doc_converter = create_image_docling_converter(
-        do_ocr=True, ocr_lang=["en"], ocr_engine=OcrEngine.OCRMAC
+        do_ocr=True, ocr_lang=["en"], ocr_engine=OcrMacOptions.kind
     )
 
     records = []

@@ -15,6 +15,7 @@ from datasets import Dataset, Features
 from datasets import Image as Features_Image
 from datasets import Sequence, Value
 from docling.backend.docling_parse_v2_backend import DoclingParseV2DocumentBackend
+from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBackend
 from docling.datamodel.base_models import InputFormat, Page
 from docling.datamodel.document import InputDocument
 from docling_core.types.doc.base import BoundingBox, Size
@@ -93,7 +94,7 @@ def get_input_document(file: Path | BytesIO) -> InputDocument:
         path_or_stream=file,
         format=InputFormat.PDF,  # type: ignore[arg-type]
         filename=file.name if isinstance(file, Path) else "foo",
-        backend=DoclingParseV2DocumentBackend,
+        backend=DoclingParseV4DocumentBackend,
     )
 
 
@@ -394,8 +395,6 @@ def save_shard_to_disk(
     batch = Dataset.from_list(items)  # , features=features)
 
     output_file = dataset_path / f"shard_{thread_id:06}_{shard_id:06}.{shard_format}"
-    logging.info(f"Saved shard {shard_id} to {output_file} with {len(items)} documents")
-
     if shard_format == "json":
         batch.to_json(output_file)
 
@@ -404,6 +403,8 @@ def save_shard_to_disk(
 
     else:
         raise ValueError(f"Unsupported shard_format: {shard_format}")
+
+    logging.info(f"Saved shard {shard_id} to {output_file} with {len(items)} documents")
 
     shard_id += 1
 
