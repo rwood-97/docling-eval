@@ -3,7 +3,7 @@ import logging
 import os
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Tuple
 
 from docling_core.types import DoclingDocument
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
@@ -17,13 +17,18 @@ from docling_core.types.doc.document import (
 from docling_core.types.io import DocumentStream
 
 from docling_eval_next.datamodels.dataset_record import DatasetRecord
-from docling_eval_next.prediction_providers.prediction_provider import BasePredictionProvider
-#from docling_core.types.doc.labels import DocItemLabel
+from docling_eval_next.prediction_providers.prediction_provider import (
+    BasePredictionProvider,
+)
+
+# from docling_core.types.doc.labels import DocItemLabel
 
 _log = logging.getLogger(__name__)
 
+
 class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
     """Provider that calls the Microsoft Azure Document Intelligence API for predicting the tables in document."""
+
     def __init__(
         self, **kwargs
     ):  # could be the docling converter options, the remote credentials for MS/Google, etc.
@@ -46,12 +51,16 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                 "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and AZURE_DOCUMENT_INTELLIGENCE_KEY must be set in environment variables."
             )
 
-        self.doc_intelligence_client = DocumentAnalysisClient(endpoint, AzureKeyCredential(key))
+        self.doc_intelligence_client = DocumentAnalysisClient(
+            endpoint, AzureKeyCredential(key)
+        )
 
         # Save the flags for intermediate results and processing
-        self.skip_api_if_prediction_is_present = bool(kwargs.get("skip_api_if_prediction_is_present", False) is True)
-        #self.predictions_dir = kwargs.get("predictions_dir")
-        #os.makedirs(self.predictions_dir, exist_ok=True)
+        self.skip_api_if_prediction_is_present = bool(
+            kwargs.get("skip_api_if_prediction_is_present", False) is True
+        )
+        # self.predictions_dir = kwargs.get("predictions_dir")
+        # os.makedirs(self.predictions_dir, exist_ok=True)
 
     def extract_bbox_from_polygon(self, polygon):
         """Helper function to extract bbox coordinates from polygon data."""
@@ -74,7 +83,9 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
         else:
             return {"l": 0, "t": 0, "r": 0, "b": 0}
 
-    def convert_azure_output_to_docling(self, analyze_result, filename) -> DoclingDocument:
+    def convert_azure_output_to_docling(
+        self, analyze_result, filename
+    ) -> DoclingDocument:
         """Converts Azure Document Intelligence output to DoclingDocument format."""
         doc = DoclingDocument(name=filename)
 
@@ -125,7 +136,9 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                 coord_origin=CoordOrigin.TOPLEFT,
             )
 
-            table_prov = ProvenanceItem(page_no=page_no, bbox=table_bbox_obj, charspan=(0, 0))
+            table_prov = ProvenanceItem(
+                page_no=page_no, bbox=table_bbox_obj, charspan=(0, 0)
+            )
 
             table_cells = []
 
@@ -170,7 +183,6 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
 
         return doc
 
-
     def predict(
         self,
         record: DatasetRecord,
@@ -195,27 +207,31 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
         #     result_json
         # else:
 
-        if record.original: # there is a PDF in here.
+        if record.original:  # there is a PDF in here.
             # Call the Azure API by passing in the image for prediction
             poller = self.doc_intelligence_client.begin_analyze_document(
                 "prebuilt-layout", record.original.stream, features=[]
             )
             result = poller.result()
             result_json = result.to_dict()
-            _log.info(f"Successfully processed [{record.original.name}] using Azure API..!!")
+            _log.info(
+                f"Successfully processed [{record.original.name}] using Azure API..!!"
+            )
         elif len(record.ground_truth_page_images) > 0:
             # Call the Azure API by passing in the image for prediction
             buf = BytesIO()
 
             # TODO do this in a loop for all page images in the doc, not just the first.
-            record.ground_truth_page_images[0].save(buf, format='PNG')
+            record.ground_truth_page_images[0].save(buf, format="PNG")
 
             poller = self.doc_intelligence_client.begin_analyze_document(
                 "prebuilt-layout", buf, features=[]
             )
             result = poller.result()
             result_json = result.to_dict()
-            _log.info(f"Successfully processed [{record.original.name}] using Azure API..!!")
+            _log.info(
+                f"Successfully processed [{record.original.name}] using Azure API..!!"
+            )
 
         # Convert the prediction to doclingDocument
         pred_docling_doc = self.convert_azure_output_to_docling(

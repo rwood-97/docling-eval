@@ -86,9 +86,11 @@ PRED_HTML_EXPORT_LABELS = {
 
 _log = logging.getLogger(__name__)
 
+
 class FintabnetTableStructureDatasetBuilder(BaseEvaluationDatasetBuilder):
-    """ Subclass of FintabnetDatasetBuilder that will define the "iterate" method on how to iterate
+    """Subclass of FintabnetDatasetBuilder that will define the "iterate" method on how to iterate
     the table structure from the dataset."""
+
     def __init__(
         self,
         target: Path,
@@ -99,7 +101,9 @@ class FintabnetTableStructureDatasetBuilder(BaseEvaluationDatasetBuilder):
             target=target,
         )
 
-    def create_page_tokens(self, data: List[Any], height: float, width: float) -> PageTokens:
+    def create_page_tokens(
+        self, data: List[Any], height: float, width: float
+    ) -> PageTokens:
         """Needed for tableformer model only, where it additionally needs the page tokens for extraction.
         TODO: Not needed?? - Remove for hyperscalers"""
         tokens = []
@@ -142,10 +146,11 @@ class FintabnetTableStructureDatasetBuilder(BaseEvaluationDatasetBuilder):
 
         assert self.dataset_local_path is not None
 
-
         _log.debug(f"self.dataset_local_path={self.dataset_local_path}")
         _log.debug(f"self.name={self.name}")
-        ds = load_dataset(os.path.join(self.dataset_local_path, "data"), split="test") # TODO - pass the split as argument?
+        ds = load_dataset(
+            os.path.join(self.dataset_local_path, "data"), split="test"
+        )  # TODO - pass the split as argument?
 
         # TODO - Pass this as an argument? Do we need to run all items..
         max_items = -1
@@ -163,7 +168,7 @@ class FintabnetTableStructureDatasetBuilder(BaseEvaluationDatasetBuilder):
             table_image = item["image"]
 
             # TODO - For now, process two files instead of the whole dataset
-            #if filename not in ["HAL.2015.page_43.pdf_125177.png", "HAL.2009.page_77.pdf_125051.png"]:
+            # if filename not in ["HAL.2015.page_43.pdf_125177.png", "HAL.2009.page_77.pdf_125051.png"]:
             #    continue
 
             _log.debug(f"\nProcessing file - [{filename}]...")
@@ -173,17 +178,21 @@ class FintabnetTableStructureDatasetBuilder(BaseEvaluationDatasetBuilder):
 
             page_index = 1
 
-            image_scale = 1.0 # TODO - pass as input argument?
+            image_scale = 1.0  # TODO - pass as input argument?
 
             image_ref = ImageRef(
                 mimetype="image/png",
                 dpi=round(72 * image_scale),
-                size=Size(width=float(table_image.width), height=float(table_image.height)),
+                size=Size(
+                    width=float(table_image.width), height=float(table_image.height)
+                ),
                 uri=from_pil_to_base64uri(table_image),
             )
             page_item = PageItem(
                 page_no=page_index,
-                size=Size(width=float(table_image.width), height=float(table_image.height)),
+                size=Size(
+                    width=float(table_image.width), height=float(table_image.height)
+                ),
                 image=image_ref,
             )
 

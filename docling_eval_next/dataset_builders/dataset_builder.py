@@ -27,12 +27,11 @@ class S3Source(BaseModel):
     endpoint: str
     access_key: str
     secret_key: str
-    cos_bucket: str # Bucket of interest inside of COS.
-    cos_dir: str    # Path to dataset "directory" of interest in COS.
+    cos_bucket: str  # Bucket of interest inside of COS.
+    cos_dir: str  # Path to dataset "directory" of interest in COS.
     cos_resource: Optional[Any] = None
     cos_client: Optional[Any] = None
     overwrite_downloads: Optional[bool] = True
-
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -67,7 +66,9 @@ class S3Source(BaseModel):
 
     def download_objects(self, download_dir):
         """Downloads the objects from the bucket to the given download directory."""
-        print(f"Download objects from {self.cos_bucket}/{self.cos_dir} to {download_dir}")
+        print(
+            f"Download objects from {self.cos_bucket}/{self.cos_dir} to {download_dir}"
+        )
         paginator = self.cos_client.get_paginator("list_objects_v2")
         pagination_params = {
             "Bucket": self.cos_bucket,
@@ -78,8 +79,8 @@ class S3Source(BaseModel):
         for page in page_iterator:
             for file_meta in page["Contents"]:
                 # print(file_meta)
-                relative_path = file_meta["Key"][len(self.cos_dir) + 1:]
-                if len(relative_path) ==0:
+                relative_path = file_meta["Key"][len(self.cos_dir) + 1 :]
+                if len(relative_path) == 0:
                     continue
                 if file_meta["Size"] == 0:
                     continue
@@ -98,9 +99,12 @@ class S3Source(BaseModel):
                 if not os.path.exists(local_dir):
                     os.makedirs(local_dir)
 
-                self.cos_resource.Bucket(self.cos_bucket).download_file(file_meta["Key"], local_file_path)
+                self.cos_resource.Bucket(self.cos_bucket).download_file(
+                    file_meta["Key"], local_file_path
+                )
 
         return download_dir
+
 
 class BaseEvaluationDatasetBuilder:
     def __init__(
