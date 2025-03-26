@@ -90,6 +90,7 @@ python_version = "3.10"
 [[tool.mypy.overrides]]
 module = [
     "docling_core.*",
+    "docling.*",
     "docling_parse.*",
     "docling_ibm_models.*",
     "pypdfium2.*",    
