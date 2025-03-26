@@ -222,7 +222,7 @@ class FilePredictionProvider(BasePredictionProvider):
         self,
         prediction_format: PredictionFormats,
         source_path: Path,
-        raise_on_missing_file: Optional[bool] = False,
+        ignore_missing_files: Optional[bool] = False,
     ):
         super().__init__()
         self._supported_prediction_formats = [
@@ -235,7 +235,7 @@ class FilePredictionProvider(BasePredictionProvider):
         # Read the input
         self._prediction_format = prediction_format
         self._prediction_source_path = source_path
-        self._raise_on_missing_file = raise_on_missing_file
+        self._ignore_missing_files = ignore_missing_files
 
         # Validate the prediction format
         if self._prediction_format not in self._supported_prediction_formats:
@@ -282,12 +282,13 @@ class FilePredictionProvider(BasePredictionProvider):
         r""" """
         return self._prediction_format
 
-    def _load_doctags_doc(self, doc_id: str) -> DoclingDocument:
+    def _load_doctags_doc(self, doc_id: str) -> Optional[DoclingDocument]:
         r"""Load doctags file into DoclingDocument"""
         # Read the doctags file
         doctags_fn = self._prediction_source_path / f"{doc_id}.dt"
-        if self._raise_on_missing_file and not doctags_fn.is_file():
-            raise RuntimeError(f"Missing prediction doctags: {doctags_fn}")
+        if self._ignore_missing_files and not doctags_fn.is_file():
+            return None
+
         with open(doctags_fn, "r") as fd:
             doctags = fd.read()
 
@@ -305,31 +306,32 @@ class FilePredictionProvider(BasePredictionProvider):
 
         return doc
 
-    def _load_json_doc(self, doc_id: str) -> DoclingDocument:
+    def _load_json_doc(self, doc_id: str) -> Optional[DoclingDocument]:
         r"""Load DoclingDocument from json"""
         json_fn = self._prediction_source_path / f"{doc_id}.json"
-        if self._raise_on_missing_file and not json_fn.is_file():
-            raise RuntimeError(f"Missing prediction json: {json_fn}")
+        if self._ignore_missing_files and not json_fn.is_file():
+            return None
         doc: DoclingDocument = DoclingDocument.load_from_json(json_fn)
         return doc
 
-    def _load_yaml_doc(self, doc_id: str) -> DoclingDocument:
+    def _load_yaml_doc(self, doc_id: str) -> Optional[DoclingDocument]:
         r"""Load DoclingDocument from yaml"""
         yaml_fn = self._prediction_source_path / f"{doc_id}.yaml"
         if not yaml_fn.is_file():
             # Try alternative yaml extension
             yaml_fn = self._prediction_source_path / f"{doc_id}.yml"
-        if self._raise_on_missing_file and not yaml_fn.is_file():
-            raise RuntimeError(f"Missing prediction yaml: {yaml_fn}")
+        if self._ignore_missing_files and not yaml_fn.is_file():
+            return None
 
         doc: DoclingDocument = DoclingDocument.load_from_yaml(yaml_fn)
         return doc
 
-    def _load_md_raw(self, doc_id: str) -> str:
+    def _load_md_raw(self, doc_id: str) -> Optional[str]:
         r"""Load the markdown content"""
         md_fn = self._prediction_source_path / f"{doc_id}.md"
-        if self._raise_on_missing_file and not md_fn.is_file():
-            raise RuntimeError(f"Missing prediction markdown: {md_fn}")
+        if self._ignore_missing_files and not md_fn.is_file():
+            return None
+
         with open(md_fn, "r") as fd:
             md = fd.read()
         return md
