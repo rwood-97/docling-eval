@@ -72,7 +72,8 @@ def create_docling_prediction_provider(
     return DoclingPredictionProvider(
         format_options={
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-        }
+        },
+        do_visualization=False,
     )
 
 
@@ -107,7 +108,8 @@ def test_run_doclaynet_with_doctags_fileprovider():
     target_path = Path("./scratch/doclaynet-v1-builder-test/")
     file_provider = FilePredictionProvider(
         prediction_format=PredictionFormats.DOCTAGS,
-        source_path="./tests/data/doclaynet_v1_doctags_sample",
+        source_path=Path("./tests/data/doclaynet_v1_doctags_sample"),
+        do_visualization=True,
     )
 
     dataset_layout = DocLayNetV1DatasetBuilder(
@@ -199,7 +201,8 @@ def test_run_omnidocbench_tables():
 
     dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_tables.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5,
+        max_num_chunks=1,
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(

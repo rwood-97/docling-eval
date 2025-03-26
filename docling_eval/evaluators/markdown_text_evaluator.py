@@ -20,6 +20,7 @@ from docling_eval.benchmarks.constants import (  # type: ignore
 )
 from docling_eval.evaluators.base_evaluator import BaseEvaluator, DatasetEvaluation
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
+from docling_eval_next.datamodels.dataset_record import DatasetRecordWithPrediction
 
 _log = logging.getLogger(__name__)
 
@@ -124,6 +125,10 @@ class MarkdownTextEvaluator(BaseEvaluator):
             ncols=120,
             total=len(ds_selection),
         ):
+
+            # To be ported to:
+            # DatasetRecordWithPrediction.model_validate(data)
+
             doc_id = data[BenchMarkColumns.DOC_ID]
             true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
             true_doc: DoclingDocument = DoclingDocument.model_validate_json(

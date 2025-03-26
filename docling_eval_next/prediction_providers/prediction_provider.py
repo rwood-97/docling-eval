@@ -12,6 +12,7 @@ from docling.datamodel.pipeline_options import TableFormerMode
 from docling.document_converter import DocumentConverter, FormatOption, InputFormat
 from docling.utils.utils import chunkify
 from docling_core.types import DoclingDocument
+from docling_core.types.doc import DocItemLabel
 from docling_core.types.doc.document import (
     DoclingDocument,
     DocTagsDocument,
@@ -32,15 +33,55 @@ from docling_eval.converters.models.tableformer.tf_model_prediction import (
     PageToken,
     TableFormerUpdater,
 )
+from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 from docling_eval_next.datamodels.dataset_record import (
     DatasetRecord,
     DatasetRecordWithPrediction,
 )
 
+TRUE_HTML_EXPORT_LABELS = {
+    DocItemLabel.TITLE,
+    DocItemLabel.DOCUMENT_INDEX,
+    DocItemLabel.SECTION_HEADER,
+    DocItemLabel.PARAGRAPH,
+    DocItemLabel.TABLE,
+    DocItemLabel.PICTURE,
+    DocItemLabel.FORMULA,
+    DocItemLabel.CHECKBOX_UNSELECTED,
+    DocItemLabel.CHECKBOX_SELECTED,
+    DocItemLabel.TEXT,
+    DocItemLabel.LIST_ITEM,
+    DocItemLabel.CODE,
+    DocItemLabel.REFERENCE,
+    DocItemLabel.CAPTION,
+    DocItemLabel.PAGE_HEADER,
+    DocItemLabel.PAGE_FOOTER,
+    DocItemLabel.FOOTNOTE,
+}
+
+PRED_HTML_EXPORT_LABELS = {
+    DocItemLabel.TITLE,
+    DocItemLabel.DOCUMENT_INDEX,
+    DocItemLabel.SECTION_HEADER,
+    DocItemLabel.PARAGRAPH,
+    DocItemLabel.TABLE,
+    DocItemLabel.PICTURE,
+    DocItemLabel.FORMULA,
+    DocItemLabel.CHECKBOX_UNSELECTED,
+    DocItemLabel.CHECKBOX_SELECTED,
+    DocItemLabel.TEXT,
+    DocItemLabel.LIST_ITEM,
+    DocItemLabel.CODE,
+    DocItemLabel.REFERENCE,
+    DocItemLabel.PAGE_HEADER,
+    DocItemLabel.PAGE_FOOTER,
+    DocItemLabel.FOOTNOTE,
+}
+
 
 class BasePredictionProvider:
-    def __init__(self):
-        pass
+    def __init__(self, do_visualization: bool = False):
+        self.do_visualization = do_visualization
 
     @abstractmethod
     def predict(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
@@ -54,6 +95,22 @@ class BasePredictionProvider:
     @abstractmethod
     def info(self) -> Dict:
         return {}
+
+    def visualize_results(
+        self, prediction_record: DatasetRecordWithPrediction, target_dataset_dir: Path
+    ):
+        if prediction_record.predicted_doc is not None:
+            save_comparison_html_with_clusters(
+                filename=target_dataset_dir
+                / "visualizations"
+                / f"{prediction_record.doc_id}.html",
+                true_doc=prediction_record.ground_truth_doc,
+                pred_doc=prediction_record.predicted_doc,
+                page_image=prediction_record.ground_truth_page_images[0],
+                true_labels=TRUE_HTML_EXPORT_LABELS,
+                pred_labels=PRED_HTML_EXPORT_LABELS,
+                draw_reading_order=True,
+            )
 
     @property
     @abstractmethod
@@ -127,7 +184,12 @@ class BasePredictionProvider:
         count = 0
         chunk_count = 0
         for record_chunk in chunkify(_iterate_predictions(), chunk_size):
+            if self.do_visualization:
+                for r in record_chunk:
+                    self.visualize_results(r, target_dataset_dir)
+
             record_chunk = [r.as_record_dict() for r in record_chunk]
+
             save_shard_to_disk(
                 items=record_chunk, dataset_path=test_dir, shard_id=chunk_count
             )
@@ -149,8 +211,9 @@ class DoclingPredictionProvider(BasePredictionProvider):
     def __init__(
         self,
         format_options: Optional[Dict[InputFormat, FormatOption]] = None,
+        do_visualization: bool = False,
     ):
-        super().__init__()
+        super().__init__(do_visualization=do_visualization)
         self.doc_converter = DocumentConverter(format_options=format_options)
 
     @property
@@ -178,8 +241,8 @@ class DoclingPredictionProvider(BasePredictionProvider):
 
 
 class TableFormerPredictionProvider(BasePredictionProvider):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, do_visualization: bool = False):
+        super().__init__(do_visualization=do_visualization)
         self.tf_updater = TableFormerUpdater(TableFormerMode.ACCURATE)
 
     @property
@@ -224,8 +287,9 @@ class FilePredictionProvider(BasePredictionProvider):
         prediction_format: PredictionFormats,
         source_path: Path,
         raise_on_missing_file: Optional[bool] = False,
+        do_visualization: bool = False,
     ):
-        super().__init__()
+        super().__init__(do_visualization=do_visualization)
         self._supported_prediction_formats = [
             PredictionFormats.DOCTAGS,
             PredictionFormats.MARKDOWN,
