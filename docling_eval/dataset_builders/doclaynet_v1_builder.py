@@ -115,19 +115,17 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
         self,
         # prediction_provider: BasePredictionProvider,
         target: Path,
-        do_visualization: bool = True,
         split: str = "test",
         begin_index: int = 0,
         end_index: int = -1,
     ):
         super().__init__(
-            name="DocLayNetV1: end-to-end",
+            name="DocLayNetV1",
             dataset_source=HFSource(repo_id="ds4sd/DocLayNet-v1.2"),
             # prediction_provider=prediction_provider,
             target=target,
+            split=split,
         )
-        self.do_visualization = do_visualization
-        self.split = split
         self.begin_index = begin_index
         self.end_index = end_index
         self.blacklisted_ids = set(BLACKLISTED_DOC_IDS)
@@ -243,11 +241,6 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )
-
-        # Create visualization directory if needed
-        if self.do_visualization:
-            viz_dir = self.target / "visualizations"
-            os.makedirs(viz_dir, exist_ok=True)
 
         assert self.dataset_local_path is not None
 

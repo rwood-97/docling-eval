@@ -50,7 +50,6 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
         dataset_path: Path,
         # prediction_provider: BasePredictionProvider,
         target: Path,
-        do_visualization: bool = True,
         split: str = "test",
         max_items: int = -1,
     ):
@@ -69,9 +68,8 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
             dataset_source=dataset_path,  # Local Path to dataset
             # prediction_provider=prediction_provider,
             target=target,
+            split=split,
         )
-        self.do_visualization = do_visualization
-        self.split = split
         self.max_items = max_items
 
     def extract_tokens_and_text(self, s: str):
@@ -578,11 +576,6 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
         try:
             # Load dataset
             ds = load_from_disk(str(self.dataset_source))
-
-            # Create visualization directory if needed
-            if self.do_visualization:
-                viz_dir = self.target / "visualizations"
-                os.makedirs(viz_dir, exist_ok=True)
 
             # Set max items
             if self.max_items == -1:

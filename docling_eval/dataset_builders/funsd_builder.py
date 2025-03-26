@@ -36,7 +36,6 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
         dataset_source: Path,
         # prediction_provider: BasePredictionProvider,
         target: Path,
-        do_visualization: bool = True,
         split: str = "test",
         max_items: int = -1,
     ):
@@ -45,9 +44,8 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
             dataset_source=dataset_source,  # Standard location
             # prediction_provider=prediction_provider,
             target=target,
+            split=split,
         )
-        self.do_visualization = do_visualization
-        self.split = split
         self.max_items = max_items
 
     def retrieve_input_dataset(self) -> Path:
@@ -241,11 +239,6 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
             image_dir = self.dataset_source / "testing_data" / "images"
         else:
             raise ValueError(f"Invalid split: {self.split}. Expected 'train' or 'test'")
-
-        # Create visualization directory if needed
-        if self.do_visualization:
-            viz_dir = self.target / "visualizations"
-            os.makedirs(viz_dir, exist_ok=True)
 
         # List all PNG images
         images = list(image_dir.glob("*.png"))

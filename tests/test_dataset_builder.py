@@ -74,11 +74,11 @@ def create_docling_prediction_provider(
 
 
 def test_run_dpbench_e2e():
-    target_path = Path("./scratch/dpbench-builer-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.DPBENCH.value}/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
 
     dataset_layout = DPBenchDatasetBuilder(
-        target=target_path / "gt",
+        target=target_path / "gt_dataset",
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -88,20 +88,20 @@ def test_run_dpbench_e2e():
 
     docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "e2e",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "e2e",
-        odir=target_path / "e2e" / "layout",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
 
 def test_run_doclaynet_with_doctags_fileprovider():
-    target_path = Path("./scratch/doclaynet-v1-builder-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}/")
     file_provider = FilePredictionProvider(
         prediction_format=PredictionFormats.DOCTAGS,
         source_path=Path("./tests/data/doclaynet_v1_doctags_sample"),
@@ -112,7 +112,7 @@ def test_run_doclaynet_with_doctags_fileprovider():
     dataset_layout = DocLayNetV1DatasetBuilder(
         # prediction_provider=docling_provider,
         target=target_path
-        / "gt",
+        / "gt_dataset",
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -122,24 +122,24 @@ def test_run_doclaynet_with_doctags_fileprovider():
 
     file_provider.create_prediction_dataset(
         name=dataset_layout.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "e2e",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.MARKDOWN_TEXT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
-        idir=target_path / "e2e",
-        odir=target_path / "e2e" / "text",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
 
 def test_run_omnidocbench_e2e():
-    target_path = Path("./scratch/omnidocbench-builer-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.OMNIDOCBENCH.value}/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
 
     dataset_layout = OmniDocBenchDatasetBuilder(
-        target=target_path / "gt",
+        target=target_path / "gt_dataset",
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -149,24 +149,24 @@ def test_run_omnidocbench_e2e():
 
     docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "e2e",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.OMNIDOCBENCH,
-        idir=target_path / "e2e",
-        odir=target_path / "e2e" / "layout",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
 
 def test_run_dpbench_tables():
-    target_path = Path("./scratch/dpbench-builer-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.DPBENCH.value}/")
     tableformer_provider = TableFormerPredictionProvider()
 
     dataset_tables = DPBenchDatasetBuilder(
-        target=target_path / "gt",
+        target=target_path / "gt_dataset",
     )
 
     dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -176,24 +176,24 @@ def test_run_dpbench_tables():
 
     tableformer_provider.create_prediction_dataset(
         name=dataset_tables.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "tables",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "tables",
-        odir=target_path / "tables" / "tableformer",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
 
 def test_run_omnidocbench_tables():
-    target_path = Path("./scratch/omnidocbench-builer-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.OMNIDOCBENCH.value}/")
     tableformer_provider = TableFormerPredictionProvider()
 
     dataset_tables = OmniDocBenchDatasetBuilder(
-        target=target_path / "gt",
+        target=target_path / "gt_dataset",
     )
 
     dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -204,26 +204,26 @@ def test_run_omnidocbench_tables():
 
     tableformer_provider.create_prediction_dataset(
         name=dataset_tables.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "tables",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.OMNIDOCBENCH,
-        idir=target_path / "tables",
-        odir=target_path / "tables" / "tableformer",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
 
 def test_run_doclaynet_v1_e2e():
-    target_path = Path("./scratch/doclaynet-v1-builder-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
 
     dataset_layout = DocLayNetV1DatasetBuilder(
         # prediction_provider=docling_provider,
         target=target_path
-        / "gt",
+        / "gt_dataset",
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -233,25 +233,25 @@ def test_run_doclaynet_v1_e2e():
 
     docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "e2e",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
-        idir=target_path / "e2e",
-        odir=target_path / "e2e" / "layout",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
 
 def test_run_doclaynet_v2_e2e():
-    target_path = Path("./scratch/doclaynet-v2-builder-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV2.value}/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
 
     dataset_layout = DocLayNetV2DatasetBuilder(
         dataset_path=Path("/Users/cau/Documents/Data/doclaynet_v2_benchmark"),
-        target=target_path / "gt",
+        target=target_path / "gt_dataset",
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -261,24 +261,24 @@ def test_run_doclaynet_v2_e2e():
 
     docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "e2e",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV2,
-        idir=target_path / "e2e",
-        odir=target_path / "e2e" / "layout",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
 
 def test_run_funsd():
-    target_path = Path("./scratch/funsd-builder-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.FUNSD.value}/")
 
     dataset_layout = FUNSDDatasetBuilder(
         dataset_source=target_path / "input_dataset",
-        target=target_path / "e2e",
+        target=target_path / "gt_dataset",
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -288,11 +288,11 @@ def test_run_funsd():
 
 
 def test_run_xfund():
-    target_path = Path("./scratch/xfund-builder-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.XFUND.value}/")
 
     dataset_layout = XFUNDDatasetBuilder(
         dataset_source=target_path / "input_dataset",
-        target=target_path / "e2e",
+        target=target_path / "gt_dataset",
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -302,11 +302,11 @@ def test_run_xfund():
 
 
 def test_run_fintabnet_builder():
-    target_path = Path("./scratch/fintabnet-builder-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}/")
     tableformer_provider = TableFormerPredictionProvider()
 
     dataset = FintabNetDatasetBuilder(
-        target=target_path / "gt",
+        target=target_path / "gt_dataset",
     )
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -316,24 +316,24 @@ def test_run_fintabnet_builder():
 
     tableformer_provider.create_prediction_dataset(
         name=dataset.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "tables",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "tables",
-        odir=target_path / "tables" / "tableformer",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
 
 def test_run_p1m_builder():
-    target_path = Path("./scratch/p1m-builder-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.PUB1M.value}/")
     tableformer_provider = TableFormerPredictionProvider()
 
     dataset = PubTables1MDatasetBuilder(
-        target=target_path / "gt",
+        target=target_path / "gt_dataset",
     )
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -343,24 +343,24 @@ def test_run_p1m_builder():
 
     tableformer_provider.create_prediction_dataset(
         name=dataset.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "tables",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "tables",
-        odir=target_path / "tables" / "tableformer",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
 
 def test_run_pubtabnet_builder():
-    target_path = Path("./scratch/pubtabnet-builder-test/")
+    target_path = Path(f"./scratch/{BenchMarkNames.PUBTABNET.value}/")
     tableformer_provider = TableFormerPredictionProvider()
 
     dataset = PubTabNetDatasetBuilder(
-        target=target_path / "gt",
+        target=target_path / "gt_dataset",
     )
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -370,13 +370,13 @@ def test_run_pubtabnet_builder():
 
     tableformer_provider.create_prediction_dataset(
         name=dataset.name,
-        gt_dataset_dir=target_path / "gt",
-        target_dataset_dir=target_path / "tables",
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset",
     )
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "tables",
-        odir=target_path / "tables" / "tableformer",
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )

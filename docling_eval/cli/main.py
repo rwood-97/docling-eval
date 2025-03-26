@@ -261,6 +261,8 @@ def evaluate(
     if not os.path.exists(idir):
         _log.error(f"Benchmark directory not found: {idir}")
 
+    os.makedirs(odir, exist_ok=True)
+
     # Save the evaluation
     save_fn = odir / f"evaluation_{benchmark.value}_{modality.value}.json"
 

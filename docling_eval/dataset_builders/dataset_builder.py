@@ -28,16 +28,15 @@ class BaseEvaluationDatasetBuilder:
         self,
         name: str,
         dataset_source: Union[HFSource, S3Source, Path],
-        # prediction_provider: BasePredictionProvider,
         target: Path,
+        split: str = "test",
     ):
         self.name = name
         self.target: Path = target
-        # self.prediction_provider = prediction_provider
+
         self.dataset_source = dataset_source
-
         self.dataset_local_path: Optional[Path] = None  # TBD
-
+        self.split = split
         self.retrieved = False
 
     def retrieve_input_dataset(self) -> Path:
@@ -74,32 +73,13 @@ class BaseEvaluationDatasetBuilder:
     def iterate(self) -> Iterable[DatasetRecord]:
         pass
 
-    # def update_prediction(self, record: DatasetRecord):
-    #     # This might need customization depending on the input the dataset has.
-    #     # The default implementation assumes that there is an original file in binary format which is accepted.
-    #     input_data = record.original
-    #
-    #     if not isinstance(input_data, DocumentStream):
-    #         if isinstance(input_data, Path):
-    #             input_data = DocumentStream(
-    #                 name=input_data.name, stream=BytesIO(input_data.open("rb").read())
-    #             )
-    #
-    #     pred_doc = self.prediction_provider.predict(
-    #         record.ground_truth_doc, stream=input_data
-    #     )
-    #
-    #     record.predicted_doc = pred_doc
-    #
-    #     record.validate_model()  # type: ignore
-
     def save_to_disk(self, chunk_size: int = 80, max_num_chunks: int = sys.maxsize):
         if not self.retrieved:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )
 
-        test_dir = self.target / "test"
+        test_dir = self.target / self.split
         os.makedirs(test_dir, exist_ok=True)
 
         count = 0
