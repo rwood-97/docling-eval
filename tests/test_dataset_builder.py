@@ -105,7 +105,7 @@ def test_run_doclaynet_with_doctags_fileprovider():
     file_provider = FilePredictionProvider(
         prediction_format=PredictionFormats.DOCTAGS,
         source_path=Path("./tests/data/doclaynet_v1_doctags_sample"),
-        do_visualization=True,
+        do_visualization=False,
         ignore_missing_files=True,
     )
 
