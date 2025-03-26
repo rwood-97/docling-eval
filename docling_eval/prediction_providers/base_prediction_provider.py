@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from datasets import load_dataset
+from docling.datamodel.base_models import ConversionStatus
 from docling.utils.utils import chunkify
 from docling_core.types.doc import DocItemLabel
 from docling_core.types.doc.document import DoclingDocument
@@ -158,13 +159,19 @@ class BasePredictionProvider:
                 record = DatasetRecord.model_validate(data)
                 pred_record = self.add_prediction(record)
 
-                if self.ignore_missing_predictions:
+                if (
+                    self.ignore_missing_predictions
+                    and pred_record.status == ConversionStatus.FAILURE
+                ):
                     continue
 
                 yield pred_record
 
-        test_dir = target_dataset_dir / "test"
+        test_dir = target_dataset_dir / split
         os.makedirs(test_dir, exist_ok=True)
+
+        if self.do_visualization:
+            os.makedirs(target_dataset_dir / "visualizations", exist_ok=True)
 
         chunk_size = 80
         max_num_chunks = sys.maxsize

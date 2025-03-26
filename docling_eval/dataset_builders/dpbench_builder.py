@@ -80,15 +80,14 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
         self,
         # prediction_provider: BasePredictionProvider,
         target: Path,
-        do_visualization: bool = True,
+        split: str = "test",
     ):
         super().__init__(
-            name="DPBench: end-to-end",
+            name="DPBench",
             dataset_source=HFSource(repo_id="upstage/dp-bench"),
-            # prediction_provider=prediction_provider,
             target=target,
+            split=split,
         )
-        self.do_visualization = do_visualization
 
     def _update_gt_doc(
         self,
@@ -256,15 +255,6 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
         with open(self.dataset_local_path / f"dataset/reference.json", "r") as fr:
             gt = json.load(fr)
 
-        # odir_lay = self.target / "layout"
-        # odir_tab = self.target / "tables"
-        viz_dir = self.target / "vizualisations"
-
-        for _ in [viz_dir]:
-            os.makedirs(_, exist_ok=True)
-
-        records: List[DatasetRecord] = []
-
         cnt = 0
         for filename, annots in tqdm(
             gt.items(),
@@ -306,24 +296,11 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
             pdf_stream = DocumentStream(name=pdf_path.name, stream=BytesIO(pdf_bytes))
 
             record = DatasetRecord(
-                # predictor_info=self.prediction_provider.info(),
                 doc_id=str(filename),
                 doc_hash=get_binhash(pdf_bytes),
                 ground_truth_doc=true_doc,
                 original=pdf_stream,
                 mime_type="application/pdf",
             )
-
-            # self.update_prediction(record)
-
-            # if self.do_visualization and record.predicted_doc is not None:
-            #     save_comparison_html_with_clusters(
-            #         filename=viz_dir / f"{os.path.basename(pdf_path)}-clusters.html",
-            #         true_doc=true_doc,
-            #         pred_doc=record.predicted_doc,
-            #         page_image=true_page_images[0],
-            #         true_labels=TRUE_HTML_EXPORT_LABELS,
-            #         pred_labels=PRED_HTML_EXPORT_LABELS,
-            #     )
 
             yield record

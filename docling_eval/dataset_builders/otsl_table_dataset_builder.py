@@ -48,8 +48,8 @@ class TableDatasetBuilder(BaseEvaluationDatasetBuilder):
             name=name,
             dataset_source=dataset_source,
             target=target,
+            split=split,
         )
-        self.split = split
         self.max_items = max_items
 
     def retrieve_input_dataset(self) -> Path:

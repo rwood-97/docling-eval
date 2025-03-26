@@ -37,7 +37,6 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
         dataset_source: Path,
         # prediction_provider: BasePredictionProvider,
         target: Path,
-        do_visualization: bool = True,
         split: str = "val",  # XFUND uses "val" instead of "test"
         max_items: int = -1,
     ):
@@ -46,9 +45,8 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
             dataset_source=dataset_source,  # Local Path to dataset
             # prediction_provider=prediction_provider,
             target=target,
+            split=split,
         )
-        self.do_visualization = do_visualization
-        self.split = split
         self.max_items = max_items
         self._langs = [
             "zh",
@@ -245,11 +243,6 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
         # Get split directory
         split_dir = self.dataset_source / self.split
 
-        # Create visualization directory if needed
-        if self.do_visualization:
-            viz_dir = self.target / "visualizations"
-            os.makedirs(viz_dir, exist_ok=True)
-
         # Load all JSON files in the split directory
         json_files = list(split_dir.glob("*.json"))
         all_documents = []
@@ -328,9 +321,6 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
                     ground_truth_pictures=true_pictures,
                     ground_truth_page_images=true_page_images,
                 )
-
-                # Update prediction
-                # self.update_prediction(record)
 
                 yield record
 
