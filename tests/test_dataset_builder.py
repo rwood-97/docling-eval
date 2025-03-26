@@ -11,7 +11,11 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import PdfFormatOption
 from docling.models.factories import get_ocr_factory
 
-from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
+from docling_eval.benchmarks.constants import (
+    BenchMarkNames,
+    EvaluationModality,
+    PredictionFormats,
+)
 from docling_eval.cli.main import evaluate
 from docling_eval_next.dataset_builders.doclaynet_v1_builder import (
     DocLayNetV1DatasetBuilder,
@@ -32,6 +36,7 @@ from docling_eval_next.dataset_builders.otsl_table_dataset_builder import (
 from docling_eval_next.dataset_builders.xfund_builder import XFUNDDatasetBuilder
 from docling_eval_next.prediction_providers.prediction_provider import (
     DoclingPredictionProvider,
+    FilePredictionProvider,
     TableFormerPredictionProvider,
 )
 
@@ -90,20 +95,43 @@ def test_run_dpbench_e2e():
         target_dataset_dir=target_path / "e2e",
     )
 
-    # To be implemented...
-    # file_directory_provider.create_prediction_dataset(
-    #     name=dataset_layout.name,
-    #     prediction_dir=...,
-    #     prediction_format=PredictionFormats.MARKDOWN, # move to __init__ ?
-    #     gt_dataset_dir=target_path / "gt",
-    #     target_dataset_dir=target_path / "e2e",
-    # )
-
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DPBENCH,
         idir=target_path / "e2e",
         odir=target_path / "e2e" / "layout",
+    )
+
+
+def test_run_doclaynet_with_doctags_fileprovider():
+    target_path = Path("./scratch/doclaynet-v1-builder-test/")
+    file_provider = FilePredictionProvider(
+        prediction_format=PredictionFormats.DOCTAGS,
+        source_path="./tests/data/doclaynet_v1_doctags_sample",
+    )
+
+    dataset_layout = DocLayNetV1DatasetBuilder(
+        # prediction_provider=docling_provider,
+        target=target_path
+        / "gt",
+    )
+
+    dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset_layout.save_to_disk(
+        chunk_size=5, max_num_chunks=1
+    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+
+    file_provider.create_prediction_dataset(
+        name=dataset_layout.name,
+        gt_dataset_dir=target_path / "gt",
+        target_dataset_dir=target_path / "e2e",
+    )
+
+    evaluate(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.DOCLAYNETV1,
+        idir=target_path / "e2e",
+        odir=target_path / "e2e" / "text",
     )
 
 
