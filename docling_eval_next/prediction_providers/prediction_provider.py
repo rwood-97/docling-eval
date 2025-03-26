@@ -65,7 +65,7 @@ class BasePredictionProvider:
     def create_dataset_record_with_prediction(
         self,
         record: DatasetRecord,
-        predicted_doc: DoclingDocument,
+        predicted_doc: Optional[DoclingDocument] = None,
         original_prediction: Optional[str] = None,
     ):
         pred_record = DatasetRecordWithPrediction.model_validate(
@@ -282,9 +282,7 @@ class FilePredictionProvider(BasePredictionProvider):
         if self._prediction_format == PredictionFormats.DOCTAGS:
             pred_doc = self._load_doctags_doc(doc_id)
         elif self._prediction_format == PredictionFormats.MARKDOWN:
-            # TODO: Replace the return type with something that has the DoclingDocument as optional
-            pred_doc = DoclingDocument(name=doc_id)  # Temp solution to pass MyPy
-
+            pred_doc = None
             raw = self._load_md_raw(doc_id)
         elif self._prediction_format == PredictionFormats.JSON:
             pred_doc = self._load_json_doc(doc_id)
