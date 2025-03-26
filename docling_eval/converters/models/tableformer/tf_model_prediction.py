@@ -2,7 +2,7 @@ import copy
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import numpy as np
 from docling.datamodel.base_models import Cluster, LayoutPrediction, Page, Table
@@ -26,7 +26,7 @@ from docling_parse.pdf_parsers import pdf_parser_v2
 from PIL import Image
 from pydantic import BaseModel
 
-from docling_eval.benchmarks.utils import get_input_document, map_to_records
+from docling_eval.utils.utils import get_input_document
 
 # Get logger
 log = logging.getLogger(__name__)

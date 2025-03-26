@@ -8,24 +8,10 @@ from typing import Annotated, Optional
 import typer
 from tabulate import tabulate  # type: ignore
 
-from docling_eval.benchmarks.constants import (
+from docling_eval.datamodels.constants import (
     BenchMarkNames,
     ConverterTypes,
     EvaluationModality,
-)
-from docling_eval.benchmarks.doclaynet_v1.create import create_dlnv1_e2e_dataset
-from docling_eval.benchmarks.dpbench.create import (
-    create_dpbench_e2e_dataset,
-    create_dpbench_tableformer_dataset,
-)
-from docling_eval.benchmarks.omnidocbench.create import (
-    create_omnidocbench_e2e_dataset,
-    create_omnidocbench_tableformer_dataset,
-)
-from docling_eval.benchmarks.tableformer_huggingface_otsl.create import (
-    create_fintabnet_tableformer_dataset,
-    create_p1m_tableformer_dataset,
-    create_pubtabnet_tableformer_dataset,
 )
 from docling_eval.evaluators.base_readingorder_evaluator import (
     DatasetReadingOrderEvaluation,
@@ -45,6 +31,20 @@ from docling_eval.evaluators.stats import DatasetStatistics
 from docling_eval.evaluators.table_evaluator import (
     DatasetTableEvaluation,
     TableEvaluator,
+)
+from docling_eval.legacy.doclaynet_v1.create import create_dlnv1_e2e_dataset
+from docling_eval.legacy.dpbench.create import (
+    create_dpbench_e2e_dataset,
+    create_dpbench_tableformer_dataset,
+)
+from docling_eval.legacy.omnidocbench.create import (
+    create_omnidocbench_e2e_dataset,
+    create_omnidocbench_tableformer_dataset,
+)
+from docling_eval.legacy.tableformer_huggingface_otsl.create import (
+    create_fintabnet_tableformer_dataset,
+    create_p1m_tableformer_dataset,
+    create_pubtabnet_tableformer_dataset,
 )
 
 # Configure logging

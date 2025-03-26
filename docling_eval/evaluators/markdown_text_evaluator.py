@@ -14,13 +14,12 @@ from nltk.translate import meteor_score
 from pydantic import BaseModel
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import (  # type: ignore
+from docling_eval.datamodels.constants import (  # type: ignore
     BenchMarkColumns,
     PredictionFormats,
 )
 from docling_eval.evaluators.base_evaluator import BaseEvaluator, DatasetEvaluation
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
-from docling_eval_next.datamodels.dataset_record import DatasetRecordWithPrediction
 
 _log = logging.getLogger(__name__)
 

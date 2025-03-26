@@ -11,32 +11,28 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import PdfFormatOption
 from docling.models.factories import get_ocr_factory
 
-from docling_eval.benchmarks.constants import (
+from docling_eval.cli.main import evaluate
+from docling_eval.datamodels.constants import (
     BenchMarkNames,
     EvaluationModality,
     PredictionFormats,
 )
-from docling_eval.cli.main import evaluate
-from docling_eval_next.dataset_builders.doclaynet_v1_builder import (
-    DocLayNetV1DatasetBuilder,
-)
-from docling_eval_next.dataset_builders.doclaynet_v2_builder import (
-    DocLayNetV2DatasetBuilder,
-)
-from docling_eval_next.dataset_builders.dpbench_builder import DPBenchDatasetBuilder
-from docling_eval_next.dataset_builders.funsd_builder import FUNSDDatasetBuilder
-from docling_eval_next.dataset_builders.omnidocbench_builder import (
+from docling_eval.dataset_builders.doclaynet_v1_builder import DocLayNetV1DatasetBuilder
+from docling_eval.dataset_builders.doclaynet_v2_builder import DocLayNetV2DatasetBuilder
+from docling_eval.dataset_builders.dpbench_builder import DPBenchDatasetBuilder
+from docling_eval.dataset_builders.funsd_builder import FUNSDDatasetBuilder
+from docling_eval.dataset_builders.omnidocbench_builder import (
     OmniDocBenchDatasetBuilder,
 )
-from docling_eval_next.dataset_builders.otsl_table_dataset_builder import (
+from docling_eval.dataset_builders.otsl_table_dataset_builder import (
     FintabNetDatasetBuilder,
     PubTables1MDatasetBuilder,
     PubTabNetDatasetBuilder,
 )
-from docling_eval_next.dataset_builders.xfund_builder import XFUNDDatasetBuilder
-from docling_eval_next.prediction_providers.prediction_provider import (
-    DoclingPredictionProvider,
-    FilePredictionProvider,
+from docling_eval.dataset_builders.xfund_builder import XFUNDDatasetBuilder
+from docling_eval.prediction_providers.docling_provider import DoclingPredictionProvider
+from docling_eval.prediction_providers.file_provider import FilePredictionProvider
+from docling_eval.prediction_providers.tableformer_provider import (
     TableFormerPredictionProvider,
 )
 
@@ -110,6 +106,7 @@ def test_run_doclaynet_with_doctags_fileprovider():
         prediction_format=PredictionFormats.DOCTAGS,
         source_path=Path("./tests/data/doclaynet_v1_doctags_sample"),
         do_visualization=True,
+        ignore_missing_files=True,
     )
 
     dataset_layout = DocLayNetV1DatasetBuilder(
