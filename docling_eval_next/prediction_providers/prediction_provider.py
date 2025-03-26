@@ -45,8 +45,13 @@ class BasePredictionProvider:
         self.provider_args = kwargs
 
     @abstractmethod
-    def predict(self, record: DatasetRecord) -> Tuple[DoclingDocument, Optional[str]]:
-        return DoclingDocument(name="dummy"), None
+    def predict(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
+        pred_record = self.create_dataset_record_with_prediction(
+            record,
+            DoclingDocument(name="dummy"),
+            None,
+        )
+        return pred_record
 
     @abstractmethod
     def info(self) -> Dict:
@@ -56,6 +61,23 @@ class BasePredictionProvider:
     @abstractmethod
     def prediction_format(self) -> PredictionFormats:
         pass
+
+    def create_dataset_record_with_prediction(
+        self,
+        record: DatasetRecord,
+        predicted_doc: DoclingDocument,
+        original_prediction: Optional[str] = None,
+    ):
+        pred_record = DatasetRecordWithPrediction.model_validate(
+            {
+                **record.as_record_dict(),
+                "predicted_doc": predicted_doc,
+                "original_prediction": original_prediction,
+                "prediction_format": self.prediction_format,
+            }
+        )
+        pred_record.validate_images()  # type: ignore
+        return pred_record
 
     def add_prediction(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
         # This might need customization depending on the input the dataset has.
@@ -69,18 +91,7 @@ class BasePredictionProvider:
                 )
 
         record.original = input_data
-        pred_doc, orig_pred = self.predict(record)
-
-        pred_record = DatasetRecordWithPrediction.model_validate(
-            {
-                **record.as_record_dict(),
-                "predicted_doc": pred_doc,
-                "original_prediction": orig_pred,
-                "prediction_format": self.prediction_format,
-            }
-        )
-
-        pred_record.validate_images()  # type: ignore
+        pred_record = self.predict(record)
 
         return pred_record
 
@@ -157,12 +168,17 @@ class DoclingPredictionProvider(BasePredictionProvider):
     def predict(
         self,
         record: DatasetRecord,
-    ) -> Tuple[DoclingDocument, Optional[str]]:
+    ) -> DatasetRecordWithPrediction:
         assert (
             record.original is not None
         ), "stream must be given for docling prediction provider to work."
 
-        return self.doc_converter.convert(copy.deepcopy(record.original)).document, None
+        pred_record = self.create_dataset_record_with_prediction(
+            record,
+            self.doc_converter.convert(copy.deepcopy(record.original)).document,
+            None,
+        )
+        return pred_record
 
     def info(self) -> Dict:
         return {"asset": "Docling", "version": docling_version()}
@@ -180,8 +196,8 @@ class TableFormerPredictionProvider(BasePredictionProvider):
     def prediction_format(self) -> PredictionFormats:
         return PredictionFormats.DOCLING_DOCUMENT
 
-    def predict(self, record: DatasetRecord) -> Tuple[DoclingDocument, Optional[str]]:
-
+    def predict(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
+        r""" """
         assert (
             record.ground_truth_doc is not None
         ), "true_doc must be given for TableFormer prediction provider to work."
@@ -201,7 +217,12 @@ class TableFormerPredictionProvider(BasePredictionProvider):
             raise RuntimeError(
                 "TableFormerPredictionProvider is missing data to predict on."
             )
-        return pred_doc, None
+        pred_record = self.create_dataset_record_with_prediction(
+            record,
+            pred_doc,
+            None,
+        )
+        return pred_record
 
     def info(self) -> Dict:
         return {"asset": "TableFormer", "version": docling_models_version()}
@@ -255,22 +276,27 @@ class FilePredictionProvider(BasePredictionProvider):
         }
 
     @abstractmethod
-    def predict(self, record: DatasetRecord) -> Tuple[DoclingDocument, Optional[str]]:
+    def predict(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
         doc_id = record.doc_id
         raw = None
         if self._prediction_format == PredictionFormats.DOCTAGS:
-            doc = self._load_doctags_doc(doc_id)
+            pred_doc = self._load_doctags_doc(doc_id)
         elif self._prediction_format == PredictionFormats.MARKDOWN:
             # TODO: Replace the return type with something that has the DoclingDocument as optional
-            doc = DoclingDocument(name=doc_id)  # Temp solution to pass MyPy
+            pred_doc = DoclingDocument(name=doc_id)  # Temp solution to pass MyPy
 
             raw = self._load_md_raw(doc_id)
         elif self._prediction_format == PredictionFormats.JSON:
-            doc = self._load_json_doc(doc_id)
+            pred_doc = self._load_json_doc(doc_id)
         elif self._prediction_format == PredictionFormats.YAML:
-            doc = self._load_yaml_doc(doc_id)
+            pred_doc = self._load_yaml_doc(doc_id)
 
-        return doc, raw
+        pred_record = self.create_dataset_record_with_prediction(
+            record,
+            pred_doc,
+            raw,
+        )
+        return pred_record
 
     @property
     @abstractmethod
