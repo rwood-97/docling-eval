@@ -1,7 +1,7 @@
 import copy
 from typing import Dict, Optional
 
-from docling.datamodel.base_models import InputFormat
+from docling.datamodel.base_models import ConversionStatus, InputFormat
 from docling.document_converter import DocumentConverter, FormatOption
 
 from docling_eval.datamodels.constants import PredictionFormats
@@ -36,12 +36,13 @@ class DoclingPredictionProvider(BasePredictionProvider):
             record.original is not None
         ), "stream must be given for docling prediction provider to work."
         res = self.doc_converter.convert(copy.deepcopy(record.original))
-
         pred_record = self.create_dataset_record_with_prediction(
             record,
             res.document,
             None,
         )
+        pred_record.status = res.status
+
         return pred_record
 
     def info(self) -> Dict:

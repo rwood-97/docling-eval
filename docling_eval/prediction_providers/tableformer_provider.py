@@ -1,6 +1,7 @@
 import copy
 from typing import Dict
 
+from docling.datamodel.base_models import ConversionStatus
 from docling.datamodel.pipeline_options import TableFormerMode
 from docling_core.types.io import DocumentStream
 
@@ -48,11 +49,18 @@ class TableFormerPredictionProvider(BasePredictionProvider):
             raise RuntimeError(
                 "TableFormerPredictionProvider is missing data to predict on."
             )
+
+        if updated is False:
+            status = ConversionStatus.FAILURE
+        else:
+            status = ConversionStatus.SUCCESS
+
         pred_record = self.create_dataset_record_with_prediction(
             record,
             pred_doc,
             None,
         )
+        pred_record.status = status
         return pred_record
 
     def info(self) -> Dict:

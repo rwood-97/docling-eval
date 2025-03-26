@@ -2,6 +2,7 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Dict, Optional
 
+from docling.datamodel.base_models import ConversionStatus
 from docling_core.types import DoclingDocument
 from docling_core.types.doc.document import DocTagsDocument, DocTagsPage
 from PIL import Image
@@ -69,11 +70,17 @@ class FilePredictionProvider(BasePredictionProvider):
         elif self._prediction_format == PredictionFormats.YAML:
             pred_doc = self._load_yaml_doc(doc_id)
 
+        if pred_doc is None:
+            status = ConversionStatus.FAILURE
+        else:
+            status = ConversionStatus.SUCCESS
+
         pred_record = self.create_dataset_record_with_prediction(
             record,
             pred_doc,
             raw,
         )
+        pred_record.status = status
         return pred_record
 
     @property

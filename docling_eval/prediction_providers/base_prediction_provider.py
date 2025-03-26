@@ -62,8 +62,11 @@ PRED_HTML_EXPORT_LABELS = {
 
 
 class BasePredictionProvider:
-    def __init__(self, do_visualization: bool = False):
+    def __init__(
+        self, do_visualization: bool = False, ignore_missing_predictions: bool = True
+    ):
         self.do_visualization = do_visualization
+        self.ignore_missing_predictions = ignore_missing_predictions
 
     @abstractmethod
     def predict(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
@@ -154,6 +157,9 @@ class BasePredictionProvider:
             ):
                 record = DatasetRecord.model_validate(data)
                 pred_record = self.add_prediction(record)
+
+                if self.ignore_missing_predictions:
+                    continue
 
                 yield pred_record
 
