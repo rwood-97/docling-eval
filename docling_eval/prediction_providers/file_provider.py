@@ -7,11 +7,11 @@ from docling_core.types import DoclingDocument
 from docling_core.types.doc.document import DocTagsDocument, DocTagsPage
 from PIL import Image
 
-from docling_eval.datamodels.constants import PredictionFormats
 from docling_eval.datamodels.dataset_record import (
     DatasetRecord,
     DatasetRecordWithPrediction,
 )
+from docling_eval.datamodels.types import PredictionFormats
 from docling_eval.prediction_providers.base_prediction_provider import (
     BasePredictionProvider,
 )

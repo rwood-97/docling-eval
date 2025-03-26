@@ -14,11 +14,11 @@ from docling_core.types.doc.document import DoclingDocument
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm
 
-from docling_eval.datamodels.constants import PredictionFormats
 from docling_eval.datamodels.dataset_record import (
     DatasetRecord,
     DatasetRecordWithPrediction,
 )
+from docling_eval.datamodels.types import PredictionFormats
 from docling_eval.utils.utils import save_shard_to_disk, write_datasets_info
 from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 

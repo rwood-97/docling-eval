@@ -1,4 +1,8 @@
 from enum import Enum
+from typing import List
+
+from docling_core.types.doc import BoundingBox
+from pydantic import BaseModel
 
 
 class BenchMarkColumns(str, Enum):
@@ -82,3 +86,17 @@ class PredictionFormats(str, Enum):
     JSON = "json"
     YAML = "yaml"
     DOCTAGS = "doctags"
+
+
+class PageToken(BaseModel):
+    bbox: BoundingBox
+
+    text: str
+    id: int
+
+
+class PageTokens(BaseModel):
+    tokens: List[PageToken]
+
+    height: float
+    width: float

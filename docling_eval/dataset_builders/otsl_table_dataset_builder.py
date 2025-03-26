@@ -16,9 +16,12 @@ from docling_core.types.doc import (
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm
 
-from docling_eval.converters.models.tableformer.tf_model_prediction import PageTokens
-from docling_eval.datamodels.constants import BenchMarkColumns, EvaluationModality
 from docling_eval.datamodels.dataset_record import DatasetRecord
+from docling_eval.datamodels.types import (
+    BenchMarkColumns,
+    EvaluationModality,
+    PageTokens,
+)
 from docling_eval.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,
     HFSource,

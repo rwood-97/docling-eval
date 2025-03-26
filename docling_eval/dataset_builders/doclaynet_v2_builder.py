@@ -27,8 +27,8 @@ from docling_core.types.io import DocumentStream
 from PIL import Image
 from tqdm import tqdm
 
-from docling_eval.datamodels.constants import BenchMarkColumns, EvaluationModality
 from docling_eval.datamodels.dataset_record import DatasetRecord
+from docling_eval.datamodels.types import BenchMarkColumns, EvaluationModality
 from docling_eval.dataset_builders.dataset_builder import BaseEvaluationDatasetBuilder
 from docling_eval.utils.utils import (
     classify_cells,

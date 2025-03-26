@@ -12,7 +12,7 @@ from docling.document_converter import PdfFormatOption
 from docling.models.factories import get_ocr_factory
 
 from docling_eval.cli.main import evaluate
-from docling_eval.datamodels.constants import (
+from docling_eval.datamodels.types import (
     BenchMarkNames,
     EvaluationModality,
     PredictionFormats,
@@ -117,7 +117,7 @@ def test_run_doclaynet_with_doctags_fileprovider():
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=80
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     file_provider.create_prediction_dataset(
@@ -322,7 +322,7 @@ def test_run_fintabnet_builder():
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
-        benchmark=BenchMarkNames.DPBENCH,
+        benchmark=BenchMarkNames.FINTABNET,
         idir=target_path / "eval_dataset",
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
@@ -349,7 +349,7 @@ def test_run_p1m_builder():
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
-        benchmark=BenchMarkNames.DPBENCH,
+        benchmark=BenchMarkNames.PUB1M,
         idir=target_path / "eval_dataset",
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )

@@ -13,7 +13,7 @@ from lxml import html
 from pydantic import BaseModel
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.datamodels.constants import BenchMarkColumns, PredictionFormats
+from docling_eval.datamodels.types import BenchMarkColumns, PredictionFormats
 from docling_eval.evaluators.base_evaluator import BaseEvaluator, DatasetEvaluation
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
 from docling_eval.evaluators.teds import TEDScorer

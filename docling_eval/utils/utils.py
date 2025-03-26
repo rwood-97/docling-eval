@@ -30,7 +30,7 @@ from docling_core.types.doc.labels import GraphCellLabel
 from PIL import Image
 from pydantic import AnyUrl
 
-from docling_eval.datamodels.constants import BenchMarkColumns
+from docling_eval.datamodels.types import BenchMarkColumns
 
 
 def get_binhash(binary_data: bytes) -> str:

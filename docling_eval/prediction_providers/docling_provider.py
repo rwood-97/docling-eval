@@ -4,11 +4,11 @@ from typing import Dict, Optional
 from docling.datamodel.base_models import ConversionStatus, InputFormat
 from docling.document_converter import DocumentConverter, FormatOption
 
-from docling_eval.datamodels.constants import PredictionFormats
 from docling_eval.datamodels.dataset_record import (
     DatasetRecord,
     DatasetRecordWithPrediction,
 )
+from docling_eval.datamodels.types import PredictionFormats
 from docling_eval.prediction_providers.base_prediction_provider import (
     BasePredictionProvider,
 )

@@ -5,7 +5,7 @@ from pathlib import Path
 from huggingface_hub import snapshot_download
 
 from docling_eval.cli.main import evaluate, visualise
-from docling_eval.datamodels.constants import BenchMarkNames, EvaluationModality
+from docling_eval.datamodels.types import BenchMarkNames, EvaluationModality
 from docling_eval.legacy.omnidocbench.create import (
     create_omnidocbench_e2e_dataset,
     create_omnidocbench_tableformer_dataset,

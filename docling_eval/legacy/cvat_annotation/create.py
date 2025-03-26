@@ -23,12 +23,12 @@ from docling_parse.pdf_parsers import pdf_parser_v2  # type: ignore[import]
 from PIL import Image  # as PILImage
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.converters.conversion import create_pdf_docling_converter
-from docling_eval.datamodels.constants import (
+from docling_eval.datamodels.types import (
     BenchMarkColumns,
     ConverterTypes,
     EvaluationModality,
 )
+from docling_eval.legacy.converters.conversion import create_pdf_docling_converter
 from docling_eval.legacy.cvat_annotation.utils import (
     AnnotatedImage,
     AnnotationOverview,
