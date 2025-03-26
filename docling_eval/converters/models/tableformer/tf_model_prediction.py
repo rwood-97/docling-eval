@@ -116,9 +116,11 @@ class TableFormerUpdater:
                 bbox=prov.bbox.to_top_left_origin(page.size.height),
             )
             for cell in page.cells:
-                overlap = cell.bbox.intersection_area_with(cluster.bbox)
-                if cell.bbox.area() > 0:
-                    overlap_ratio = overlap / cell.bbox.area()
+                overlap = cell.rect.to_bounding_box().intersection_area_with(
+                    cluster.bbox
+                )
+                if cell.rect.to_bounding_box().area() > 0:
+                    overlap_ratio = overlap / cell.rect.to_bounding_box().area()
                     if overlap_ratio > 0.2:
                         cluster.cells.append(cell)
 

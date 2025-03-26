@@ -4,20 +4,15 @@ from typing import List, Optional
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import (
     EasyOcrOptions,
-    OcrEngine,
-    OcrMacOptions,
     OcrOptions,
     PdfPipelineOptions,
-    RapidOcrOptions,
     TableFormerMode,
-    TesseractCliOcrOptions,
-    TesseractOcrOptions,
 )
 from docling.document_converter import PdfFormatOption
+from docling.models.factories import get_ocr_factory
 
 from docling_eval.benchmarks.constants import BenchMarkNames, EvaluationModality
 from docling_eval.cli.main import evaluate
-from docling_eval_next.datamodels.dataset_record import DatasetRecord
 from docling_eval_next.dataset_builders.doclaynet_v1_builder import (
     DocLayNetV1DatasetBuilder,
 )
@@ -31,7 +26,8 @@ from docling_eval_next.dataset_builders.omnidocbench_builder import (
 )
 from docling_eval_next.dataset_builders.otsl_table_dataset_builder import (
     FintabNetDatasetBuilder,
-    TableDatasetBuilder,
+    PubTables1MDatasetBuilder,
+    PubTabNetDatasetBuilder,
 )
 from docling_eval_next.dataset_builders.xfund_builder import XFUNDDatasetBuilder
 from docling_eval_next.prediction_providers.prediction_provider import (
@@ -39,41 +35,29 @@ from docling_eval_next.prediction_providers.prediction_provider import (
     TableFormerPredictionProvider,
 )
 
+ocr_factory = get_ocr_factory()
+
 
 def create_docling_prediction_provider(
     page_image_scale: float = 2.0,
     do_ocr: bool = False,
-    ocr_lang: List[str] = ["en"],
-    ocr_engine: OcrEngine = OcrEngine.EASYOCR,
+    ocr_lang: Optional[List[str]] = None,
+    ocr_engine: str = EasyOcrOptions.kind,
     artifacts_path: Optional[Path] = None,
 ):
-
-    force_ocr: bool = True
-
-    if ocr_engine == OcrEngine.EASYOCR:
-        ocr_options: OcrOptions = EasyOcrOptions(force_full_page_ocr=force_ocr)
-    elif ocr_engine == OcrEngine.TESSERACT_CLI:
-        ocr_options = TesseractCliOcrOptions(force_full_page_ocr=force_ocr)
-    elif ocr_engine == OcrEngine.TESSERACT:
-        ocr_options = TesseractOcrOptions(force_full_page_ocr=force_ocr)
-    elif ocr_engine == OcrEngine.OCRMAC:
-        ocr_options = OcrMacOptions(force_full_page_ocr=force_ocr)
-    elif ocr_engine == OcrEngine.RAPIDOCR:
-        ocr_options = RapidOcrOptions(force_full_page_ocr=force_ocr)
-    else:
-        raise RuntimeError(f"Unexpected OCR engine type {ocr_engine}")
-
+    ocr_options: OcrOptions = ocr_factory.create_options(  # type: ignore
+        kind=ocr_engine,
+    )
     if ocr_lang is not None:
         ocr_options.lang = ocr_lang
 
     pipeline_options = PdfPipelineOptions(
         do_ocr=do_ocr,
-        ocr_options=EasyOcrOptions(force_full_page_ocr=force_ocr),
+        ocr_options=ocr_options,
         do_table_structure=True,
         artifacts_path=artifacts_path,
     )
 
-    pipeline_options.table_structure_options.do_cell_matching = True  # do_cell_matching
     pipeline_options.table_structure_options.mode = TableFormerMode.ACCURATE
 
     pipeline_options.images_scale = page_image_scale
@@ -289,21 +273,75 @@ def test_run_xfund():
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
 
-def test_run_tabledatasets():
+def test_run_fintabnet_builder():
     target_path = Path("./scratch/fintabnet-builder-test/")
     tableformer_provider = TableFormerPredictionProvider()
 
-    dataset_ftn = FintabNetDatasetBuilder(
+    dataset = FintabNetDatasetBuilder(
         target=target_path / "gt",
     )
 
-    dataset_ftn.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_ftn.save_to_disk(
+    dataset.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset.save_to_disk(
         chunk_size=5, max_num_chunks=1
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
-        name=dataset_ftn.name,
+        name=dataset.name,
+        gt_dataset_dir=target_path / "gt",
+        target_dataset_dir=target_path / "tables",
+    )
+
+    evaluate(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "tables",
+        odir=target_path / "tables" / "tableformer",
+    )
+
+
+def test_run_p1m_builder():
+    target_path = Path("./scratch/p1m-builder-test/")
+    tableformer_provider = TableFormerPredictionProvider()
+
+    dataset = PubTables1MDatasetBuilder(
+        target=target_path / "gt",
+    )
+
+    dataset.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset.save_to_disk(
+        chunk_size=5, max_num_chunks=1
+    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+
+    tableformer_provider.create_prediction_dataset(
+        name=dataset.name,
+        gt_dataset_dir=target_path / "gt",
+        target_dataset_dir=target_path / "tables",
+    )
+
+    evaluate(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "tables",
+        odir=target_path / "tables" / "tableformer",
+    )
+
+
+def test_run_pubtabnet_builder():
+    target_path = Path("./scratch/pubtabnet-builder-test/")
+    tableformer_provider = TableFormerPredictionProvider()
+
+    dataset = PubTabNetDatasetBuilder(
+        target=target_path / "gt",
+    )
+
+    dataset.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset.save_to_disk(
+        chunk_size=5, max_num_chunks=1
+    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+
+    tableformer_provider.create_prediction_dataset(
+        name=dataset.name,
         gt_dataset_dir=target_path / "gt",
         target_dataset_dir=target_path / "tables",
     )

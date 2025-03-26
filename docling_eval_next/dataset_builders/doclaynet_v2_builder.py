@@ -675,7 +675,9 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
                         doc_id=doc_id,
                         doc_hash=get_binhash(img_bytes),
                         ground_truth_doc=true_doc,
-                        original=None,
+                        original=DocumentStream(
+                            name=doc_id, stream=io.BytesIO(img_bytes)
+                        ),
                         mime_type=f"image/{img.format.lower() if img.format else 'png'}",
                         modalities=[
                             EvaluationModality.LAYOUT,

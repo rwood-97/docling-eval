@@ -162,7 +162,9 @@ class DoclingPredictionProvider(BasePredictionProvider):
             record.original is not None
         ), "stream must be given for docling prediction provider to work."
 
-        return self.doc_converter.convert(copy.deepcopy(record.original)).document, None
+        doc = self.doc_converter.convert(copy.deepcopy(record.original)).document
+
+        return doc, None
 
     def info(self) -> Dict:
         return {"asset": "Docling", "version": docling_version()}
