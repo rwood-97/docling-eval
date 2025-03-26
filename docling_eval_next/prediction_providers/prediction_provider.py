@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 from datasets import load_dataset
 from docling.datamodel.pipeline_options import TableFormerMode
-from docling.document_converter import DocumentConverter
+from docling.document_converter import DocumentConverter, FormatOption, InputFormat
 from docling.utils.utils import chunkify
 from docling_core.types import DoclingDocument
 from docling_core.types.doc.document import (
@@ -39,10 +39,8 @@ from docling_eval_next.datamodels.dataset_record import (
 
 
 class BasePredictionProvider:
-    def __init__(
-        self, **kwargs
-    ):  # could be the docling converter options, the remote credentials for MS/Google, etc.
-        self.provider_args = kwargs
+    def __init__(self):
+        pass
 
     @abstractmethod
     def predict(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
@@ -149,17 +147,11 @@ class BasePredictionProvider:
 
 class DoclingPredictionProvider(BasePredictionProvider):
     def __init__(
-        self, **kwargs
-    ):  # could be the docling converter options, the remote credentials for MS/Google, etc.
-        super().__init__(**kwargs)
-
-        if kwargs is not None:
-            if "format_options" in kwargs:
-                self.doc_converter = DocumentConverter(
-                    format_options=kwargs["format_options"]
-                )
-            else:
-                self.doc_converter = DocumentConverter()
+        self,
+        format_options: Optional[Dict[InputFormat, FormatOption]] = None,
+    ):
+        super().__init__()
+        self.doc_converter = DocumentConverter(format_options=format_options)
 
     @property
     def prediction_format(self) -> PredictionFormats:
@@ -185,11 +177,8 @@ class DoclingPredictionProvider(BasePredictionProvider):
 
 
 class TableFormerPredictionProvider(BasePredictionProvider):
-    def __init__(
-        self, **kwargs
-    ):  # could be the docling converter options, the remote credentials for MS/Google, etc.
-        super().__init__(**kwargs)
-
+    def __init__(self):
+        super().__init__()
         self.tf_updater = TableFormerUpdater(TableFormerMode.ACCURATE)
 
     @property
@@ -229,8 +218,13 @@ class TableFormerPredictionProvider(BasePredictionProvider):
 
 
 class FilePredictionProvider(BasePredictionProvider):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        prediction_format: PredictionFormats,
+        source_path: Path,
+        raise_on_missing_file: Optional[bool] = False,
+    ):
+        super().__init__()
         self._supported_prediction_formats = [
             PredictionFormats.DOCTAGS,
             PredictionFormats.MARKDOWN,
@@ -239,23 +233,9 @@ class FilePredictionProvider(BasePredictionProvider):
         ]
 
         # Read the input
-        self._prediction_format: PredictionFormats = PredictionFormats.DOCTAGS
-        self._prediction_source_path: Path = Path(".")
-        self._raise_on_missing_file = (
-            False  # Raise exception when an expected file is missing
-        )
-        if kwargs is not None:
-            if "prediction_format" in kwargs and isinstance(
-                kwargs["prediction_format"], PredictionFormats
-            ):
-                self._prediction_format = kwargs["prediction_format"]
-            if "source_path" in kwargs:
-                if isinstance(kwargs["source_path"], Path):
-                    self._prediction_source_path = kwargs["source_path"]
-                else:
-                    self._prediction_source_path = Path(kwargs["source_path"])
-            if "raise_on_missing_file" in kwargs:
-                self._raise_on_missing_file = kwargs["raise_on_missing_file"]
+        self._prediction_format = prediction_format
+        self._prediction_source_path = source_path
+        self._raise_on_missing_file = raise_on_missing_file
 
         # Validate the prediction format
         if self._prediction_format not in self._supported_prediction_formats:
