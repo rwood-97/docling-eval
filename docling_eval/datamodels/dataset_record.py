@@ -200,10 +200,16 @@ class DatasetRecordWithPrediction(DatasetRecord):
             cls.get_field_alias("original"): Value("string"),
             cls.get_field_alias("mime_type"): Value("string"),
             cls.get_field_alias("modalities"): Sequence(Value("string")),
+            cls.get_field_alias("prediction_format"): Value("string"),
         }
 
     def as_record_dict(self):
         record = super().as_record_dict()
+        record.update(
+            {
+                self.get_field_alias("prediction_format"): self.prediction_format.value,
+            }
+        )
 
         if self.predicted_doc is not None:
             record.update(
