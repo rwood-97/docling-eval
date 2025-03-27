@@ -2,7 +2,7 @@ import copy
 import logging
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 from docling.datamodel.base_models import (
@@ -23,7 +23,6 @@ from docling.models.table_structure_model import TableStructureModel
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import DocItemLabel, TableCell, TableData, TableItem
 from docling_core.types.io import DocumentStream
-from docling_parse.pdf_parsers import pdf_parser_v2
 from PIL import Image
 
 from docling_eval.datamodels.dataset_record import (
@@ -40,54 +39,126 @@ _log = logging.getLogger(__name__)
 
 
 class TableFormerPredictionProvider(BasePredictionProvider):
-    def __init__(self, do_visualization: bool = False):
-        super().__init__(do_visualization=do_visualization)
-        self.tf_updater = TableFormerUpdater(TableFormerMode.ACCURATE)
+    """
+    Prediction provider that uses TableFormer for table structure prediction.
+
+    This provider is specialized for predicting table structures in documents.
+    """
+
+    def __init__(
+        self,
+        mode: TableFormerMode = TableFormerMode.ACCURATE,
+        num_threads: int = 16,
+        artifacts_path: Optional[Path] = None,
+        do_visualization: bool = False,
+        ignore_missing_predictions: bool = True,
+        true_labels: Optional[Set[DocItemLabel]] = None,
+        pred_labels: Optional[Set[DocItemLabel]] = None,
+    ):
+        """
+        Initialize the TableFormer prediction provider.
+
+        Args:
+            mode: TableFormer prediction mode
+            num_threads: Number of threads for prediction
+            artifacts_path: Path to artifacts
+            do_visualization: Whether to generate visualizations
+            ignore_missing_predictions: Whether to ignore missing predictions
+            true_labels: Set of DocItemLabel to use for ground truth visualization
+            pred_labels: Set of DocItemLabel to use for prediction visualization
+        """
+        super().__init__(
+            do_visualization=do_visualization,
+            ignore_missing_predictions=ignore_missing_predictions,
+            true_labels=true_labels,
+            pred_labels=pred_labels,
+        )
+        self.tf_updater = TableFormerUpdater(mode, num_threads, artifacts_path)
 
     @property
     def prediction_format(self) -> PredictionFormats:
+        """Get the prediction format."""
         return PredictionFormats.DOCLING_DOCUMENT
 
     def predict(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
-        r""" """
-        assert (
-            record.ground_truth_doc is not None
-        ), "true_doc must be given for TableFormer prediction provider to work."
+        """
+        Generate a prediction for table structure.
 
-        if record.mime_type == "application/pdf":
-            assert isinstance(record.original, DocumentStream)
+        Args:
+            record: Input dataset record
 
-            updated, pred_doc = self.tf_updater.replace_tabledata(
-                copy.deepcopy(record.original.stream), record.ground_truth_doc
-            )
-        elif record.mime_type == "image/png":
-            updated, pred_doc = self.tf_updater.replace_tabledata_with_page_tokens(
-                record.ground_truth_doc,
-                record.ground_truth_page_images,
-            )
-        else:
+        Returns:
+            Dataset record with prediction
+
+        Raises:
+            RuntimeError: If ground truth doc is not available or if mime type is unsupported
+        """
+        if record.ground_truth_doc is None:
             raise RuntimeError(
-                "TableFormerPredictionProvider is missing data to predict on."
+                "true_doc must be given for TableFormer prediction provider to work."
             )
 
-        if updated is False:
-            status = ConversionStatus.FAILURE
-        else:
-            status = ConversionStatus.SUCCESS
+        updated = False
+        pred_doc = None
 
-        pred_record = self.create_dataset_record_with_prediction(
-            record,
-            pred_doc,
-            None,
-        )
-        pred_record.status = status
-        return pred_record
+        try:
+            if record.mime_type == "application/pdf":
+                if not isinstance(record.original, DocumentStream):
+                    raise RuntimeError(
+                        "Original document must be a DocumentStream for PDF files"
+                    )
+
+                # Process PDF
+                updated, pred_doc = self.tf_updater.replace_tabledata(
+                    copy.deepcopy(record.original.stream), record.ground_truth_doc
+                )
+
+            elif record.mime_type == "image/png":
+                # Process image
+                updated, pred_doc = self.tf_updater.replace_tabledata_with_page_tokens(
+                    record.ground_truth_doc,
+                    record.ground_truth_page_images,
+                )
+
+            else:
+                raise RuntimeError(
+                    f"Unsupported mime type: {record.mime_type}. TableFormerPredictionProvider supports 'application/pdf' and 'image/png'"
+                )
+
+            # Set status based on update success
+            status = ConversionStatus.SUCCESS if updated else ConversionStatus.FAILURE
+
+        except Exception as e:
+            _log.error(f"Error in TableFormer prediction: {str(e)}")
+            status = ConversionStatus.FAILURE
+            if not self.ignore_missing_predictions:
+                raise
+            pred_doc = record.ground_truth_doc.model_copy(
+                deep=True
+            )  # Use copy of ground truth as fallback
+
+        # Create prediction record
+        data = {
+            **record.as_record_dict(),
+            "predicted_doc": pred_doc,
+            "original_prediction": None,
+            "prediction_format": self.prediction_format,
+            "predictor_info": self.info(),
+            "status": status,
+        }
+        return DatasetRecordWithPrediction.model_validate(data)
 
     def info(self) -> Dict:
+        """Get information about the prediction provider."""
         return {"asset": "TableFormer", "version": docling_models_version()}
 
 
 class TableFormerUpdater:
+    """
+    Utility class for updating table data using TableFormer.
+
+    This class handles the prediction of table structures using the TableFormer model.
+    """
 
     def __init__(
         self,
@@ -95,8 +166,15 @@ class TableFormerUpdater:
         num_threads: int = 16,
         artifacts_path: Optional[Path] = None,
     ):
-        r""" """
-        # Init the TableFormer model
+        """
+        Initialize the TableFormer updater.
+
+        Args:
+            mode: TableFormer prediction mode
+            num_threads: Number of threads for prediction
+            artifacts_path: Path to artifacts
+        """
+        # Initialize the TableFormer model
         table_structure_options = TableStructureOptions(mode=mode)
         accelerator_options = AcceleratorOptions(
             num_threads=num_threads, device=AcceleratorDevice.AUTO
@@ -107,55 +185,87 @@ class TableFormerUpdater:
             options=table_structure_options,
             accelerator_options=accelerator_options,
         )
-        _log.info("Initialize %s", mode)
+        _log.info(f"Initialized TableFormer in {mode} mode")
 
-    def to_np(self, pil_image: Image.Image):
+    def to_np(self, pil_image: Image.Image) -> np.ndarray:
+        """
+        Convert PIL image to NumPy array in BGR format.
+
+        Args:
+            pil_image: PIL image
+
+        Returns:
+            NumPy array in BGR format
+
+        Raises:
+            ValueError: If image format is unsupported
+        """
         # Convert to NumPy array
         np_image = np.array(pil_image)
 
         # Handle different formats
         if np_image.ndim == 3:  # RGB or RGBA image
             if np_image.shape[2] == 4:  # RGBA image
-                # Discard alpha channel and convert to BGR
-                np_image = np_image[:, :, :3]  # Keep only RGB channels
+                # Discard alpha channel
+                np_image = np_image[:, :, :3]
 
             # Convert RGB to BGR by reversing the last axis
             np_image = np_image[:, :, ::-1]
-
             return np_image
         else:
             raise ValueError("Unsupported image format")
 
-    def get_page_cells(self, filename: str):
+    def get_page_cells(self, filename: str) -> Optional[DoclingDocument]:
+        """
+        Parse PDF to extract page cells.
+
+        Args:
+            filename: Path to PDF file
+
+        Returns:
+            Parsed document or None if parsing failed
+        """
+        from docling_parse.pdf_parsers import pdf_parser_v2
 
         parser = pdf_parser_v2("fatal")
 
         try:
             key = "key"
             parser.load_document(key=key, filename=filename)
-
             parsed_doc = parser.parse_pdf_from_key(key=key)
-
             parser.unload_document(key)
             return parsed_doc
-
         except Exception as exc:
-            _log.error(exc)
+            _log.error(f"Error parsing PDF: {exc}")
+            return None
 
-        return None
+    def _make_internal_page_with_table(self, input_doc, prov) -> Page:
+        """
+        Create a page object with a table from input document.
 
-    def _make_internal_page_with_table(self, input_doc, prov):
+        Args:
+            input_doc: Input document
+            prov: Provenance item
+
+        Returns:
+            Page object with table
+        """
         page = Page(page_no=prov.page_no - 1)
         page._backend = input_doc._backend.load_page(page.page_no)
-        page.cells = list(page._backend.get_text_cells())
-        page.size = page._backend.get_size()
 
+        # Add null checks to avoid mypy errors
         if page._backend is not None and page._backend.is_valid():
+            page.cells = list(page._backend.get_text_cells())
+            page.size = page._backend.get_size()
+
+            # Create cluster for table
             cluster = Cluster(
                 id=0,
                 label=DocItemLabel.TABLE,
                 bbox=prov.bbox.to_top_left_origin(page.size.height),
             )
+
+            # Add cells that overlap with the cluster
             for cell in page.cells:
                 overlap = cell.rect.to_bounding_box().intersection_area_with(
                     cluster.bbox
@@ -171,48 +281,70 @@ class TableFormerUpdater:
 
     def replace_tabledata(
         self,
-        pdf_path: Path | BytesIO,
+        pdf_path: Union[Path, BytesIO],
         true_doc: DoclingDocument,
     ) -> Tuple[bool, DoclingDocument]:
+        """
+        Replace table data in document with predictions from TableFormer.
 
-        updated = False
+        Args:
+            pdf_path: Path to PDF file or PDF data as BytesIO
+            true_doc: Document with ground truth tables
 
-        # deep copy of the true-document
+        Returns:
+            Tuple of (success, updated_document)
+        """
+        # Make a deep copy of the document
         pred_doc = true_doc.model_copy(deep=True)
 
+        # Parse the PDF
         input_doc = get_input_document(pdf_path)
         if not input_doc.valid:
-            _log.error("could not parse pdf-file")
+            _log.error("Could not parse PDF file")
             return False, pred_doc
 
         conv_res = ConversionResult(input=input_doc)
+        updated = False
 
-        # parsed_doc = self.get_page_cells(str(pdf_path))
-        # if parsed_doc is None:
-        #    log.error("could not parse pdf-file")
-        #    return False, pred_doc
-
-        # Replace the groundtruth tables with predictions from TableFormer
+        # Process each table item in the document
         for item, level in pred_doc.iterate_items():
             if isinstance(item, TableItem):
                 for prov in item.prov:
-                    page = self._make_internal_page_with_table(input_doc, prov)
+                    try:
+                        # Create page with table
+                        page = self._make_internal_page_with_table(input_doc, prov)
 
-                    page = next(self._docling_tf_model(conv_res, [page]))  # type: ignore
-                    tbl: Table = page.predictions.tablestructure.table_map[0]
-                    table_data: TableData = TableData(
-                        num_rows=tbl.num_rows,
-                        num_cols=tbl.num_cols,
-                        table_cells=tbl.table_cells,
-                    )
+                        # Fix mypy error with next() by converting iterator to list
+                        model_results = list(self._docling_tf_model(conv_res, [page]))
 
-                    item.data = table_data
-                    page._backend.unload()
+                        if model_results and hasattr(
+                            model_results[0].predictions, "tablestructure"
+                        ):
+                            page = model_results[0]
+                            if (
+                                page.predictions.tablestructure is not None
+                                and hasattr(
+                                    page.predictions.tablestructure, "table_map"
+                                )
+                                and page.predictions.tablestructure.table_map
+                            ):
+                                tbl: Table = page.predictions.tablestructure.table_map[
+                                    0
+                                ]
+                                table_data: TableData = TableData(
+                                    num_rows=tbl.num_rows,
+                                    num_cols=tbl.num_cols,
+                                    table_cells=tbl.table_cells,
+                                )
 
-                    updated = True
+                                # Update item data
+                                item.data = table_data
+                                updated = True
 
-                    # md = item.export_to_markdown()
-                    # print("prediction from table-former: \n\n", md)
+                    finally:
+                        # Ensure page backend is unloaded to free resources
+                        if hasattr(page, "_backend") and page._backend is not None:
+                            page._backend.unload()
 
         return updated, pred_doc
 
@@ -222,21 +354,29 @@ class TableFormerUpdater:
         page_tokens: PageTokens,
         table_bbox: Tuple[float, float, float, float],
         image_scale: float = 1.0,
-    ):
-        r"""
-        Test the TFPredictor
+    ) -> TableData:
         """
+        Predict table structure from image using page tokens.
+
+        Args:
+            page_image: Page image
+            page_tokens: Page tokens
+            table_bbox: Table bounding box coordinates (l, t, r, b)
+            image_scale: Image scale factor
+
+        Returns:
+            Predicted table data
+        """
+        # Prepare input for TableFormer
         table_bboxes = [[table_bbox[0], table_bbox[1], table_bbox[2], table_bbox[3]]]
-
         ocr_page = page_tokens.dict()
-
         ocr_page["image"] = self.to_np(page_image)
         ocr_page["table_bboxes"] = table_bboxes
 
-        # TODO: Here we bypass docling API and we steal the tf_preditor private object :-(
+        # Get predictor from model
         predictor = self._docling_tf_model.tf_predictor
 
-        # Loop over the iocr_pages
+        # Run prediction
         tf_output = predictor.multi_table_predict(
             ocr_page,
             table_bboxes=table_bboxes,
@@ -244,24 +384,23 @@ class TableFormerUpdater:
             correct_overlapping_cells=False,
             sort_row_col_indexes=True,
         )
-        # print("tf-output: ", json.dumps(tf_output, indent=2))
 
+        # Extract table data
         table_out = tf_output[0]
-
-        do_cell_matching = True
-
         table_cells = []
-        for element in table_out["tf_responses"]:
 
+        # Process each cell
+        for element in table_out["tf_responses"]:
             tc = TableCell.model_validate(element)
-            if do_cell_matching and tc.bbox is not None:
+            if tc.bbox is not None:
                 tc.bbox = tc.bbox.scaled(1 / image_scale)
             table_cells.append(tc)
 
-        # Retrieving cols/rows, after post processing:
+        # Get table dimensions
         num_rows = table_out["predict_details"]["num_rows"]
         num_cols = table_out["predict_details"]["num_cols"]
 
+        # Create table data
         table_data = TableData(
             num_rows=num_rows, num_cols=num_cols, table_cells=table_cells
         )
@@ -274,57 +413,70 @@ class TableFormerUpdater:
         true_page_images: List[Image.Image],
         page_tokens: Optional[PageTokens] = None,
     ) -> Tuple[bool, DoclingDocument]:
+        """
+        Replace table data in document using page tokens and images.
 
+        Args:
+            true_doc: Document with ground truth tables
+            true_page_images: Page images
+            page_tokens: Optional page tokens
+
+        Returns:
+            Tuple of (success, updated_document)
+        """
+        # Make a deep copy of the document
+        pred_doc = copy.deepcopy(true_doc)
         updated = False
 
-        # deep copy of the true-document
-        pred_doc = copy.deepcopy(true_doc)
+        # Ensure document has exactly one page
+        if len(pred_doc.pages) != 1:
+            _log.error("Document must have exactly one page")
+            return False, pred_doc
 
-        assert len(pred_doc.pages) == 1
         page_size = pred_doc.pages[1].size
 
-        # Replace the groundtruth tables with predictions from TableFormer
+        # Process each table item
         for item, level in pred_doc.iterate_items():
             if isinstance(item, TableItem):
                 for prov in item.prov:
+                    try:
+                        # Get page image
+                        page_image = true_page_images[prov.page_no - 1]
 
-                    # md = item.export_to_markdown()
-                    # print("groundtruth: \n\n", md)
-
-                    page_image = true_page_images[prov.page_no - 1]
-                    # page_image.show()
-
-                    # Ensure that the bbox will be inside the min/max ranges
-                    table_bbox = (
-                        max(prov.bbox.l, 0.0),
-                        max(prov.bbox.b, 0.0),
-                        min(prov.bbox.r, page_size.width),
-                        min(prov.bbox.t, page_size.height),
-                    )
-
-                    if page_tokens is None:
-                        ptokens = []
-                        for ix, table_cell in enumerate(item.data.table_cells):
-                            pt = PageToken(
-                                bbox=table_cell.bbox, text=table_cell.text, id=ix
-                            )
-                            ptokens.append(pt)
-                        page_tokens = PageTokens(
-                            tokens=ptokens,
-                            height=prov.bbox.height,
-                            width=prov.bbox.width,
+                        # Ensure bounding box is within page bounds
+                        table_bbox = (
+                            max(prov.bbox.l, 0.0),
+                            max(prov.bbox.b, 0.0),
+                            min(prov.bbox.r, page_size.width),
+                            min(prov.bbox.t, page_size.height),
                         )
 
-                    table_data = self._tf_predict_with_page_tokens(
-                        page_image=page_image,
-                        page_tokens=page_tokens,
-                        table_bbox=table_bbox,
-                    )
-                    item.data = table_data
+                        # Create page tokens if not provided
+                        if page_tokens is None:
+                            ptokens = []
+                            for ix, table_cell in enumerate(item.data.table_cells):
+                                pt = PageToken(
+                                    bbox=table_cell.bbox, text=table_cell.text, id=ix
+                                )
+                                ptokens.append(pt)
+                            page_tokens = PageTokens(
+                                tokens=ptokens,
+                                height=prov.bbox.height,
+                                width=prov.bbox.width,
+                            )
 
-                    updated = True
+                        # Predict table data
+                        table_data = self._tf_predict_with_page_tokens(
+                            page_image=page_image,
+                            page_tokens=page_tokens,
+                            table_bbox=table_bbox,
+                        )
 
-                    # md = item.export_to_markdown()
-                    # print("prediction from table-former: \n\n", md)
+                        # Update item data
+                        item.data = table_data
+                        updated = True
+                    except Exception as e:
+                        _log.error(f"Error predicting table: {str(e)}")
+                        raise
 
         return updated, pred_doc

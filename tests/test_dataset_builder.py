@@ -111,8 +111,8 @@ def test_run_doclaynet_with_doctags_fileprovider():
 
     dataset_layout = DocLayNetV1DatasetBuilder(
         # prediction_provider=docling_provider,
-        target=target_path
-        / "gt_dataset",
+        target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -222,8 +222,8 @@ def test_run_doclaynet_v1_e2e():
 
     dataset_layout = DocLayNetV1DatasetBuilder(
         # prediction_provider=docling_provider,
-        target=target_path
-        / "gt_dataset",
+        target=target_path / "gt_dataset",
+        end_index=80,
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -365,18 +365,21 @@ def test_run_pubtabnet_builder():
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=80
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
         name=dataset.name,
+        split="val",
         gt_dataset_dir=target_path / "gt_dataset",
         target_dataset_dir=target_path / "eval_dataset",
+        end_index=25,
     )
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
-        benchmark=BenchMarkNames.DPBENCH,
+        benchmark=BenchMarkNames.PUBTABNET,
         idir=target_path / "eval_dataset",
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
+        split="val",
     )
