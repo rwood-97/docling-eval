@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import evaluate
 import nltk
@@ -18,6 +18,7 @@ from docling_eval.datamodels.constants import (  # type: ignore
     BenchMarkColumns,
     PredictionFormats,
 )
+from docling_eval.datamodels.dataset_record import DatasetRecordWithPrediction
 from docling_eval.evaluators.base_evaluator import BaseEvaluator, DatasetEvaluation
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
 
@@ -49,9 +50,29 @@ class DatasetMarkdownEvaluation(DatasetEvaluation):
 
 
 class MarkdownTextEvaluator(BaseEvaluator):
-    def __init__(self, intermediate_evaluations_path: Optional[Path] = None):
+    def __init__(
+        self,
+        intermediate_evaluations_path: Optional[Path] = None,
+        prediction_sources: List[PredictionFormats] = [
+            PredictionFormats.DOCLING_DOCUMENT,
+            PredictionFormats.MARKDOWN,
+        ],
+    ):
         r""" """
-        super().__init__(intermediate_evaluations_path=intermediate_evaluations_path)
+        super().__init__(
+            intermediate_evaluations_path=intermediate_evaluations_path,
+            prediction_sources=prediction_sources,
+        )
+
+        # Validate the prediction_sources
+        self._supported_prediction_formats = [
+            PredictionFormats.DOCLING_DOCUMENT,
+            PredictionFormats.MARKDOWN,
+        ]
+        if set(prediction_sources) - set(self._supported_prediction_formats):
+            msg = "Unsupported prediction_sources. "
+            msg += f"It should be something out of {self._supported_prediction_formats}"
+            raise RuntimeError(msg)
 
         self._bleu_eval = evaluate.load("bleu")
 
@@ -88,21 +109,20 @@ class MarkdownTextEvaluator(BaseEvaluator):
         self,
         ds_path: Path,
         split: str = "test",
-        ext_predictions: Optional[dict[str, Union[DoclingDocument, str]]] = None,
+        # Remove the ext_predictions when all evaluators have been migrated to the new design
+        ext_predictions: Optional[
+            Dict[str, Any]
+        ] = None,  # Optionally provided external predictions
     ) -> DatasetMarkdownEvaluation:
         r"""
         Parameters
         ----------
         ds_path: Path to load the parquet files of the dataset
         split: Split of the dataset to load
-        ext_predictions: Optionally provide the prediction markdown input content.
-                         If such dict is provided, it will be used to provide the markdown content.
-                         The dict is indexed by the DOC_ID and the value is either the markdown
-                         content or a DoclingDocument.
         """
         parquet_files = str(ds_path / split / "*.parquet")
         ds = load_dataset("parquet", data_files={split: parquet_files})
-        _log.info(f"oveview of dataset: {ds}")
+        _log.info(f"Overview of the dataset: {ds}")
         if ds is not None:
             ds_selection = ds[split]
 
@@ -124,32 +144,15 @@ class MarkdownTextEvaluator(BaseEvaluator):
             ncols=120,
             total=len(ds_selection),
         ):
-
-            # To be ported to:
-            # DatasetRecordWithPrediction.model_validate(data)
-
-            doc_id = data[BenchMarkColumns.DOC_ID]
-            true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
-            true_doc: DoclingDocument = DoclingDocument.model_validate_json(
-                true_doc_dict
-            )
-            pred_doc_dict = data[BenchMarkColumns.PREDICTION]
-            pred_doc: DoclingDocument = DoclingDocument.model_validate_json(
-                pred_doc_dict
-            )
-
+            data_record = DatasetRecordWithPrediction.model_validate(data)
+            doc_id = data_record.doc_id
+            true_doc = data_record.ground_truth_doc
             true_md = self._docdoc_to_md(true_doc)
+            pred_md = self._get_pred_md(data_record)
 
-            # Get the predicted markdown content either from the external iterator or from dataset
-            if ext_predictions is not None:
-                if doc_id not in ext_predictions:
-                    _log.error(
-                        "The provided pred_md does not contain the doc_id: %s", doc_id
-                    )
-                    continue
-                pred_md = self._md_from_external(ext_predictions[doc_id])
-            else:
-                pred_md = self._docdoc_to_md(pred_doc)
+            if pred_md is None:
+                _log.error("There is no markdown prediction for doc_id=%s", doc_id)
+                continue
 
             bleu = 0.0
             if true_md != "" and pred_md != "":
@@ -225,10 +228,7 @@ class MarkdownTextEvaluator(BaseEvaluator):
 
     def supported_prediction_formats(self) -> List[PredictionFormats]:
         r""" """
-        return [
-            PredictionFormats.DOCLING_DOCUMENT,
-            PredictionFormats.MARKDOWN,
-        ]
+        return self._supported_prediction_formats
 
     def _docdoc_to_md(self, doc: DoclingDocument) -> str:
         r"""
@@ -242,15 +242,19 @@ class MarkdownTextEvaluator(BaseEvaluator):
         )
         return md
 
-    def _md_from_external(self, ext_pred: Any) -> str:
+    def _get_pred_md(self, data_record: DatasetRecordWithPrediction) -> Optional[str]:
         r"""
-        Get an external prediction and based on its type return the markdown prediction
+        Get the predicted markdown
         """
-        if isinstance(ext_pred, str):
-            return ext_pred
-        elif isinstance(ext_pred, DoclingDocument):
-            return self._docdoc_to_md(ext_pred)
-        else:
-            raise RuntimeError(
-                f"Unsupported external prediction of type: {type(ext_pred)}"
-            )
+        pred_md = None
+        for prediction_format in self._prediction_sources:
+            if prediction_format == PredictionFormats.DOCLING_DOCUMENT:
+                pred_doc = data_record.predicted_doc
+                if pred_doc is not None:
+                    pred_md = self._docdoc_to_md(pred_doc)
+            elif prediction_format == PredictionFormats.MARKDOWN:
+                pred_md = data_record.original_prediction
+            if pred_md is not None:
+                break
+
+        return pred_md

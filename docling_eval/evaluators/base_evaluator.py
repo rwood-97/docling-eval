@@ -18,18 +18,26 @@ class BaseEvaluator:
     Base class for all evaluators
     """
 
-    def __init__(self, intermediate_evaluations_path: Optional[Path] = None):
+    def __init__(
+        self,
+        intermediate_evaluations_path: Optional[Path] = None,
+        prediction_sources: List[PredictionFormats] = [
+            PredictionFormats.DOCLING_DOCUMENT
+        ],
+    ):
         r"""
         Parameters
         ----------
         intermediate_evaluations_path: When True the evalution per example will be saved in a file
         """
         self._intermediate_evaluations_path = intermediate_evaluations_path
+        self._prediction_sources = prediction_sources
 
     def __call__(
         self,
         ds_path: Path,
         split: str = "test",
+        # Remove the ext_predictions when all evaluators have been migrated to the new design
         ext_predictions: Optional[
             Dict[str, Any]
         ] = None,  # Optionally provided external predictions
