@@ -161,7 +161,6 @@ class LayoutEvaluator(BaseEvaluator):
                 continue
 
             gts, preds = self._extract_layout_data(
-                doc_id=doc_id,
                 true_doc=true_doc,
                 pred_doc=pred_doc,
                 filter_labels=intersection_labels,
@@ -463,7 +462,6 @@ class LayoutEvaluator(BaseEvaluator):
 
     def _extract_layout_data(
         self,
-        doc_id: str,
         true_doc: DoclingDocument,
         pred_doc: DoclingDocument,
         filter_labels: List[DocItemLabel],
