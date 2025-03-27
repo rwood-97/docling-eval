@@ -53,26 +53,20 @@ class MarkdownTextEvaluator(BaseEvaluator):
     def __init__(
         self,
         intermediate_evaluations_path: Optional[Path] = None,
-        prediction_sources: List[PredictionFormats] = [
-            PredictionFormats.DOCLING_DOCUMENT,
-            PredictionFormats.MARKDOWN,
-        ],
+        prediction_sources: List[PredictionFormats] = [],
     ):
         r""" """
-        super().__init__(
-            intermediate_evaluations_path=intermediate_evaluations_path,
-            prediction_sources=prediction_sources,
-        )
-
-        # Validate the prediction_sources
-        self._supported_prediction_formats = [
+        supported_prediction_formats: List[PredictionFormats] = [
             PredictionFormats.DOCLING_DOCUMENT,
             PredictionFormats.MARKDOWN,
         ]
-        if set(prediction_sources) - set(self._supported_prediction_formats):
-            msg = "Unsupported prediction_sources. "
-            msg += f"It should be something out of {self._supported_prediction_formats}"
-            raise RuntimeError(msg)
+        if not prediction_sources:
+            prediction_sources = supported_prediction_formats
+        super().__init__(
+            intermediate_evaluations_path=intermediate_evaluations_path,
+            prediction_sources=prediction_sources,
+            supported_prediction_formats=supported_prediction_formats,
+        )
 
         self._bleu_eval = evaluate.load("bleu")
 
@@ -147,7 +141,7 @@ class MarkdownTextEvaluator(BaseEvaluator):
             data_record = DatasetRecordWithPrediction.model_validate(data)
             doc_id = data_record.doc_id
             true_doc = data_record.ground_truth_doc
-            true_md = self._docdoc_to_md(true_doc)
+            true_md = self._docling_document_to_md(true_doc)
             pred_md = self._get_pred_md(data_record)
 
             if pred_md is None:
@@ -226,11 +220,7 @@ class MarkdownTextEvaluator(BaseEvaluator):
         }
         return metrics
 
-    def supported_prediction_formats(self) -> List[PredictionFormats]:
-        r""" """
-        return self._supported_prediction_formats
-
-    def _docdoc_to_md(self, doc: DoclingDocument) -> str:
+    def _docling_document_to_md(self, doc: DoclingDocument) -> str:
         r"""
         Export DoclingDocument to markdown
         """
@@ -251,7 +241,7 @@ class MarkdownTextEvaluator(BaseEvaluator):
             if prediction_format == PredictionFormats.DOCLING_DOCUMENT:
                 pred_doc = data_record.predicted_doc
                 if pred_doc is not None:
-                    pred_md = self._docdoc_to_md(pred_doc)
+                    pred_md = self._docling_document_to_md(pred_doc)
             elif prediction_format == PredictionFormats.MARKDOWN:
                 pred_md = data_record.original_prediction
             if pred_md is not None:

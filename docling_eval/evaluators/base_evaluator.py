@@ -24,6 +24,9 @@ class BaseEvaluator:
         prediction_sources: List[PredictionFormats] = [
             PredictionFormats.DOCLING_DOCUMENT
         ],
+        supported_prediction_formats: List[PredictionFormats] = [
+            PredictionFormats.DOCLING_DOCUMENT
+        ],
     ):
         r"""
         Parameters
@@ -31,7 +34,14 @@ class BaseEvaluator:
         intermediate_evaluations_path: When True the evalution per example will be saved in a file
         """
         self._intermediate_evaluations_path = intermediate_evaluations_path
+
+        # Validate the prediction_sources
+        if set(prediction_sources) - set(supported_prediction_formats):
+            msg = "Unsupported prediction_sources. "
+            msg += f"It should be something out of {supported_prediction_formats}"
+            raise RuntimeError(msg)
         self._prediction_sources = prediction_sources
+        self._supported_prediction_sources = supported_prediction_formats
 
     def __call__(
         self,
@@ -51,4 +61,4 @@ class BaseEvaluator:
         r"""
         Return the supported formats for predictions
         """
-        return [PredictionFormats.DOCLING_DOCUMENT]
+        return self._supported_prediction_formats
