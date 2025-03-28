@@ -380,7 +380,7 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
                 )
 
                 exported_rows += 1
-                print(page_hash)
+
                 yield record
 
             except Exception as ex:

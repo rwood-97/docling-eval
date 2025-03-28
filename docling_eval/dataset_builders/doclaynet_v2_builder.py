@@ -51,7 +51,7 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
 
     def __init__(
         self,
-        dataset_path: Path,
+        dataset_source: Path,
         target: Path,
         split: str = "test",
         begin_index: int = 0,
@@ -61,7 +61,7 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
         Initialize the DocLayNet V2 dataset builder.
 
         Args:
-            dataset_path: Path to the pre-downloaded dataset
+            dataset_source: Path to the pre-downloaded dataset
             target: Path where processed dataset will be saved
             split: Dataset split to use
             begin_index: Start index for processing (inclusive)
@@ -69,7 +69,7 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
         """
         super().__init__(
             name="DocLayNetV2: end-to-end",
-            dataset_source=dataset_path,  # Local Path to dataset
+            dataset_source=dataset_source,  # Local Path to dataset
             target=target,
             split=split,
             begin_index=begin_index,

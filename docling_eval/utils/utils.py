@@ -21,6 +21,8 @@ from docling.datamodel.document import InputDocument
 from docling_core.types.doc.base import BoundingBox, Size
 from docling_core.types.doc.document import (
     DoclingDocument,
+    DocTagsDocument,
+    DocTagsPage,
     GraphData,
     ImageRef,
     PageItem,
@@ -31,6 +33,7 @@ from docling_core.types.doc.labels import GraphCellLabel
 from PIL import Image
 from pydantic import AnyUrl
 
+from docling_eval.datamodels.dataset_record import DatasetRecordWithPrediction
 from docling_eval.datamodels.types import BenchMarkColumns
 
 
@@ -535,3 +538,23 @@ def classify_cells(graph: GraphData) -> None:
         else:
             # fallback case.
             cell.label = GraphCellLabel.UNSPECIFIED
+
+
+def docling_document_from_doctags(
+    data_record: DatasetRecordWithPrediction,
+) -> DoclingDocument:
+    r""" """
+    doc_id = data_record.doc_id
+    doctags = data_record.original
+    page_image = (
+        data_record.ground_truth_page_images[0]
+        if data_record.ground_truth_page_images
+        else None
+    )
+
+    doctags_page = DocTagsPage(tokens=doctags, image=page_image)
+    doctags_doc = DocTagsDocument(pages=[doctags_page])
+    pred_doc = DoclingDocument(name=doc_id)
+    pred_doc.load_from_doctags(doctags_doc)
+
+    return pred_doc

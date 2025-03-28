@@ -18,7 +18,16 @@ class BaseEvaluator:
     Base class for all evaluators
     """
 
-    def __init__(self, intermediate_evaluations_path: Optional[Path] = None):
+    def __init__(
+        self,
+        intermediate_evaluations_path: Optional[Path] = None,
+        prediction_sources: List[PredictionFormats] = [
+            PredictionFormats.DOCLING_DOCUMENT
+        ],
+        supported_prediction_formats: List[PredictionFormats] = [
+            PredictionFormats.DOCLING_DOCUMENT
+        ],
+    ):
         r"""
         Parameters
         ----------
@@ -26,10 +35,19 @@ class BaseEvaluator:
         """
         self._intermediate_evaluations_path = intermediate_evaluations_path
 
+        # Validate the prediction_sources
+        if set(prediction_sources) - set(supported_prediction_formats):
+            msg = "Unsupported prediction_sources. "
+            msg += f"It should be something out of {supported_prediction_formats}"
+            raise RuntimeError(msg)
+        self._prediction_sources = prediction_sources
+        self._supported_prediction_sources = supported_prediction_formats
+
     def __call__(
         self,
         ds_path: Path,
         split: str = "test",
+        # Remove the ext_predictions when all evaluators have been migrated to the new design
         ext_predictions: Optional[
             Dict[str, Any]
         ] = None,  # Optionally provided external predictions
@@ -43,4 +61,4 @@ class BaseEvaluator:
         r"""
         Return the supported formats for predictions
         """
-        return [PredictionFormats.DOCLING_DOCUMENT]
+        return self._supported_prediction_sources
