@@ -12,7 +12,7 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import PdfFormatOption
 from docling.models.factories import get_ocr_factory
 
-from docling_eval.cli.main import evaluate
+from docling_eval.cli.main import evaluate, visualise
 from docling_eval.datamodels.types import (
     BenchMarkNames,
     EvaluationModality,
@@ -101,9 +101,16 @@ def test_run_dpbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
+    visualise(
+        modality=EvaluationModality.LAYOUT,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
+    )
+
 
 def test_run_doclaynet_with_doctags_fileprovider():
-    target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}/")
+    target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}-SmolDocling/")
     file_provider = FilePredictionProvider(
         prediction_format=PredictionFormats.DOCTAGS,
         source_path=Path("./tests/data/doclaynet_v1_doctags_sample"),
@@ -128,6 +135,13 @@ def test_run_doclaynet_with_doctags_fileprovider():
     )
 
     evaluate(
+        modality=EvaluationModality.LAYOUT,
+        benchmark=BenchMarkNames.DOCLAYNETV1,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
+    )
+
+    visualise(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
         idir=target_path / "eval_dataset",
@@ -162,6 +176,13 @@ def test_run_omnidocbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
+    visualise(
+        modality=EvaluationModality.LAYOUT,
+        benchmark=BenchMarkNames.OMNIDOCBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
+    )
+
 
 def test_run_dpbench_tables():
     target_path = Path(f"./scratch/{BenchMarkNames.DPBENCH.value}/")
@@ -184,6 +205,13 @@ def test_run_dpbench_tables():
     )
 
     evaluate(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
+    )
+
+    visualise(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.DPBENCH,
         idir=target_path / "eval_dataset",
@@ -219,6 +247,13 @@ def test_run_omnidocbench_tables():
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
+    visualise(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.OMNIDOCBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
+    )
+
 
 def test_run_doclaynet_v1_e2e():
     target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}/")
@@ -242,6 +277,13 @@ def test_run_doclaynet_v1_e2e():
     )
 
     evaluate(
+        modality=EvaluationModality.LAYOUT,
+        benchmark=BenchMarkNames.DOCLAYNETV1,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
+    )
+
+    visualise(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
         idir=target_path / "eval_dataset",
@@ -272,6 +314,13 @@ def test_run_doclaynet_v2_e2e():
     )
 
     evaluate(
+        modality=EvaluationModality.LAYOUT,
+        benchmark=BenchMarkNames.DOCLAYNETV2,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
+    )
+
+    visualise(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV2,
         idir=target_path / "eval_dataset",
@@ -336,6 +385,13 @@ def test_run_fintabnet_builder():
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
+    visualise(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.FINTABNET,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
+    )
+
 
 def test_run_p1m_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.PUB1M.value}/")
@@ -358,6 +414,13 @@ def test_run_p1m_builder():
     )
 
     evaluate(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.PUB1M,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
+    )
+
+    visualise(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.PUB1M,
         idir=target_path / "eval_dataset",
@@ -388,6 +451,14 @@ def test_run_pubtabnet_builder():
     )
 
     evaluate(
+        modality=EvaluationModality.TABLE_STRUCTURE,
+        benchmark=BenchMarkNames.PUBTABNET,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
+        split="val",
+    )
+
+    visualise(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.PUBTABNET,
         idir=target_path / "eval_dataset",
