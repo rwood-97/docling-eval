@@ -12,18 +12,16 @@ from docling_core.types.doc.labels import DocItemLabel
 from PIL import Image  # as PILImage
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.converters.conversion import (
-    create_pdf_docling_converter,
-    create_smol_docling_converter,
-)
-from docling_eval.converters.models.tableformer.tf_model_prediction import (
-    TableFormerUpdater,
-)
-from docling_eval.datamodels.constants import (
+from docling_eval.datamodels.types import (
     BenchMarkColumns,
     ConverterTypes,
     EvaluationModality,
 )
+from docling_eval.legacy.converters.conversion import (
+    create_pdf_docling_converter,
+    create_smol_docling_converter,
+)
+from docling_eval.prediction_providers.tableformer_provider import TableFormerUpdater
 from docling_eval.utils.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,

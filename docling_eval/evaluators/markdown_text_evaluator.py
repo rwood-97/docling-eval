@@ -14,7 +14,7 @@ from nltk.translate import meteor_score
 from pydantic import BaseModel
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.datamodels.constants import (  # type: ignore
+from docling_eval.datamodels.types import (  # type: ignore
     BenchMarkColumns,
     PredictionFormats,
 )

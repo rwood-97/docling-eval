@@ -14,8 +14,8 @@ from docling_core.types.doc.labels import GraphCellLabel, GraphLinkLabel
 from PIL import Image
 from tqdm import tqdm
 
-from docling_eval.datamodels.constants import BenchMarkColumns, EvaluationModality
 from docling_eval.datamodels.dataset_record import DatasetRecord
+from docling_eval.datamodels.types import BenchMarkColumns, EvaluationModality
 from docling_eval.dataset_builders.dataset_builder import BaseEvaluationDatasetBuilder
 from docling_eval.utils.utils import (
     classify_cells,
@@ -29,27 +29,47 @@ _log = logging.getLogger(__name__)
 
 
 class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
-    """FUNSD Dataset builder implementing the base dataset builder interface."""
+    """
+    FUNSD Dataset builder implementing the base dataset builder interface.
+
+    This builder handles the Form Understanding in Noisy Scanned Documents (FUNSD) dataset,
+    which contains form annotations for form understanding tasks.
+    """
 
     def __init__(
         self,
         dataset_source: Path,
-        # prediction_provider: BasePredictionProvider,
         target: Path,
         split: str = "test",
-        max_items: int = -1,
+        begin_index: int = 0,
+        end_index: int = -1,
     ):
+        """
+        Initialize the FUNSD dataset builder.
+
+        Args:
+            dataset_source: Path to the dataset source
+            target: Path where processed dataset will be saved
+            split: Dataset split to use ('train' or 'test')
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
+        """
         super().__init__(
             name="FUNSD",
-            dataset_source=dataset_source,  # Standard location
-            # prediction_provider=prediction_provider,
+            dataset_source=dataset_source,
             target=target,
             split=split,
+            begin_index=begin_index,
+            end_index=end_index,
         )
-        self.max_items = max_items
 
     def retrieve_input_dataset(self) -> Path:
-        """Download and extract the FUNSD dataset if needed."""
+        """
+        Download and extract the FUNSD dataset if needed.
+
+        Returns:
+            Path to the retrieved dataset
+        """
         assert isinstance(self.dataset_source, Path)
         dataset_path = self.dataset_source
 
@@ -99,7 +119,15 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
         return dataset_path
 
     def convert_bbox(self, bbox_data) -> BoundingBox:
-        """Convert bbox format to BoundingBox object."""
+        """
+        Convert bbox format to BoundingBox object.
+
+        Args:
+            bbox_data: Bounding box data as list or BoundingBox
+
+        Returns:
+            BoundingBox object
+        """
         if isinstance(bbox_data, list) and len(bbox_data) == 4:
             return BoundingBox(
                 l=bbox_data[0], t=bbox_data[1], r=bbox_data[2], b=bbox_data[3]
@@ -117,7 +145,17 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
         value_cell: GraphCell,
         label: GraphLinkLabel = GraphLinkLabel.TO_VALUE,
     ) -> GraphLink:
-        """Create a graph link between key and value cells."""
+        """
+        Create a graph link between key and value cells.
+
+        Args:
+            key_cell: Source cell (key)
+            value_cell: Target cell (value)
+            label: Link label
+
+        Returns:
+            GraphLink object
+        """
         return GraphLink(
             source_cell_id=key_cell.cell_id,
             target_cell_id=value_cell.cell_id,
@@ -127,7 +165,16 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
     def get_overall_bbox(
         self, links: List[GraphLink], cell_dict: Dict[int, GraphCell]
     ) -> Optional[BoundingBox]:
-        """Compute the overall bounding box from all cell ids."""
+        """
+        Compute the overall bounding box from all cell ids.
+
+        Args:
+            links: List of GraphLink objects
+            cell_dict: Dictionary mapping cell IDs to GraphCell objects
+
+        Returns:
+            BoundingBox encompassing all cells, or None if no bounding boxes
+        """
         all_bboxes = []
         for link in links:
             src_prov = cell_dict[link.source_cell_id].prov
@@ -145,7 +192,16 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
     def populate_key_value_item(
         self, doc: DoclingDocument, funsd_data: dict
     ) -> DoclingDocument:
-        """Populate the key-value item from the FUNSD data."""
+        """
+        Populate the key-value item from the FUNSD data.
+
+        Args:
+            doc: DoclingDocument to update
+            funsd_data: FUNSD annotation data
+
+        Returns:
+            Updated DoclingDocument
+        """
         if "form" not in funsd_data:
             raise ValueError("Invalid FUNSD data: missing 'form' key.")
 
@@ -224,7 +280,12 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
         return doc
 
     def iterate(self) -> Iterable[DatasetRecord]:
-        """Iterate through the dataset and yield DatasetRecord objects."""
+        """
+        Iterate through the dataset and yield DatasetRecord objects.
+
+        Yields:
+            DatasetRecord objects
+        """
         if not self.retrieved:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
@@ -241,17 +302,19 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
             raise ValueError(f"Invalid split: {self.split}. Expected 'train' or 'test'")
 
         # List all PNG images
-        images = list(image_dir.glob("*.png"))
-
-        # Limit number of items if specified
-        if self.max_items > 0 and len(images) > self.max_items:
-            images = images[: self.max_items]
-
+        images = sorted(list(image_dir.glob("*.png")))
         total_images = len(images)
-        _log.info(f"Processing FUNSD {self.split} dataset: {total_images} images")
+
+        # Apply index range
+        begin, end = self.get_effective_indices(total_images)
+        images = images[begin:end]
+
+        # Log stats
+        self.log_dataset_stats(total_images, len(images))
+        _log.info(f"Processing FUNSD {self.split} dataset: {len(images)} images")
 
         # Process each image
-        for img_path in tqdm(images, total=total_images):
+        for img_path in tqdm(images, total=len(images)):
             try:
                 # Determine annotation path
                 annotation_path = (
@@ -300,7 +363,6 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
 
                 # Create dataset record
                 record = DatasetRecord(
-                    # predictor_info=self.prediction_provider.info(),
                     doc_id=img_path.stem,
                     doc_hash=get_binhash(img_bytes),
                     ground_truth_doc=true_doc,
@@ -310,9 +372,6 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
                     ground_truth_pictures=true_pictures,
                     ground_truth_page_images=true_page_images,
                 )
-
-                # Update prediction
-                # self.update_prediction(record)
 
                 yield record
 

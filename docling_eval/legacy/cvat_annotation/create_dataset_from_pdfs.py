@@ -8,8 +8,8 @@ from datasets import Features
 from datasets import Image as Features_Image
 from datasets import Sequence, Value
 
-from docling_eval.converters.conversion import create_pdf_docling_converter
-from docling_eval.datamodels.constants import BenchMarkColumns
+from docling_eval.datamodels.types import BenchMarkColumns
+from docling_eval.legacy.converters.conversion import create_pdf_docling_converter
 from docling_eval.utils.utils import (
     docling_version,
     extract_images,

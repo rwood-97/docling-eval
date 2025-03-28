@@ -15,8 +15,8 @@ from docling_core.types.doc.labels import GraphCellLabel, GraphLinkLabel
 from PIL import Image
 from tqdm import tqdm
 
-from docling_eval.datamodels.constants import BenchMarkColumns, EvaluationModality
 from docling_eval.datamodels.dataset_record import DatasetRecord
+from docling_eval.datamodels.types import BenchMarkColumns, EvaluationModality
 from docling_eval.dataset_builders.dataset_builder import BaseEvaluationDatasetBuilder
 from docling_eval.utils.utils import (
     classify_cells,
@@ -30,24 +30,39 @@ _log = logging.getLogger(__name__)
 
 
 class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
-    """XFUND Dataset builder implementing the base dataset builder interface."""
+    """
+    XFUND Dataset builder implementing the base dataset builder interface.
+
+    XFUND is a multilingual form understanding dataset that includes forms in
+    multiple languages: Chinese, Japanese, Spanish, French, Italian, German, and Portuguese.
+    """
 
     def __init__(
         self,
         dataset_source: Path,
-        # prediction_provider: BasePredictionProvider,
         target: Path,
         split: str = "val",  # XFUND uses "val" instead of "test"
-        max_items: int = -1,
+        begin_index: int = 0,
+        end_index: int = -1,
     ):
+        """
+        Initialize the XFUND dataset builder.
+
+        Args:
+            dataset_source: Path to the dataset source
+            target: Path where processed dataset will be saved
+            split: Dataset split to use ("val" for XFUND)
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
+        """
         super().__init__(
             name="XFUND",
-            dataset_source=dataset_source,  # Local Path to dataset
-            # prediction_provider=prediction_provider,
+            dataset_source=dataset_source,
             target=target,
             split=split,
+            begin_index=begin_index,
+            end_index=end_index,
         )
-        self.max_items = max_items
         self._langs = [
             "zh",
             "de",
@@ -59,7 +74,12 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
         ]  # Fixed supported languages
 
     def retrieve_input_dataset(self) -> Path:
-        """Download and extract the XFUND dataset if needed."""
+        """
+        Download and extract the XFUND dataset if needed.
+
+        Returns:
+            Path to the retrieved dataset
+        """
         assert isinstance(self.dataset_source, Path)
         dataset_path = self.dataset_source
 
@@ -107,7 +127,15 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
         return dataset_path
 
     def convert_bbox(self, bbox_data) -> BoundingBox:
-        """Convert bbox format to BoundingBox object."""
+        """
+        Convert bbox format to BoundingBox object.
+
+        Args:
+            bbox_data: Bounding box data as list or BoundingBox
+
+        Returns:
+            BoundingBox object
+        """
         if isinstance(bbox_data, list) and len(bbox_data) == 4:
             return BoundingBox(
                 l=bbox_data[0], t=bbox_data[1], r=bbox_data[2], b=bbox_data[3]
@@ -125,7 +153,17 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
         value_cell: GraphCell,
         label: GraphLinkLabel = GraphLinkLabel.TO_VALUE,
     ) -> GraphLink:
-        """Create a graph link between key and value cells."""
+        """
+        Create a graph link between key and value cells.
+
+        Args:
+            key_cell: Source cell (key)
+            value_cell: Target cell (value)
+            label: Link label
+
+        Returns:
+            GraphLink object
+        """
         return GraphLink(
             source_cell_id=key_cell.cell_id,
             target_cell_id=value_cell.cell_id,
@@ -135,7 +173,16 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
     def get_overall_bbox(
         self, links: List[GraphLink], cell_dict: Dict[int, GraphCell]
     ) -> Optional[BoundingBox]:
-        """Compute the overall bounding box from all cell ids."""
+        """
+        Compute the overall bounding box from all cell ids.
+
+        Args:
+            links: List of GraphLink objects
+            cell_dict: Dictionary mapping cell IDs to GraphCell objects
+
+        Returns:
+            BoundingBox encompassing all cells, or None if no bounding boxes
+        """
         all_bboxes = []
         for link in links:
             src_prov = cell_dict[link.source_cell_id].prov
@@ -153,7 +200,16 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
     def populate_key_value_item(
         self, doc: DoclingDocument, xfund_data: dict
     ) -> DoclingDocument:
-        """Populate the key-value item from the XFUND data."""
+        """
+        Populate the key-value item from the XFUND data.
+
+        Args:
+            doc: DoclingDocument to update
+            xfund_data: XFUND annotation data
+
+        Returns:
+            Updated DoclingDocument
+        """
         if "document" not in xfund_data:
             raise ValueError("Invalid XFUND data: missing 'document' key.")
 
@@ -232,7 +288,12 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
         return doc
 
     def iterate(self) -> Iterable[DatasetRecord]:
-        """Iterate through the dataset and yield DatasetRecord objects."""
+        """
+        Iterate through the dataset and yield DatasetRecord objects.
+
+        Yields:
+            DatasetRecord objects
+        """
         if not self.retrieved:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
@@ -252,19 +313,22 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
                 data = json.load(f)
                 all_documents.extend(data.get("documents", []))
 
-        # Limit number of items if specified
-        if self.max_items > 0 and len(all_documents) > self.max_items:
-            import random
+        # Sort documents by image filename for deterministic ordering
+        all_documents = sorted(all_documents, key=lambda doc: doc["img"]["fname"])
+        total_documents = len(all_documents)
 
-            random.seed(42)  # For reproducibility
-            all_documents = random.sample(all_documents, self.max_items)
+        # Apply index range
+        begin, end = self.get_effective_indices(total_documents)
+        selected_documents = all_documents[begin:end]
 
+        # Log stats
+        self.log_dataset_stats(total_documents, len(selected_documents))
         _log.info(
-            f"Processing XFUND {self.split} dataset: {len(all_documents)} documents"
+            f"Processing XFUND {self.split} dataset: {len(selected_documents)} documents"
         )
 
         # Process each document
-        for doc_data in tqdm(all_documents, total=len(all_documents)):
+        for doc_data in tqdm(selected_documents, total=len(selected_documents)):
             try:
                 # Get image path
                 img_filename = doc_data["img"]["fname"]
@@ -311,7 +375,6 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
                 assert img.format is not None
                 # Create dataset record
                 record = DatasetRecord(
-                    # predictor_info=self.prediction_provider.info(),
                     doc_id=Path(img_filename).stem,
                     doc_hash=get_binhash(img_bytes),
                     ground_truth_doc=true_doc,

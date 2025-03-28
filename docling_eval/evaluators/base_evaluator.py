@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from docling_eval.datamodels.constants import PredictionFormats
+from docling_eval.datamodels.types import PredictionFormats
 
 _log = logging.getLogger(__name__)
 

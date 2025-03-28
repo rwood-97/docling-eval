@@ -5,7 +5,7 @@ from pathlib import Path
 from tabulate import tabulate  # type: ignore
 
 from docling_eval.cli.main import evaluate, visualise
-from docling_eval.datamodels.constants import BenchMarkNames, EvaluationModality
+from docling_eval.datamodels.types import BenchMarkNames, EvaluationModality
 from docling_eval.legacy.doclaynet_v2.create import create_dlnv2_e2e_dataset
 
 # Configure logging

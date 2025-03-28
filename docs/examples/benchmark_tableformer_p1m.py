@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 
 from docling_eval.cli.main import evaluate, visualise
-from docling_eval.datamodels.constants import BenchMarkNames, EvaluationModality
+from docling_eval.datamodels.types import BenchMarkNames, EvaluationModality
 from docling_eval.legacy.tableformer_huggingface_otsl.create import (
     create_p1m_tableformer_dataset,
 )
