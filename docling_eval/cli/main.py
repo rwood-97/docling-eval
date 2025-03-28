@@ -3,18 +3,13 @@ import logging
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Dict, List, Optional, Tuple
+from typing import Annotated, Optional, Tuple
 
 import typer
-from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import EasyOcrOptions, TableFormerMode
-from docling.document_converter import PdfFormatOption
-from docling.models.factories import get_ocr_factory
 from tabulate import tabulate  # type: ignore
 
 from docling_eval.datamodels.types import (
     BenchMarkNames,
-    ConverterTypes,
     EvaluationModality,
     PredictionFormats,
 )

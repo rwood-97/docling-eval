@@ -13,7 +13,6 @@ from docling_eval.datamodels.types import (
     ConverterTypes,
     EvaluationModality,
 )
-from docling_eval.dataset_builders.dpbench_builder import DPBenchDatasetBuilder
 from docling_eval.evaluators.base_readingorder_evaluator import (
     DatasetReadingOrderEvaluation,
     ReadingOrderVisualizer,
