@@ -12,7 +12,6 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import PdfFormatOption
 from docling.models.factories import get_ocr_factory
 
-from docling_eval.cli.main import evaluate, visualise
 from docling_eval.datamodels.types import (
     BenchMarkNames,
     EvaluationModality,
@@ -31,6 +30,7 @@ from docling_eval.dataset_builders.otsl_table_dataset_builder import (
     PubTabNetDatasetBuilder,
 )
 from docling_eval.dataset_builders.xfund_builder import XFUNDDatasetBuilder
+from docling_eval.legacy.main import evaluate, visualise
 from docling_eval.prediction_providers.docling_provider import DoclingPredictionProvider
 from docling_eval.prediction_providers.file_provider import FilePredictionProvider
 from docling_eval.prediction_providers.tableformer_provider import (
@@ -392,7 +392,7 @@ def test_run_doclaynet_v2_e2e():
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
 
     dataset_layout = DocLayNetV2DatasetBuilder(
-        dataset_path=Path("/path/to/doclaynet_v2_benchmark"),
+        dataset_source=Path("/path/to/doclaynet_v2_benchmark"),
         target=target_path / "gt_dataset",
         end_index=5,
     )
