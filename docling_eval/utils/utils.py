@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
+import PIL.Image
 from bs4 import BeautifulSoup  # type: ignore
 from datasets import Dataset, Features
 from datasets import Image as Features_Image
@@ -331,6 +332,26 @@ def extract_images(
             page.image.uri = Path(f"{page_images_column}/{page_no}")
 
     return document, pictures, page_images
+
+
+def insert_images_from_pil(
+    document: DoclingDocument,
+    pictures: List[PIL.Image.Image],
+    page_images: List[PIL.Image.Image],
+):
+
+    # Inject picture images
+    for pic_no, picture in enumerate(document.pictures):
+        if picture.image is not None:
+            if pic_no < len(pictures):
+                picture.image._pil = pictures[pic_no]
+    # Inject page images
+    for page_no, page in document.pages.items():
+        if page.image is not None:
+            if (page_no - 1) < len(page_images):
+                page.image._pil = page_images[page_no - 1]
+
+    return document
 
 
 def insert_images(

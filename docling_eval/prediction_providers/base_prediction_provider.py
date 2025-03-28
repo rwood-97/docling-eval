@@ -19,7 +19,11 @@ from docling_eval.datamodels.dataset_record import (
     DatasetRecordWithPrediction,
 )
 from docling_eval.datamodels.types import PredictionFormats
-from docling_eval.utils.utils import save_shard_to_disk, write_datasets_info
+from docling_eval.utils.utils import (
+    insert_images_from_pil,
+    save_shard_to_disk,
+    write_datasets_info,
+)
 from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 
 # Get logger
@@ -139,12 +143,23 @@ class BasePredictionProvider:
             prediction_record.predicted_doc is not None
             and prediction_record.ground_truth_page_images
         ):
+            gt_doc = insert_images_from_pil(
+                prediction_record.ground_truth_doc,
+                prediction_record.ground_truth_pictures,
+                prediction_record.ground_truth_page_images,
+            )
+            pred_doc = insert_images_from_pil(
+                prediction_record.predicted_doc,
+                prediction_record.predicted_pictures,
+                prediction_record.predicted_page_images,
+            )
+
             save_comparison_html_with_clusters(
                 filename=target_dataset_dir
                 / "visualizations"
                 / f"{prediction_record.doc_id}.html",
-                true_doc=prediction_record.ground_truth_doc,
-                pred_doc=prediction_record.predicted_doc,
+                true_doc=gt_doc,
+                pred_doc=pred_doc,
                 page_image=prediction_record.ground_truth_page_images[0],
                 true_labels=self.true_labels,
                 pred_labels=self.pred_labels,
