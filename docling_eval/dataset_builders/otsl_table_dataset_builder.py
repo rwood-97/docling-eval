@@ -16,9 +16,12 @@ from docling_core.types.doc import (
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm
 
-from docling_eval.converters.models.tableformer.tf_model_prediction import PageTokens
-from docling_eval.datamodels.constants import BenchMarkColumns, EvaluationModality
 from docling_eval.datamodels.dataset_record import DatasetRecord
+from docling_eval.datamodels.types import (
+    BenchMarkColumns,
+    EvaluationModality,
+    PageTokens,
+)
 from docling_eval.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,
     HFSource,
@@ -34,7 +37,12 @@ _log = logging.getLogger(__name__)
 
 
 class TableDatasetBuilder(BaseEvaluationDatasetBuilder):
-    """Base class for table dataset builders."""
+    """
+    Base class for table dataset builders.
+
+    This class provides common functionality for building datasets
+    focused on table structure recognition tasks.
+    """
 
     def __init__(
         self,
@@ -42,18 +50,36 @@ class TableDatasetBuilder(BaseEvaluationDatasetBuilder):
         dataset_source: HFSource,
         target: Path,
         split: str = "test",
-        max_items: int = -1,
+        begin_index: int = 0,
+        end_index: int = -1,
     ):
+        """
+        Initialize the table dataset builder.
+
+        Args:
+            name: Name of the dataset
+            dataset_source: HuggingFace dataset source
+            target: Path where processed dataset will be saved
+            split: Dataset split to use
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
+        """
         super().__init__(
             name=name,
             dataset_source=dataset_source,
             target=target,
             split=split,
+            begin_index=begin_index,
+            end_index=end_index,
         )
-        self.max_items = max_items
 
     def retrieve_input_dataset(self) -> Path:
-        """Download and extract the dataset."""
+        """
+        Download and extract the dataset.
+
+        Returns:
+            Path to the retrieved dataset
+        """
         assert isinstance(self.dataset_source, HFSource)
         dataset_path = super().retrieve_input_dataset()
         self.retrieved = True
@@ -62,7 +88,17 @@ class TableDatasetBuilder(BaseEvaluationDatasetBuilder):
     def create_page_tokens(
         self, data: List[Any], height: float, width: float
     ) -> PageTokens:
-        """Create page tokens from cell data."""
+        """
+        Create page tokens from cell data.
+
+        Args:
+            data: Table cell data
+            height: Page height
+            width: Page width
+
+        Returns:
+            PageTokens object containing token information
+        """
         tokens = []
         cnt = 0
         for i, row in enumerate(data):
@@ -86,7 +122,12 @@ class TableDatasetBuilder(BaseEvaluationDatasetBuilder):
         return PageTokens.model_validate(result)
 
     def iterate(self) -> Iterable[DatasetRecord]:
-        """Iterate through the dataset and yield DatasetRecord objects."""
+        """
+        Iterate through the dataset and yield DatasetRecord objects.
+
+        Yields:
+            DatasetRecord objects
+        """
         if not self.retrieved:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
@@ -96,8 +137,17 @@ class TableDatasetBuilder(BaseEvaluationDatasetBuilder):
         # Load dataset from the retrieved path
         ds = load_dataset(self.dataset_source.repo_id, split=self.split)
 
-        if self.max_items > 0:
-            ds = ds.select(range(self.max_items))
+        # Apply index range
+        total_items = len(ds)
+        begin, end = self.get_effective_indices(total_items)
+
+        # Use HuggingFace's select method for applying range
+        ds = ds.select(range(begin, end))
+        selected_items = len(ds)
+
+        # Log stats
+        self.log_dataset_stats(total_items, selected_items)
+        _log.info(f"Processing {self.name} dataset: {selected_items} items")
 
         for item in tqdm(ds, desc=f"Processing {self.name} dataset"):
             try:
@@ -208,14 +258,25 @@ class FintabNetDatasetBuilder(TableDatasetBuilder):
         self,
         target: Path,
         split: str = "test",
-        max_items: int = -1,
+        begin_index: int = 0,
+        end_index: int = -1,
     ):
+        """
+        Initialize the FinTabNet dataset builder.
+
+        Args:
+            target: Path where processed dataset will be saved
+            split: Dataset split to use
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
+        """
         super().__init__(
             name="FinTabNet",
             dataset_source=HFSource(repo_id="ds4sd/FinTabNet_OTSL"),
             target=target,
             split=split,
-            max_items=max_items,
+            begin_index=begin_index,
+            end_index=end_index,
         )
 
 
@@ -226,14 +287,25 @@ class PubTabNetDatasetBuilder(TableDatasetBuilder):
         self,
         target: Path,
         split: str = "val",  # PubTabNet uses "val" instead of "test"
-        max_items: int = -1,
+        begin_index: int = 0,
+        end_index: int = -1,
     ):
+        """
+        Initialize the PubTabNet dataset builder.
+
+        Args:
+            target: Path where processed dataset will be saved
+            split: Dataset split to use
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
+        """
         super().__init__(
             name="PubTabNet",
             dataset_source=HFSource(repo_id="ds4sd/PubTabNet_OTSL"),
             target=target,
             split=split,
-            max_items=max_items,
+            begin_index=begin_index,
+            end_index=end_index,
         )
 
 
@@ -244,12 +316,23 @@ class PubTables1MDatasetBuilder(TableDatasetBuilder):
         self,
         target: Path,
         split: str = "test",
-        max_items: int = -1,
+        begin_index: int = 0,
+        end_index: int = -1,
     ):
+        """
+        Initialize the PubTables-1M dataset builder.
+
+        Args:
+            target: Path where processed dataset will be saved
+            split: Dataset split to use
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
+        """
         super().__init__(
             name="PubTables-1M",
             dataset_source=HFSource(repo_id="ds4sd/PubTables-1M_OTSL-v1.1"),
             target=target,
             split=split,
-            max_items=max_items,
+            begin_index=begin_index,
+            end_index=end_index,
         )

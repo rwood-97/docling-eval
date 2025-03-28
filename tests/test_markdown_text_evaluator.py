@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from docling_eval.datamodels.constants import PredictionFormats
+from docling_eval.datamodels.types import PredictionFormats
 from docling_eval.evaluators.markdown_text_evaluator import MarkdownTextEvaluator
 
 

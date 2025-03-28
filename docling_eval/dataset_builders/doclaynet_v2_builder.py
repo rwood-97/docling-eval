@@ -1,10 +1,9 @@
 import io
 import itertools
 import logging
-import os
 import re
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from datasets import load_from_disk
 from docling_core.types import DoclingDocument
@@ -27,8 +26,8 @@ from docling_core.types.io import DocumentStream
 from PIL import Image
 from tqdm import tqdm
 
-from docling_eval.datamodels.constants import BenchMarkColumns, EvaluationModality
 from docling_eval.datamodels.dataset_record import DatasetRecord
+from docling_eval.datamodels.types import BenchMarkColumns, EvaluationModality
 from docling_eval.dataset_builders.dataset_builder import BaseEvaluationDatasetBuilder
 from docling_eval.utils.utils import (
     classify_cells,
@@ -43,36 +42,41 @@ _log = logging.getLogger(__name__)
 
 
 class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
-    """DocLayNet V2 dataset builder implementing the base dataset builder interface."""
+    """
+    DocLayNet V2 dataset builder implementing the base dataset builder interface.
+
+    This builder processes the DocLayNet V2 dataset, which contains document
+    layout annotations and key-value data for a variety of document types.
+    """
 
     def __init__(
         self,
         dataset_path: Path,
-        # prediction_provider: BasePredictionProvider,
         target: Path,
         split: str = "test",
-        max_items: int = -1,
+        begin_index: int = 0,
+        end_index: int = -1,
     ):
         """
         Initialize the DocLayNet V2 dataset builder.
 
         Args:
             dataset_path: Path to the pre-downloaded dataset
-            target: Path where the processed dataset will be saved
-            do_visualization: Whether to create visualizations
+            target: Path where processed dataset will be saved
             split: Dataset split to use
-            max_items: Maximum number of items to process (-1 for all)
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
         """
         super().__init__(
             name="DocLayNetV2: end-to-end",
             dataset_source=dataset_path,  # Local Path to dataset
-            # prediction_provider=prediction_provider,
             target=target,
             split=split,
+            begin_index=begin_index,
+            end_index=end_index,
         )
-        self.max_items = max_items
 
-    def extract_tokens_and_text(self, s: str):
+    def extract_tokens_and_text(self, s: str) -> Tuple[List[str], List[str]]:
         """
         Extract tokens and text from a string.
 
@@ -80,7 +84,7 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
             s: Input string
 
         Returns:
-            tuple: (tokens, text_parts)
+            Tuple of (tokens, text_parts)
         """
         # Pattern to match anything enclosed by < > (including the angle brackets themselves)
         pattern = r"(<[^>]+>)"
@@ -104,7 +108,9 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
 
         return tokens, text_parts
 
-    def parse_texts(self, texts, tokens):
+    def parse_texts(
+        self, texts: List[str], tokens: List[str]
+    ) -> Tuple[List[TableCell], List[List[str]]]:
         """
         Parse tokens and texts into table cells.
 
@@ -113,7 +119,7 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
             tokens: List of tokens
 
         Returns:
-            tuple: (table_cells, split_row_tokens)
+            Tuple of (table_cells, split_row_tokens)
         """
         split_word = TableToken.OTSL_NL.value
         split_row_tokens = [
@@ -125,7 +131,9 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
         r_idx = 0
         c_idx = 0
 
-        def count_right(tokens, c_idx, r_idx, which_tokens):
+        def count_right(
+            tokens: List[List[str]], c_idx: int, r_idx: int, which_tokens: List[str]
+        ) -> int:
             span = 0
             c_idx_iter = c_idx
             while tokens[r_idx][c_idx_iter] in which_tokens:
@@ -135,7 +143,9 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
                     return span
             return span
 
-        def count_down(tokens, c_idx, r_idx, which_tokens):
+        def count_down(
+            tokens: List[List[str]], c_idx: int, r_idx: int, which_tokens: List[str]
+        ) -> int:
             span = 0
             r_idx_iter = r_idx
             while tokens[r_idx_iter][c_idx] in which_tokens:
@@ -391,7 +401,9 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
         # Add the key_value_item to the document.
         doc.add_key_values(graph=graph, prov=prov)
 
-    def create_kv_pairs(self, data):
+    # The minimal fix for DocLayNetV2Builder is to add type annotation to link_pairs:
+
+    def create_kv_pairs(self, data: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Create key-value pairs from document data.
 
@@ -401,7 +413,7 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
         Returns:
             List of key-value pair dictionaries
         """
-        link_pairs = []
+        link_pairs: List[Dict[str, Any]] = []
         seg_with_id = {}
         bbox_with_id = {}
 
@@ -577,23 +589,30 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
             # Load dataset
             ds = load_from_disk(str(self.dataset_source))
 
-            # Set max items
-            if self.max_items == -1:
-                max_items = len(ds[self.split])
-            else:
-                max_items = min(self.max_items, len(ds[self.split]))
+            # Get total number of items in the dataset
+            total_items = len(ds[self.split])
 
-            _log.info(f"Processing DocLayNetV2 dataset: {max_items} documents")
+            # Calculate effective indices
+            begin, end = self.get_effective_indices(total_items)
+
+            # Log stats
+            self.log_dataset_stats(total_items, end - begin)
+            _log.info(f"Processing DocLayNetV2 dataset: {end - begin} documents")
 
             # Process each document
             for i, doc in enumerate(
                 tqdm(
                     ds[self.split],
-                    total=max_items,
+                    total=end - begin,
                     desc="Processing DocLayNetV2 documents",
                 )
             ):
-                if i >= max_items:
+                # Skip documents before begin_index
+                if i < begin:
+                    continue
+
+                # Stop after end_index
+                if i >= end:
                     break
 
                 try:

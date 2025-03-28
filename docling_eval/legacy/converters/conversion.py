@@ -1,4 +1,3 @@
-import logging
 import warnings
 from pathlib import Path
 from typing import List, Optional
@@ -7,13 +6,9 @@ from typing import List, Optional
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import (
     EasyOcrOptions,
-    OcrMacOptions,
     OcrOptions,
     PdfPipelineOptions,
-    RapidOcrOptions,
     TableFormerMode,
-    TesseractCliOcrOptions,
-    TesseractOcrOptions,
     VlmPipelineOptions,
     smoldocling_vlm_conversion_options,
 )

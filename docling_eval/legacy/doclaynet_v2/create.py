@@ -27,14 +27,14 @@ from docling_core.types.doc.tokens import TableToken
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.converters.conversion import (
-    create_image_docling_converter,
-    create_smol_docling_converter,
-)
-from docling_eval.datamodels.constants import (
+from docling_eval.datamodels.types import (
     BenchMarkColumns,
     ConverterTypes,
     EvaluationModality,
+)
+from docling_eval.legacy.converters.conversion import (
+    create_image_docling_converter,
+    create_smol_docling_converter,
 )
 from docling_eval.legacy.doclaynet_v1.create import (
     PRED_HTML_EXPORT_LABELS,

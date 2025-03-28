@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-from docling_eval.datamodels.constants import PredictionFormats
+from docling_eval.datamodels.types import PredictionFormats
 
 _log = logging.getLogger(__name__)
 
@@ -61,4 +61,4 @@ class BaseEvaluator:
         r"""
         Return the supported formats for predictions
         """
-        return self._supported_prediction_formats
+        return self._supported_prediction_sources

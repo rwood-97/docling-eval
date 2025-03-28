@@ -8,7 +8,7 @@ from typing import Annotated, Optional
 import typer
 from tabulate import tabulate  # type: ignore
 
-from docling_eval.datamodels.constants import (
+from docling_eval.datamodels.types import (
     BenchMarkNames,
     ConverterTypes,
     EvaluationModality,
@@ -284,7 +284,6 @@ def evaluate(
             json.dump(table_evaluation.model_dump(), fd, indent=2, sort_keys=True)
 
     elif modality == EvaluationModality.READING_ORDER:
-        # readingorder_evaluator = ReadingOrderEvaluatorGlm()
         readingorder_evaluator = ReadingOrderEvaluator()
 
         readingorder_evaluation = readingorder_evaluator(idir, split=split)

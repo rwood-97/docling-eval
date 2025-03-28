@@ -2,7 +2,7 @@ import logging
 import os
 from pathlib import Path
 
-from docling_eval.datamodels.constants import BenchMarkNames
+from docling_eval.datamodels.types import BenchMarkNames
 from docling_eval.legacy.xfund.create import create_xfund_dataset
 
 # Configure logging

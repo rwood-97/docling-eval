@@ -12,7 +12,7 @@ from docling_core.types.doc.document import DocItem, DoclingDocument
 from docling_core.types.doc.labels import DocItemLabel, PictureClassificationLabel
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.datamodels.constants import BenchMarkColumns
+from docling_eval.datamodels.types import BenchMarkColumns
 from docling_eval.legacy.cvat_annotation.utils import (
     AnnotatedDoc,
     AnnotatedImage,

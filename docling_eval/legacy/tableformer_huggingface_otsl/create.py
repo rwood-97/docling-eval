@@ -18,15 +18,13 @@ from docling_core.types.doc.document import (
 from docling_core.types.doc.labels import DocItemLabel
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.converters.models.tableformer.tf_model_prediction import (
-    PageTokens,
-    TableFormerUpdater,
-)
-from docling_eval.datamodels.constants import (
+from docling_eval.datamodels.types import (
     BenchMarkColumns,
     ConverterTypes,
     EvaluationModality,
+    PageTokens,
 )
+from docling_eval.prediction_providers.tableformer_provider import TableFormerUpdater
 from docling_eval.utils.utils import (
     convert_html_table_into_docling_tabledata,
     docling_version,

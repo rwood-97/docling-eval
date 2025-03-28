@@ -12,7 +12,7 @@ from docling_core.types import DoclingDocument
 from docling_core.types.io import DocumentStream
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from docling_eval.datamodels.constants import EvaluationModality, PredictionFormats
+from docling_eval.datamodels.types import EvaluationModality, PredictionFormats
 
 
 class DatasetRecord(
