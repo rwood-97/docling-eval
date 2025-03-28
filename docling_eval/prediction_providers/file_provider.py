@@ -40,6 +40,7 @@ class FilePredictionProvider(BasePredictionProvider):
         ignore_missing_predictions: bool = True,
         true_labels: Optional[Set[DocItemLabel]] = None,
         pred_labels: Optional[Set[DocItemLabel]] = None,
+        use_ground_truth_page_images: bool = False,
     ):
         """
         Initialize the file prediction provider.
@@ -59,6 +60,7 @@ class FilePredictionProvider(BasePredictionProvider):
             true_labels=true_labels,
             pred_labels=pred_labels,
         )
+        self._use_ground_truth_page_images = use_ground_truth_page_images
 
         self._supported_prediction_formats = [
             PredictionFormats.DOCTAGS,
@@ -102,19 +104,18 @@ class FilePredictionProvider(BasePredictionProvider):
         Returns:
             Dataset record with prediction
         """
-        doc_id = record.doc_id
         raw = None
         pred_doc = None
 
         # Load document based on prediction format
         if self._prediction_format == PredictionFormats.DOCTAGS:
-            pred_doc = self._load_doctags_doc(doc_id)
+            pred_doc = self._load_doctags_doc(record)
         elif self._prediction_format == PredictionFormats.MARKDOWN:
-            raw = self._load_md_raw(doc_id)
+            raw = self._load_md_raw(record)
         elif self._prediction_format == PredictionFormats.JSON:
-            pred_doc = self._load_json_doc(doc_id)
+            pred_doc = self._load_json_doc(record)
         elif self._prediction_format == PredictionFormats.YAML:
-            pred_doc = self._load_yaml_doc(doc_id)
+            pred_doc = self._load_yaml_doc(record)
 
         # Set status based on whether document was loaded
         status = (
@@ -137,18 +138,18 @@ class FilePredictionProvider(BasePredictionProvider):
         """Get the prediction format."""
         return self._prediction_format
 
-    def _load_doctags_doc(self, doc_id: str) -> Optional[DoclingDocument]:
+    def _load_doctags_doc(self, record: DatasetRecord) -> Optional[DoclingDocument]:
         """
         Load doctags file into DoclingDocument.
 
         Args:
-            doc_id: Document ID
+            record: Groundtruth dataset record
 
         Returns:
             DoclingDocument or None if file not found
         """
         # Read the doctags file
-        doctags_fn = self._prediction_source_path / f"{doc_id}.dt"
+        doctags_fn = self._prediction_source_path / f"{record.doc_id}.dt"
         if self._ignore_missing_files and not doctags_fn.is_file():
             return None
 
@@ -156,36 +157,40 @@ class FilePredictionProvider(BasePredictionProvider):
             with open(doctags_fn, "r") as fd:
                 doctags = fd.read()
 
-            # Check if an optional page image is present
-            page_image_fn = self._prediction_source_path / f"{doc_id}.png"
             page_image = None
-            if page_image_fn.is_file():
-                page_image = Image.open(page_image_fn)
+
+            if self._use_ground_truth_page_images:
+                page_image = record.ground_truth_page_images[0]
+            else:
+                # Check if an optional page image is present
+                page_image_fn = self._prediction_source_path / f"{record.doc_id}.png"
+                if page_image_fn.is_file():
+                    page_image = Image.open(page_image_fn)
 
             # Build DoclingDocument
             doctags_page = DocTagsPage(tokens=doctags, image=page_image)
             doctags_doc = DocTagsDocument(pages=[doctags_page])
-            doc = DoclingDocument(name=doc_id)
+            doc = DoclingDocument(name=record.doc_id)
             doc.load_from_doctags(doctags_doc)
 
             return doc
         except Exception as e:
-            _log.error(f"Error loading doctags document {doc_id}: {str(e)}")
+            _log.error(f"Error loading doctags document {record.doc_id}: {str(e)}")
             if not self._ignore_missing_files:
                 raise
             return None
 
-    def _load_json_doc(self, doc_id: str) -> Optional[DoclingDocument]:
+    def _load_json_doc(self, record: DatasetRecord) -> Optional[DoclingDocument]:
         """
         Load DoclingDocument from JSON.
 
         Args:
-            doc_id: Document ID
+            record: Groundtruth dataset record
 
         Returns:
             DoclingDocument or None if file not found
         """
-        json_fn = self._prediction_source_path / f"{doc_id}.json"
+        json_fn = self._prediction_source_path / f"{record.doc_id}.json"
         if self._ignore_missing_files and not json_fn.is_file():
             return None
 
@@ -193,27 +198,27 @@ class FilePredictionProvider(BasePredictionProvider):
             doc: DoclingDocument = DoclingDocument.load_from_json(json_fn)
             return doc
         except Exception as e:
-            _log.error(f"Error loading JSON document {doc_id}: {str(e)}")
+            _log.error(f"Error loading JSON document {record.doc_id}: {str(e)}")
             if not self._ignore_missing_files:
                 raise
             return None
 
-    def _load_yaml_doc(self, doc_id: str) -> Optional[DoclingDocument]:
+    def _load_yaml_doc(self, record: DatasetRecord) -> Optional[DoclingDocument]:
         """
         Load DoclingDocument from YAML.
 
         Args:
-            doc_id: Document ID
+            record: Groundtruth dataset record
 
         Returns:
             DoclingDocument or None if file not found
         """
         # Try with .yaml extension
-        yaml_fn = self._prediction_source_path / f"{doc_id}.yaml"
+        yaml_fn = self._prediction_source_path / f"{record.doc_id}.yaml"
 
         # If not found, try with .yml extension
         if not yaml_fn.is_file():
-            yaml_fn = self._prediction_source_path / f"{doc_id}.yml"
+            yaml_fn = self._prediction_source_path / f"{record.doc_id}.yml"
 
         if self._ignore_missing_files and not yaml_fn.is_file():
             return None
@@ -222,22 +227,22 @@ class FilePredictionProvider(BasePredictionProvider):
             doc: DoclingDocument = DoclingDocument.load_from_yaml(yaml_fn)
             return doc
         except Exception as e:
-            _log.error(f"Error loading YAML document {doc_id}: {str(e)}")
+            _log.error(f"Error loading YAML document {record.doc_id}: {str(e)}")
             if not self._ignore_missing_files:
                 raise
             return None
 
-    def _load_md_raw(self, doc_id: str) -> Optional[str]:
+    def _load_md_raw(self, record: DatasetRecord) -> Optional[str]:
         """
         Load the markdown content.
 
         Args:
-            doc_id: Document ID
+            record: Groundtruth dataset record
 
         Returns:
             Markdown content or None if file not found
         """
-        md_fn = self._prediction_source_path / f"{doc_id}.md"
+        md_fn = self._prediction_source_path / f"{record.doc_id}.md"
         if self._ignore_missing_files and not md_fn.is_file():
             return None
 
@@ -246,7 +251,7 @@ class FilePredictionProvider(BasePredictionProvider):
                 md = fd.read()
             return md
         except Exception as e:
-            _log.error(f"Error loading markdown document {doc_id}: {str(e)}")
+            _log.error(f"Error loading markdown document {record.doc_id}: {str(e)}")
             if not self._ignore_missing_files:
                 raise
             return None

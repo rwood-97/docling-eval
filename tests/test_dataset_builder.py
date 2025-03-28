@@ -94,6 +94,7 @@ def test_run_dpbench_e2e():
         target_dataset_dir=target_path / "eval_dataset",
     )
 
+    ## Evaluate Layout
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DPBENCH,
@@ -108,14 +109,45 @@ def test_run_dpbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
+    ## Evaluate Reading order
+    evaluate(
+        modality=EvaluationModality.READING_ORDER,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.READING_ORDER.value,
+    )
+
+    visualise(
+        modality=EvaluationModality.READING_ORDER,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.READING_ORDER.value,
+    )
+
+    ## Evaluate Markdown text
+    evaluate(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
+    )
+
+    visualise(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.DPBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
+    )
+
 
 def test_run_doclaynet_with_doctags_fileprovider():
     target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}-SmolDocling/")
     file_provider = FilePredictionProvider(
         prediction_format=PredictionFormats.DOCTAGS,
         source_path=Path("./tests/data/doclaynet_v1_doctags_sample"),
-        do_visualization=False,
+        do_visualization=True,
         ignore_missing_files=True,
+        use_ground_truth_page_images=True,
     )
 
     dataset_layout = DocLayNetV1DatasetBuilder(
@@ -134,6 +166,7 @@ def test_run_doclaynet_with_doctags_fileprovider():
         target_dataset_dir=target_path / "eval_dataset",
     )
 
+    ## Evaluate Layout
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
@@ -146,6 +179,21 @@ def test_run_doclaynet_with_doctags_fileprovider():
         benchmark=BenchMarkNames.DOCLAYNETV1,
         idir=target_path / "eval_dataset",
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
+    )
+
+    ## Evaluate Markdown text
+    evaluate(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.DOCLAYNETV1,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
+    )
+
+    visualise(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.DOCLAYNETV1,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
 
@@ -169,6 +217,7 @@ def test_run_omnidocbench_e2e():
         target_dataset_dir=target_path / "eval_dataset",
     )
 
+    # Evaluate Layout
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.OMNIDOCBENCH,
@@ -181,6 +230,36 @@ def test_run_omnidocbench_e2e():
         benchmark=BenchMarkNames.OMNIDOCBENCH,
         idir=target_path / "eval_dataset",
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
+    )
+
+    # Evaluate Reading Order
+    evaluate(
+        modality=EvaluationModality.READING_ORDER,
+        benchmark=BenchMarkNames.OMNIDOCBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.READING_ORDER.value,
+    )
+
+    visualise(
+        modality=EvaluationModality.READING_ORDER,
+        benchmark=BenchMarkNames.OMNIDOCBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.READING_ORDER.value,
+    )
+
+    # Evaluate Markdown Text
+    evaluate(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.OMNIDOCBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
+    )
+
+    visualise(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.OMNIDOCBENCH,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
 
@@ -276,6 +355,7 @@ def test_run_doclaynet_v1_e2e():
         target_dataset_dir=target_path / "eval_dataset",
     )
 
+    # Evaluate Layout
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
@@ -288,6 +368,21 @@ def test_run_doclaynet_v1_e2e():
         benchmark=BenchMarkNames.DOCLAYNETV1,
         idir=target_path / "eval_dataset",
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
+    )
+
+    # Evaluate Markdown Text
+    evaluate(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.DOCLAYNETV1,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
+    )
+
+    visualise(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.DOCLAYNETV1,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
 
@@ -313,6 +408,7 @@ def test_run_doclaynet_v2_e2e():
         target_dataset_dir=target_path / "eval_dataset",
     )
 
+    # Evaluate Layout
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV2,
@@ -325,6 +421,21 @@ def test_run_doclaynet_v2_e2e():
         benchmark=BenchMarkNames.DOCLAYNETV2,
         idir=target_path / "eval_dataset",
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
+    )
+
+    # Evaluate Markdown Text
+    evaluate(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.DOCLAYNETV2,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
+    )
+
+    visualise(
+        modality=EvaluationModality.MARKDOWN_TEXT,
+        benchmark=BenchMarkNames.DOCLAYNETV2,
+        idir=target_path / "eval_dataset",
+        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
 
