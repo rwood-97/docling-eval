@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Annotated, Optional, Tuple
 
 import typer
+from docling.datamodel.base_models import InputFormat
+from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.document_converter import PdfFormatOption
+from docling.models.factories import get_ocr_factory
 from tabulate import tabulate  # type: ignore
 
 from docling_eval.datamodels.types import (
@@ -178,7 +182,27 @@ def get_prediction_provider(
 ):
     """Get the appropriate prediction provider with default settings."""
     if provider_type == PredictionProviderType.DOCLING:
+        ocr_factory = get_ocr_factory()
+
+        ocr_options: OcrOptions = ocr_factory.create_options(  # type: ignore
+            kind="easyocr",
+        )
+
+        pipeline_options = PdfPipelineOptions(
+            do_ocr=True,
+            ocr_options=ocr_options,
+            do_table_structure=True,
+        )
+
+        pipeline_options.images_scale = 2.0
+        pipeline_options.generate_page_images = True
+        pipeline_options.generate_picture_images = True
+
         return DoclingPredictionProvider(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+                InputFormat.IMAGE: PdfFormatOption(pipeline_options=pipeline_options),
+            },
             do_visualization=True,
             ignore_missing_predictions=True,
         )

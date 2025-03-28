@@ -64,7 +64,7 @@ types-openpyxl = "^3.1.5.20241114"
 xmltodict = "^0.14.2"
 
 [tool.poetry.scripts]
-evaluate = "docling_eval.cli.main:app"
+docling_eval = "docling_eval.cli.main:app"
 
 [build-system]
 requires = ["poetry-core"]
