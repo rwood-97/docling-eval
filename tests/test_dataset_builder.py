@@ -311,7 +311,7 @@ def test_run_xfund():
 
 def test_run_fintabnet_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}/")
-    tableformer_provider = TableFormerPredictionProvider()
+    tableformer_provider = TableFormerPredictionProvider(do_visualization=True)
 
     dataset = FintabNetDatasetBuilder(
         target=target_path / "gt_dataset",
@@ -339,7 +339,7 @@ def test_run_fintabnet_builder():
 
 def test_run_p1m_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.PUB1M.value}/")
-    tableformer_provider = TableFormerPredictionProvider()
+    tableformer_provider = TableFormerPredictionProvider(do_visualization=True)
 
     dataset = PubTables1MDatasetBuilder(
         target=target_path / "gt_dataset",
@@ -367,7 +367,7 @@ def test_run_p1m_builder():
 
 def test_run_pubtabnet_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.PUBTABNET.value}/")
-    tableformer_provider = TableFormerPredictionProvider()
+    tableformer_provider = TableFormerPredictionProvider(do_visualization=True)
 
     dataset = PubTabNetDatasetBuilder(
         target=target_path / "gt_dataset",
