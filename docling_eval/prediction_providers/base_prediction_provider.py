@@ -1,10 +1,10 @@
 import copy
-import os
+import logging
 import sys
 from abc import abstractmethod
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional, Set, Tuple
 
 from datasets import load_dataset
 from docling.datamodel.base_models import ConversionStatus
@@ -19,10 +19,18 @@ from docling_eval.datamodels.dataset_record import (
     DatasetRecordWithPrediction,
 )
 from docling_eval.datamodels.types import PredictionFormats
-from docling_eval.utils.utils import save_shard_to_disk, write_datasets_info
+from docling_eval.utils.utils import (
+    insert_images_from_pil,
+    save_shard_to_disk,
+    write_datasets_info,
+)
 from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
 
-TRUE_HTML_EXPORT_LABELS = {
+# Get logger
+_log = logging.getLogger(__name__)
+
+# Default HTML export labels for visualization
+TRUE_HTML_EXPORT_LABELS: Set[DocItemLabel] = {
     DocItemLabel.TITLE,
     DocItemLabel.DOCUMENT_INDEX,
     DocItemLabel.SECTION_HEADER,
@@ -42,7 +50,7 @@ TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.FOOTNOTE,
 }
 
-PRED_HTML_EXPORT_LABELS = {
+PRED_HTML_EXPORT_LABELS: Set[DocItemLabel] = {
     DocItemLabel.TITLE,
     DocItemLabel.DOCUMENT_INDEX,
     DocItemLabel.SECTION_HEADER,
@@ -63,14 +71,47 @@ PRED_HTML_EXPORT_LABELS = {
 
 
 class BasePredictionProvider:
+    """
+    Base class for all prediction providers.
+
+    Prediction providers are responsible for generating predictions from input data
+    in the form of DoclingDocument objects or other formats.
+    """
+
     def __init__(
-        self, do_visualization: bool = False, ignore_missing_predictions: bool = True
+        self,
+        do_visualization: bool = False,
+        ignore_missing_predictions: bool = True,
+        true_labels: Optional[Set[DocItemLabel]] = None,
+        pred_labels: Optional[Set[DocItemLabel]] = None,
     ):
+        """
+        Initialize the prediction provider.
+
+        Args:
+            do_visualization: Whether to generate visualizations of predictions
+            ignore_missing_predictions: Whether to ignore records with missing predictions
+            true_labels: Set of DocItemLabel to use for ground truth visualization
+            pred_labels: Set of DocItemLabel to use for prediction visualization
+        """
         self.do_visualization = do_visualization
         self.ignore_missing_predictions = ignore_missing_predictions
 
+        # Label sets for visualization
+        self.true_labels = true_labels or TRUE_HTML_EXPORT_LABELS
+        self.pred_labels = pred_labels or PRED_HTML_EXPORT_LABELS
+
     @abstractmethod
     def predict(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
+        """
+        Generate a prediction for a dataset record.
+
+        Args:
+            record: Input dataset record
+
+        Returns:
+            Dataset record with prediction added
+        """
         pred_record = self.create_dataset_record_with_prediction(
             record,
             DoclingDocument(name="dummy"),
@@ -79,28 +120,61 @@ class BasePredictionProvider:
         return pred_record
 
     @abstractmethod
-    def info(self) -> Dict:
+    def info(self) -> Dict[str, str]:
+        """
+        Get information about the prediction provider.
+
+        Returns:
+            Dictionary with provider information
+        """
         return {}
 
     def visualize_results(
         self, prediction_record: DatasetRecordWithPrediction, target_dataset_dir: Path
-    ):
-        if prediction_record.predicted_doc is not None:
+    ) -> None:
+        """
+        Create visualizations of prediction results.
+
+        Args:
+            prediction_record: Record with prediction to visualize
+            target_dataset_dir: Directory to save visualizations
+        """
+        if (
+            prediction_record.predicted_doc is not None
+            and prediction_record.ground_truth_page_images
+        ):
+            gt_doc = insert_images_from_pil(
+                prediction_record.ground_truth_doc,
+                prediction_record.ground_truth_pictures,
+                prediction_record.ground_truth_page_images,
+            )
+            pred_doc = insert_images_from_pil(
+                prediction_record.predicted_doc,
+                prediction_record.predicted_pictures,
+                prediction_record.predicted_page_images,
+            )
+
             save_comparison_html_with_clusters(
                 filename=target_dataset_dir
                 / "visualizations"
                 / f"{prediction_record.doc_id}.html",
-                true_doc=prediction_record.ground_truth_doc,
-                pred_doc=prediction_record.predicted_doc,
+                true_doc=gt_doc,
+                pred_doc=pred_doc,
                 page_image=prediction_record.ground_truth_page_images[0],
-                true_labels=TRUE_HTML_EXPORT_LABELS,
-                pred_labels=PRED_HTML_EXPORT_LABELS,
+                true_labels=self.true_labels,
+                pred_labels=self.pred_labels,
                 draw_reading_order=True,
             )
 
     @property
     @abstractmethod
     def prediction_format(self) -> PredictionFormats:
+        """
+        Get the format of predictions generated by this provider.
+
+        Returns:
+            Prediction format enum value
+        """
         pass
 
     def create_dataset_record_with_prediction(
@@ -108,23 +182,41 @@ class BasePredictionProvider:
         record: DatasetRecord,
         predicted_doc: Optional[DoclingDocument] = None,
         original_prediction: Optional[str] = None,
-    ):
-        pred_record = DatasetRecordWithPrediction.model_validate(
-            {
-                **record.as_record_dict(),
-                "predicted_doc": predicted_doc,
-                "original_prediction": original_prediction,
-                "prediction_format": self.prediction_format,
-            }
-        )
-        pred_record.validate_images()  # type: ignore
-        return pred_record
+    ) -> DatasetRecordWithPrediction:
+        """
+        Create a dataset record with prediction from an input record.
+
+        Args:
+            record: Input dataset record
+            predicted_doc: Predicted DoclingDocument
+            original_prediction: Original prediction text/data
+
+        Returns:
+            Dataset record with prediction
+        """
+        data = {
+            **record.as_record_dict(),
+            "predicted_doc": predicted_doc,
+            "original_prediction": original_prediction,
+            "prediction_format": self.prediction_format,
+            "predictor_info": self.info(),
+        }
+        return DatasetRecordWithPrediction.model_validate(data)
 
     def add_prediction(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
-        # This might need customization depending on the input the dataset has.
-        # The default implementation assumes that there is an original file in binary format which is accepted.
+        """
+        Add a prediction to a dataset record.
+
+        Args:
+            record: Input dataset record
+
+        Returns:
+            Dataset record with prediction
+        """
+        # Copy the original input data to avoid modifying it
         input_data = copy.deepcopy(record.original)
 
+        # Convert Path to DocumentStream if needed
         if not isinstance(input_data, DocumentStream):
             if isinstance(input_data, Path):
                 input_data = DocumentStream(
@@ -136,43 +228,114 @@ class BasePredictionProvider:
 
         return pred_record
 
+    def get_effective_indices(
+        self, total_items: int, begin_index: int, end_index: int
+    ) -> Tuple[int, int]:
+        """
+        Calculate the effective begin and end indices based on dataset size.
+
+        Args:
+            total_items: Total number of items available
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
+
+        Returns:
+            Tuple of (effective_begin_index, effective_end_index)
+        """
+        begin = begin_index if begin_index >= 0 else 0
+        end = end_index if end_index > 0 else total_items
+        end = min(end, total_items)
+
+        if begin >= total_items:
+            _log.warning(
+                f"Begin index ({begin}) is greater than or equal to dataset size ({total_items}). "
+                f"No items will be processed."
+            )
+            begin = total_items
+
+        _log.info(
+            f"Processing range [{begin}:{end}] out of {total_items} total items "
+            f"({end - begin} items)"
+        )
+
+        return begin, end
+
     def create_prediction_dataset(
         self,
         name: str,
         gt_dataset_dir: Path,
         target_dataset_dir: Path,
         split: str = "test",
-    ):
+        begin_index: int = 0,
+        end_index: int = -1,
+    ) -> None:
+        """
+        Create a prediction dataset from a ground truth dataset.
+
+        Args:
+            name: Name of the dataset
+            gt_dataset_dir: Path to ground truth dataset
+            target_dataset_dir: Path to save prediction dataset
+            split: Dataset split to process
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
+        """
+        # Load the dataset
         parquet_files = str(gt_dataset_dir / split / "*.parquet")
         ds = load_dataset("parquet", data_files={split: parquet_files})
-        # _log.info(f"oveview of dataset: {ds}")
-        if ds is not None:
-            ds_selection = ds[split]
 
-        def _iterate_predictions():
+        if ds is None:
+            _log.error(f"Failed to load dataset from {parquet_files}")
+            return
+
+        ds_selection = ds[split]
+        total_items = len(ds_selection)
+
+        # Calculate effective indices
+        begin, end = self.get_effective_indices(total_items, begin_index, end_index)
+
+        # Apply range
+        if begin > 0 or end < total_items:
+            ds_selection = ds_selection.select(range(begin, end))
+
+        selected_items = len(ds_selection)
+        _log.info(
+            f"Dataset '{name}' total items: {total_items}. "
+            f"Selected range: [{begin}, {end}] = {selected_items} items"
+        )
+
+        def _iterate_predictions() -> Iterable[DatasetRecordWithPrediction]:
+            """Generate predictions for each record in the dataset."""
             for i, data in tqdm(
                 enumerate(ds_selection),
                 desc="Creating predictions",
                 ncols=120,
                 total=len(ds_selection),
             ):
-                record = DatasetRecord.model_validate(data)
-                pred_record = self.add_prediction(record)
+                try:
+                    record = DatasetRecord.model_validate(data)
+                    pred_record = self.add_prediction(record)
 
-                if (
-                    self.ignore_missing_predictions
-                    and pred_record.status == ConversionStatus.FAILURE
-                ):
-                    continue
+                    if (
+                        self.ignore_missing_predictions
+                        and pred_record.status == ConversionStatus.FAILURE
+                    ):
+                        continue
 
-                yield pred_record
+                    yield pred_record
+                except Exception as e:
+                    _log.error(f"Error processing record {i}: {str(e)}")
+                    if not self.ignore_missing_predictions:
+                        raise
 
+        # Create output directories
         test_dir = target_dataset_dir / split
-        os.makedirs(test_dir, exist_ok=True)
+        test_dir.mkdir(parents=True, exist_ok=True)
 
         if self.do_visualization:
-            os.makedirs(target_dataset_dir / "visualizations", exist_ok=True)
+            (target_dataset_dir / "visualizations").mkdir(parents=True, exist_ok=True)
 
+        # Process in chunks
         chunk_size = 80
         max_num_chunks = sys.maxsize
 
@@ -192,8 +355,14 @@ class BasePredictionProvider:
             chunk_count += 1
 
             if chunk_count >= max_num_chunks:
+                _log.info(
+                    f"Reached maximum number of chunks ({max_num_chunks}). Stopping."
+                )
                 break
 
+        _log.info(f"Saved {count} records in {chunk_count} chunks to {test_dir}")
+
+        # Write dataset info
         write_datasets_info(
             name=name,
             output_dir=target_dataset_dir,

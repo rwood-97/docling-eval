@@ -1,15 +1,16 @@
 import io
 import logging
-import os
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, List, Optional, Set
 
+import PIL.Image
 from datasets import load_dataset
 from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
     CoordOrigin,
     DocItemLabel,
+    GroupItem,
     GroupLabel,
     ImageRef,
     ProvenanceItem,
@@ -37,8 +38,8 @@ from docling_eval.utils.utils import (
 # Get logger
 _log = logging.getLogger(__name__)
 
-# Blacklisted document IDs
-BLACKLISTED_DOC_IDS = [
+# Blacklisted document IDs (documents with known issues)
+BLACKLISTED_DOC_IDS: Set[str] = {
     "f556167ac3284665652050b1b0bc1e6f5af27f54f17f27566c60c80f6f134a92",
     "dbc51622cbe9b8766f44db3b3fda8d0a745da06b9bfec9935bd003d2bdd494c8",
     "d4c0401fffc04d24e629a9fada23266a3b492ea63e889641b3c33adf815d44e3",
@@ -64,9 +65,10 @@ BLACKLISTED_DOC_IDS = [
     "1763e54be635759ccb66ebb462548f8a40d44567f62cecc5ca26f22acd28e823",
     "048a570b2e415b653a62313ef82504adfda480c99f69826fcbeb67758ea3c7a4",
     "0261791e343389682847c913a16789776d0ba41a584901571846c7ddab3cbaa6",
-]
+}
 
-TRUE_HTML_EXPORT_LABELS = {
+# Labels to export in HTML visualization
+TRUE_HTML_EXPORT_LABELS: Set[DocItemLabel] = {
     DocItemLabel.TITLE,
     DocItemLabel.DOCUMENT_INDEX,
     DocItemLabel.SECTION_HEADER,
@@ -86,7 +88,7 @@ TRUE_HTML_EXPORT_LABELS = {
     DocItemLabel.FOOTNOTE,
 }
 
-PRED_HTML_EXPORT_LABELS = {
+PRED_HTML_EXPORT_LABELS: Set[DocItemLabel] = {
     DocItemLabel.TITLE,
     DocItemLabel.DOCUMENT_INDEX,
     DocItemLabel.SECTION_HEADER,
@@ -105,29 +107,39 @@ PRED_HTML_EXPORT_LABELS = {
     DocItemLabel.FOOTNOTE,
 }
 
-SHARD_SIZE = 100
-
 
 class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
-    """DocLayNet V1 dataset builder implementing the base dataset builder interface."""
+    """
+    DocLayNet V1 dataset builder implementing the base dataset builder interface.
+
+    This builder processes the DocLayNet V1.2 dataset, which contains document
+    layout annotations for a variety of document types.
+    """
 
     def __init__(
         self,
-        # prediction_provider: BasePredictionProvider,
         target: Path,
         split: str = "test",
         begin_index: int = 0,
         end_index: int = -1,
     ):
+        """
+        Initialize the DocLayNet V1 dataset builder.
+
+        Args:
+            target: Path where processed dataset will be saved
+            split: Dataset split to use
+            begin_index: Start index for processing (inclusive)
+            end_index: End index for processing (exclusive), -1 means process all
+        """
         super().__init__(
             name="DocLayNetV1",
             dataset_source=HFSource(repo_id="ds4sd/DocLayNet-v1.2"),
-            # prediction_provider=prediction_provider,
             target=target,
             split=split,
+            begin_index=begin_index,
+            end_index=end_index,
         )
-        self.begin_index = begin_index
-        self.end_index = end_index
         self.blacklisted_ids = set(BLACKLISTED_DOC_IDS)
         self.category_map = {
             1: "caption",
@@ -144,15 +156,44 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
         }
 
     @staticmethod
-    def ltwh_to_ltrb(box):
-        """Convert left, top, width, height format to left, top, right, bottom."""
+    def ltwh_to_ltrb(box: List[float]) -> List[float]:
+        """
+        Convert left, top, width, height format to left, top, right, bottom.
+
+        Args:
+            box: Box in [left, top, width, height] format
+
+        Returns:
+            Box in [left, top, right, bottom] format
+        """
         l, t, w, h = box
-        return l, t, l + w, t + h
+        return [l, t, l + w, t + h]
 
     def update_doc_with_gt(
-        self, doc: DoclingDocument, current_list, img, old_size, label_str, box, content
-    ):
-        """Add an element to the document based on its label type."""
+        self,
+        doc: DoclingDocument,
+        current_list: Optional[GroupItem],  # This was incorrectly typed as str | None
+        img: PIL.Image.Image,
+        old_size: Size,
+        label_str: str,
+        box: List[float],
+        content: str,
+    ) -> Optional[GroupItem]:  # Return type should match the parameter type
+        """
+        Add an element to the document based on its label type.
+
+        Args:
+            doc: DoclingDocument to update
+            current_list: Current list group for list items
+            img: Page image
+            old_size: Original page size
+            label_str: Element label as string
+            box: Bounding box coordinates
+            content: Text content
+
+        Returns:
+            Updated list group or None
+        """
         # Map string label to DocItemLabel
         label_map = {
             "caption": DocItemLabel.CAPTION,
@@ -236,7 +277,12 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
         return current_list
 
     def iterate(self) -> Iterable[DatasetRecord]:
-        """Iterate through the dataset and yield DatasetRecord objects."""
+        """
+        Iterate through the dataset and yield DatasetRecord objects.
+
+        Yields:
+            DatasetRecord objects
+        """
         if not self.retrieved:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
@@ -247,27 +293,16 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
         # Load dataset from the retrieved path
         ds = load_dataset("ds4sd/DocLayNet-v1.2", split=self.split)
 
-        # Apply index ranges if specified
+        # Apply HuggingFace's select method for index ranges
         total_ds_len = len(ds)
-        begin_index = self.begin_index
-        end_index = self.end_index
+        begin, end = self.get_effective_indices(total_ds_len)
 
-        if end_index == -1 or end_index > total_ds_len:
-            end_index = total_ds_len
-
-        if begin_index < 0:
-            begin_index = 0
-
-        ds = ds.select(range(begin_index, end_index))
+        # Select the range (HuggingFace datasets have a convenient select method)
+        ds = ds.select(range(begin, end))
         selected_ds_len = len(ds)
 
-        _log.info(
-            "Dataset len: %s. Selected range: [%s, %s] = %s",
-            total_ds_len,
-            begin_index,
-            end_index,
-            selected_ds_len,
-        )
+        # Log stats
+        self.log_dataset_stats(total_ds_len, selected_ds_len)
 
         skipped_rows = 0
         exported_rows = 0
@@ -331,7 +366,6 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
 
                 # Create dataset record
                 record = DatasetRecord(
-                    # predictor_info=self.prediction_provider.info(),
                     doc_id=page_hash,
                     doc_hash=get_binhash(pdf),
                     ground_truth_doc=true_doc,
@@ -345,33 +379,8 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
                     ground_truth_page_images=true_page_images,
                 )
 
-                # Update prediction
-                # self.update_prediction(record)
-
-                # Extract images from the predicted document if available
-                # if record.predicted_doc is not None:
-                #     pred_doc, pred_pictures, pred_page_images = extract_images(
-                #         document=record.predicted_doc,
-                #         pictures_column=BenchMarkColumns.PREDICTION_PICTURES,
-                #         page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES,
-                #     )
-                #     record.predicted_doc = pred_doc
-                #     record.predicted_pictures = pred_pictures
-                #     record.predicted_page_images = pred_page_images
-
-                # # Create visualization if requested
-                # if self.do_visualization and record.predicted_doc is not None:
-                #     save_comparison_html_with_clusters(
-                #         filename=viz_dir / f"{page_hash}-clusters.html",
-                #         true_doc=true_doc,
-                #         pred_doc=record.predicted_doc,
-                #         page_image=img,
-                #         true_labels=TRUE_HTML_EXPORT_LABELS,
-                #         pred_labels=PRED_HTML_EXPORT_LABELS,
-                #         draw_reading_order=False,
-                #     )
-
                 exported_rows += 1
+                print(page_hash)
                 yield record
 
             except Exception as ex:

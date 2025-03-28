@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Optional
 
+import pytest
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import (
     EasyOcrOptions,
@@ -69,7 +70,7 @@ def create_docling_prediction_provider(
         format_options={
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
         },
-        do_visualization=False,
+        do_visualization=True,
     )
 
 
@@ -79,11 +80,12 @@ def test_run_dpbench_e2e():
 
     dataset_layout = DPBenchDatasetBuilder(
         target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     docling_provider.create_prediction_dataset(
@@ -110,9 +112,8 @@ def test_run_doclaynet_with_doctags_fileprovider():
     )
 
     dataset_layout = DocLayNetV1DatasetBuilder(
-        # prediction_provider=docling_provider,
-        target=target_path
-        / "gt_dataset",
+        target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -127,10 +128,10 @@ def test_run_doclaynet_with_doctags_fileprovider():
     )
 
     evaluate(
-        modality=EvaluationModality.MARKDOWN_TEXT,
+        modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
         idir=target_path / "eval_dataset",
-        odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
+        odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
 
@@ -140,11 +141,12 @@ def test_run_omnidocbench_e2e():
 
     dataset_layout = OmniDocBenchDatasetBuilder(
         target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     docling_provider.create_prediction_dataset(
@@ -167,11 +169,12 @@ def test_run_dpbench_tables():
 
     dataset_tables = DPBenchDatasetBuilder(
         target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_tables.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
@@ -194,6 +197,7 @@ def test_run_omnidocbench_tables():
 
     dataset_tables = OmniDocBenchDatasetBuilder(
         target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
@@ -222,13 +226,13 @@ def test_run_doclaynet_v1_e2e():
 
     dataset_layout = DocLayNetV1DatasetBuilder(
         # prediction_provider=docling_provider,
-        target=target_path
-        / "gt_dataset",
+        target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     docling_provider.create_prediction_dataset(
@@ -245,18 +249,20 @@ def test_run_doclaynet_v1_e2e():
     )
 
 
+@pytest.mark.skip("Test needs local data which is unavailable.")
 def test_run_doclaynet_v2_e2e():
     target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV2.value}/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
 
     dataset_layout = DocLayNetV2DatasetBuilder(
-        dataset_path=Path("/Users/cau/Documents/Data/doclaynet_v2_benchmark"),
+        dataset_path=Path("/path/to/doclaynet_v2_benchmark"),
         target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     docling_provider.create_prediction_dataset(
@@ -279,11 +285,12 @@ def test_run_funsd():
     dataset_layout = FUNSDDatasetBuilder(
         dataset_source=target_path / "input_dataset",
         target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
 
@@ -293,11 +300,12 @@ def test_run_xfund():
     dataset_layout = XFUNDDatasetBuilder(
         dataset_source=target_path / "input_dataset",
         target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
 
@@ -307,11 +315,12 @@ def test_run_fintabnet_builder():
 
     dataset = FintabNetDatasetBuilder(
         target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
@@ -334,11 +343,12 @@ def test_run_p1m_builder():
 
     dataset = PubTables1MDatasetBuilder(
         target=target_path / "gt_dataset",
+        end_index=5,
     )
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=5
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
@@ -361,22 +371,26 @@ def test_run_pubtabnet_builder():
 
     dataset = PubTabNetDatasetBuilder(
         target=target_path / "gt_dataset",
+        end_index=25,
     )
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset.save_to_disk(
-        chunk_size=5, max_num_chunks=1
+        chunk_size=80
     )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
         name=dataset.name,
+        split="val",
         gt_dataset_dir=target_path / "gt_dataset",
         target_dataset_dir=target_path / "eval_dataset",
+        end_index=25,
     )
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
-        benchmark=BenchMarkNames.DPBENCH,
+        benchmark=BenchMarkNames.PUBTABNET,
         idir=target_path / "eval_dataset",
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
+        split="val",
     )
