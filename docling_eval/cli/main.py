@@ -30,10 +30,6 @@ from docling_eval.dataset_builders.otsl_table_dataset_builder import (
     PubTabNetDatasetBuilder,
 )
 from docling_eval.dataset_builders.xfund_builder import XFUNDDatasetBuilder
-from docling_eval.evaluators.base_readingorder_evaluator import (
-    DatasetReadingOrderEvaluation,
-    ReadingOrderVisualizer,
-)
 from docling_eval.evaluators.bbox_text_evaluator import BboxTextEvaluator
 from docling_eval.evaluators.layout_evaluator import (
     DatasetLayoutEvaluation,
@@ -43,7 +39,11 @@ from docling_eval.evaluators.markdown_text_evaluator import (
     DatasetMarkdownEvaluation,
     MarkdownTextEvaluator,
 )
-from docling_eval.evaluators.readingorder_evaluator import ReadingOrderEvaluator
+from docling_eval.evaluators.readingorder_evaluator import (
+    DatasetReadingOrderEvaluation,
+    ReadingOrderEvaluator,
+    ReadingOrderVisualizer,
+)
 from docling_eval.evaluators.stats import DatasetStatistics
 from docling_eval.evaluators.table_evaluator import (
     DatasetTableEvaluation,

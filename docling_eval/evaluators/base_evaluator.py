@@ -16,6 +16,10 @@ from docling_eval.datamodels.types import PredictionFormats
 _log = logging.getLogger(__name__)
 
 
+class PageEvaluation(BaseModel):
+    pass
+
+
 class DatasetEvaluation(BaseModel):
     pass
 
@@ -94,6 +98,7 @@ class BaseEvaluator:
         evaluation_name: str,
         enunumerate_id: int,
         doc_id: str,
+        # evaluations: List[PageEvaluation],
         evaluations: List,
     ) -> Optional[Path]:
         r"""
