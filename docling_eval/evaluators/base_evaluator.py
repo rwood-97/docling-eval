@@ -1,9 +1,16 @@
+import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from docling_core.types.doc.document import (
+    DoclingDocument,
+    DocTagsDocument,
+    DocTagsPage,
+)
 from pydantic import BaseModel
 
+from docling_eval.datamodels.dataset_record import DatasetRecordWithPrediction
 from docling_eval.datamodels.types import PredictionFormats
 
 _log = logging.getLogger(__name__)
@@ -11,6 +18,29 @@ _log = logging.getLogger(__name__)
 
 class DatasetEvaluation(BaseModel):
     pass
+
+
+def docling_document_from_doctags(
+    data_record: DatasetRecordWithPrediction,
+) -> DoclingDocument:
+    r""" """
+    doc_id = data_record.doc_id
+    doctags = data_record.original
+    if not isinstance(doctags, str):
+        raise RuntimeError("Invalid format of original prediction")
+
+    page_image = (
+        data_record.ground_truth_page_images[0]
+        if data_record.ground_truth_page_images
+        else None
+    )
+
+    doctags_page = DocTagsPage(tokens=doctags, image=page_image)
+    doctags_doc = DocTagsDocument(pages=[doctags_page])
+    pred_doc = DoclingDocument(name=doc_id)
+    pred_doc.load_from_doctags(doctags_doc)
+
+    return pred_doc
 
 
 class BaseEvaluator:
@@ -47,10 +77,6 @@ class BaseEvaluator:
         self,
         ds_path: Path,
         split: str = "test",
-        # Remove the ext_predictions when all evaluators have been migrated to the new design
-        ext_predictions: Optional[
-            Dict[str, Any]
-        ] = None,  # Optionally provided external predictions
     ) -> DatasetEvaluation:
         r"""
         Perform the evaluation
@@ -62,3 +88,27 @@ class BaseEvaluator:
         Return the supported formats for predictions
         """
         return self._supported_prediction_sources
+
+    def save_intermediate_evalutions(
+        self,
+        evaluation_name: str,
+        enunumerate_id: int,
+        doc_id: str,
+        evaluations: List,
+    ) -> Optional[Path]:
+        r"""
+        Utility method to save intermediate evaluation results
+        Return immediatelly if the intermediate_evaluation_path is not set
+        It returns the file Path with the intermediate results or None
+        """
+        if self._intermediate_evaluations_path:
+            return None
+
+        evals = [ev.model_dump() for ev in evaluations]
+        evaluation_filename = f"{evaluation_name}_{enunumerate_id:05d}_{doc_id}.json"
+        evaluation_fn = self._intermediate_evaluations_path / evaluation_filename  # type: ignore
+        _log.info("Saving intermediate evaluations: %s", evaluation_fn)
+        with open(evaluation_fn, "w") as fd:
+            json.dump(evals, fd)
+
+        return evaluation_fn

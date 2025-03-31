@@ -103,10 +103,6 @@ class MarkdownTextEvaluator(BaseEvaluator):
         self,
         ds_path: Path,
         split: str = "test",
-        # Remove the ext_predictions when all evaluators have been migrated to the new design
-        ext_predictions: Optional[
-            Dict[str, Any]
-        ] = None,  # Optionally provided external predictions
     ) -> DatasetMarkdownEvaluation:
         r"""
         Parameters
@@ -170,6 +166,9 @@ class MarkdownTextEvaluator(BaseEvaluator):
                 meteor=ntlk_scores["meteor"],
             )
             evaluations.append(md_evaluation)
+
+            if self._intermediate_evaluations_path:
+                self.save_intermediate_evalutions("MD", i, doc_id, evaluations)
 
         ds_md_evalutions = DatasetMarkdownEvaluation(
             evaluations=evaluations,

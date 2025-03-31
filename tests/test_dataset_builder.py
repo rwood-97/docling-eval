@@ -323,6 +323,7 @@ def test_run_omnidocbench_tables():
     )
 
 
+@pytest.mark.dependency()
 def test_run_doclaynet_v1_e2e():
     target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
@@ -450,6 +451,7 @@ def test_run_xfund():
     dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
 
+@pytest.mark.dependency()
 def test_run_fintabnet_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}/")
     tableformer_provider = TableFormerPredictionProvider(do_visualization=True)

@@ -17,9 +17,12 @@ from tqdm import tqdm  # type: ignore
 
 from docling_eval.datamodels.dataset_record import DatasetRecordWithPrediction
 from docling_eval.datamodels.types import BenchMarkColumns, PredictionFormats
-from docling_eval.evaluators.base_evaluator import BaseEvaluator, DatasetEvaluation
+from docling_eval.evaluators.base_evaluator import (
+    BaseEvaluator,
+    DatasetEvaluation,
+    docling_document_from_doctags,
+)
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
-from docling_eval.utils.utils import docling_document_from_doctags
 
 _log = logging.getLogger(__name__)
 
@@ -120,8 +123,6 @@ class LayoutEvaluator(BaseEvaluator):
         self,
         ds_path: Path,
         split: str = "test",
-        # Remove the ext_predictions when all evaluators have been migrated to the new design
-        ext_predictions: Optional[Dict[str, DoclingDocument]] = None,
     ) -> DatasetLayoutEvaluation:
         logging.info("Loading the split '%s' from: '%s'", split, ds_path)
 
@@ -257,19 +258,22 @@ class LayoutEvaluator(BaseEvaluator):
             average_iou_95 = result["average_iou_95"]
 
             map_values.append(map_value)
-            evaluations_per_image.append(
-                ImageLayoutEvaluation(
-                    name=doc_id,
-                    value=average_iou_50,
-                    map_val=map_value,
-                    map_50=map_50,
-                    map_75=map_75,
-                    avg_weighted_label_matched_iou_50=average_iou_50,
-                    avg_weighted_label_matched_iou_75=average_iou_75,
-                    avg_weighted_label_matched_iou_90=average_iou_90,
-                    avg_weighted_label_matched_iou_95=average_iou_95,
-                )
+            image_evaluation = ImageLayoutEvaluation(
+                name=doc_id,
+                value=average_iou_50,
+                map_val=map_value,
+                map_50=map_50,
+                map_75=map_75,
+                avg_weighted_label_matched_iou_50=average_iou_50,
+                avg_weighted_label_matched_iou_75=average_iou_75,
+                avg_weighted_label_matched_iou_90=average_iou_90,
+                avg_weighted_label_matched_iou_95=average_iou_95,
             )
+            evaluations_per_image.append(image_evaluation)
+            if self._intermediate_evaluations_path:
+                self.save_intermediate_evalutions(
+                    "Layout_image", i, doc_id, evaluations_per_image
+                )
 
         evaluations_per_class = sorted(evaluations_per_class, key=lambda x: -x.value)
         evaluations_per_image = sorted(evaluations_per_image, key=lambda x: -x.value)

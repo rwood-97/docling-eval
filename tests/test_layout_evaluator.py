@@ -1,13 +1,18 @@
 from pathlib import Path
 
+import pytest
+
 from docling_eval.datamodels.types import PredictionFormats
 from docling_eval.evaluators.layout_evaluator import LayoutEvaluator
 from docling_eval.evaluators.markdown_text_evaluator import MarkdownTextEvaluator
 
 
+@pytest.mark.dependency(
+    depends=["tests/test_dataset_builder.py::test_run_doclaynet_v1_e2e"],
+    scope="session",
+)
 def test_layout_evaluator():
     r""" """
-    # TODO: Ensure that the test dataset exists
     test_dataset_dir = Path("scratch/DocLayNetV1/eval_dataset")
 
     # Default evaluator
@@ -30,5 +35,5 @@ def test_layout_evaluator():
     assert is_exception
 
 
-if __name__ == "__main__":
-    test_layout_evaluator()
+# if __name__ == "__main__":
+#     test_layout_evaluator()
