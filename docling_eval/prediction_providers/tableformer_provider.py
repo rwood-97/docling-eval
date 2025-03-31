@@ -141,6 +141,8 @@ class TableFormerPredictionProvider(BasePredictionProvider):
         data = {
             **record.as_record_dict(),
             "predicted_doc": pred_doc,
+            "predicted_page_images": record.ground_truth_page_images,
+            "predicted_pictures": record.ground_truth_pictures,
             "original_prediction": None,
             "prediction_format": self.prediction_format,
             "predictor_info": self.info(),

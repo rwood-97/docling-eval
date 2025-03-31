@@ -30,7 +30,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality layout \
   --benchmark DPBench \
-  --output-dir ./scratch/DPBench/ 
+  --output-dir ./benchmarks/DPBench/ 
 
 ```
 
@@ -42,7 +42,7 @@ Visualize the report:
 docling_eval visualize \
   --modality layout \
   --benchmark DPBench \
-  --output-dir ./scratch/DPBench/ 
+  --output-dir ./benchmarks/DPBench/ 
 ```
 
 [mAP[0.5:0.95] report](evaluations/DPBench/evaluation_DPBench_layout_mAP_0.5_0.95.txt)
@@ -58,7 +58,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality table_structure \
   --benchmark DPBench \
-  --output-dir ./scratch/DPBench/ 
+  --output-dir ./benchmarks/DPBench/ 
 ```
 
 
@@ -72,7 +72,7 @@ Visualize the report:
 docling_eval visualize \
   --modality table_structure \
   --benchmark DPBench \
-  --output-dir ./scratch/DPBench/ 
+  --output-dir ./benchmarks/DPBench/ 
 ```
 
 ![TEDS plot](evaluations/DPBench/evaluation_DPBench_tableformer-delta_row_col.png)
@@ -94,7 +94,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality reading_order \
   --benchmark DPBench \
-  --output-dir ./scratch/DPBench/ 
+  --output-dir ./benchmarks/DPBench/ 
 ```
 
 [Reading order json](evaluations/DPBench/evaluation_DPBench_reading_order.json)
@@ -105,7 +105,7 @@ Visualize the report:
 docling_eval visualize \
   --modality reading_order \
   --benchmark DPBench \
-  --output-dir ./scratch/DPBench/ 
+  --output-dir ./benchmarks/DPBench/ 
 ```
 
 ![ARD plot](evaluations/DPBench/evaluation_DPBench_reading_order_ARD_norm.png)
@@ -125,7 +125,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality markdown_text \
   --benchmark DPBench \
-  --output-dir ./scratch/DPBench/ 
+  --output-dir ./benchmarks/DPBench/ 
 ```
 
 [Markdown text json](evaluations/DPBench/evaluation_DPBench_markdown_text.json)
@@ -137,7 +137,7 @@ Visualize the report:
 docling_eval visualize \
   --modality markdown_text \
   --benchmark DPBench \
-  --output-dir ./scratch/DPBench/ 
+  --output-dir ./benchmarks/DPBench/ 
 ```
 
 

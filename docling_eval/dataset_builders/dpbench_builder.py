@@ -21,6 +21,7 @@ from PIL.Image import Image
 from tqdm import tqdm
 
 from docling_eval.datamodels.dataset_record import DatasetRecord
+from docling_eval.datamodels.types import BenchMarkColumns
 from docling_eval.dataset_builders.dataset_builder import (
     BaseEvaluationDatasetBuilder,
     HFSource,
@@ -29,6 +30,7 @@ from docling_eval.utils.utils import (
     add_pages_to_true_doc,
     convert_html_table_into_docling_tabledata,
     crop_bounding_box,
+    extract_images,
     from_pil_to_base64uri,
     get_binary,
     get_binhash,
@@ -332,6 +334,13 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
                     page_height=page_height,
                 )
 
+            # Extract images from the ground truth document
+            true_doc, true_pictures, true_page_images = extract_images(
+                document=true_doc,
+                pictures_column=BenchMarkColumns.GROUNDTRUTH_PICTURES.value,
+                page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES.value,
+            )
+
             # Get PDF as binary data
             pdf_bytes = get_binary(pdf_path)
             pdf_stream = DocumentStream(name=pdf_path.name, stream=BytesIO(pdf_bytes))
@@ -341,6 +350,8 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
                 doc_id=str(filename),
                 doc_hash=get_binhash(pdf_bytes),
                 ground_truth_doc=true_doc,
+                ground_truth_pictures=true_pictures,
+                ground_truth_page_images=true_page_images,
                 original=pdf_stream,
                 mime_type="application/pdf",
             )

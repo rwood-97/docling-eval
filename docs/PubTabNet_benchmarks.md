@@ -23,7 +23,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality table_structure \
   --benchmark PubTabNet \
-  --output-dir ./scratch/PubTabNet/ 
+  --output-dir ./benchmarks/PubTabNet/ 
 ```
 
 [Tableformer evaluation json](evaluations/PubTabNet/evaluation_PubTabNet_tableformer.json)
@@ -34,7 +34,7 @@ Visualize the report:
 docling_eval visualize \
   --modality table_structure \
   --benchmark PubTabNet \
-  --output-dir ./scratch/PubTabNet/ 
+  --output-dir ./benchmarks/PubTabNet/ 
 ```
 
 ![TEDS plot](evaluations/PubTabNet/evaluation_PubTabNet_tableformer-delta_row_col.png)

@@ -31,7 +31,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality layout \
   --benchmark DocLayNetV1 \
-  --output-dir ./scratch/DocLayNetV1/ 
+  --output-dir ./benchmarks/DocLayNetV1/ 
 
 ```
 
@@ -43,7 +43,7 @@ Visualize the report:
 docling_eval visualize \
   --modality layout \
   --benchmark DocLayNetV1 \
-  --output-dir ./scratch/DocLayNetV1/ 
+  --output-dir ./benchmarks/DocLayNetV1/ 
 ```
 
 [mAP[0.5:0.95] report](evaluations/DocLayNetV1/evaluation_DocLayNetV1_layout_mAP_0.5_0.95.txt)
@@ -59,7 +59,7 @@ Create the report:
 docling_eval evaluate \
   --modality markdown_text \
   --benchmark DocLayNetV1 \
-  --output-dir ./scratch/DocLayNetV1/ 
+  --output-dir ./benchmarks/DocLayNetV1/ 
 ```
 
 [Markdown text json](evaluations/DocLayNetV1/evaluation_DocLayNetV1_markdown_text.json)
@@ -71,7 +71,7 @@ Visualize the report:
 docling_eval visualize \
   --modality markdown_text \
   --benchmark DocLayNetV1 \
-  --output-dir ./scratch/DocLayNetV1/ 
+  --output-dir ./benchmarks/DocLayNetV1/ 
 ```
 
 [Markdown text report](evaluations/DocLayNetV1/evaluation_DocLayNetV1_markdown_text.txt)

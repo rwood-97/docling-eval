@@ -109,8 +109,7 @@ def test_run_dpbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
-    ## Evaluate Reading order   <o05,69+9
-    0
+    ## Evaluate Reading order
     evaluate(
         modality=EvaluationModality.READING_ORDER,
         benchmark=BenchMarkNames.DPBENCH,
@@ -266,17 +265,19 @@ def test_run_omnidocbench_e2e():
 
 def test_run_dpbench_tables():
     target_path = Path(f"./scratch/{BenchMarkNames.DPBENCH.value}/")
-    tableformer_provider = TableFormerPredictionProvider()
+    tableformer_provider = TableFormerPredictionProvider(
+        do_visualization=True, ignore_missing_predictions=False
+    )
 
     dataset_tables = DPBenchDatasetBuilder(
         target=target_path / "gt_dataset",
-        end_index=5,
+        end_index=250,
     )
 
-    dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_tables.save_to_disk(
-        chunk_size=5
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    # dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
+    # dataset_tables.save_to_disk(
+    #    chunk_size=5
+    # )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
         name=dataset_tables.name,

@@ -357,8 +357,8 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
                 # Extract images from the ground truth document
                 true_doc, true_pictures, true_page_images = extract_images(
                     document=true_doc,
-                    pictures_column=BenchMarkColumns.GROUNDTRUTH_PICTURES,
-                    page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES,
+                    pictures_column=BenchMarkColumns.GROUNDTRUTH_PICTURES.value,
+                    page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES.value,
                 )
 
                 pdf_stream.seek(0)

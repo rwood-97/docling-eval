@@ -153,7 +153,6 @@ class BasePredictionProvider:
                 prediction_record.predicted_pictures,
                 prediction_record.predicted_page_images,
             )
-
             save_comparison_html_with_clusters(
                 filename=target_dataset_dir
                 / "visualizations"

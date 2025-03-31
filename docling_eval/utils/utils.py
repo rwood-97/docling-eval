@@ -348,11 +348,14 @@ def insert_images_from_pil(
         if picture.image is not None:
             if pic_no < len(pictures):
                 picture.image._pil = pictures[pic_no]
+                # picture.image.uri = from_pil_to_base64uri(pictures[pic_no])
+
     # Inject page images
     for page_no, page in document.pages.items():
         if page.image is not None:
             if (page_no - 1) < len(page_images):
                 page.image._pil = page_images[page_no - 1]
+                # page.image.uri = from_pil_to_base64uri(page_images[page_no - 1])
 
     return document
 

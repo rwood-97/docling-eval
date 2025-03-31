@@ -175,10 +175,10 @@ class DatasetRecordWithPrediction(DatasetRecord):
     prediction_format: PredictionFormats  # some enum type
 
     predicted_page_images: List[PIL.Image.Image] = Field(
-        alias="GroundTruthPageImages", default=[]
+        alias="PredictionPageImages", default=[]
     )
     predicted_pictures: List[PIL.Image.Image] = Field(
-        alias="GroundTruthPageImages", default=[]
+        alias="PredictionPictures", default=[]
     )
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)

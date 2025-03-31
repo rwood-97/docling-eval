@@ -23,7 +23,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality table_structure \
   --benchmark FinTabNet \
-  --output-dir ./scratch/FinTabNet/ 
+  --output-dir ./benchmarks/FinTabNet/ 
 ```
 
 [Tableformer evaluation json](evaluations/FinTabNet/evaluation_FinTabNet_tableformer.json)
@@ -34,7 +34,7 @@ Visualize the report:
 docling_eval visualize \
   --modality table_structure \
   --benchmark FinTabNet \
-  --output-dir ./scratch/FinTabNet/ 
+  --output-dir ./benchmarks/FinTabNet/ 
 ```
 
 ![TEDS plot](evaluations/FinTabNet/evaluation_FinTabNet_tableformer-delta_row_col.png)

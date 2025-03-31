@@ -23,7 +23,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality table_structure \
   --benchmark Pub1M \
-  --output-dir ./scratch/Pub1M/ 
+  --output-dir ./benchmarks/Pub1M/ 
 ```
 
 [Tableformer evaluation json](evaluations/Pub1M/evaluation_Pub1M_tableformer.json)
@@ -34,7 +34,7 @@ Visualize the report:
 docling_eval visualize \
   --modality table_structure \
   --benchmark Pub1M \
-  --output-dir ./scratch/Pub1M/ 
+  --output-dir ./benchmarks/Pub1M/ 
 ```
 
 ![TEDS plot](evaluations/Pub1M/evaluation_Pub1M_tableformer-delta_row_col.png)
