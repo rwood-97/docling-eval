@@ -2,26 +2,36 @@
 
 [OmniDocBench on HuggingFace](https://huggingface.co/datasets/opendatalab/OmniDocBench)
 
-Create and evaluate OmniDocBench using a single command:
+Create OmniDocBench evaluation datasets:
 
 ```sh
-poetry run python docs/examples/benchmark_omnidocbench.py
+# Make the ground-truth
+docling_eval create-gt --benchmark OmniDocBench --output-dir ./benchmarks/OmniDocBench/ 
+
+# Make predictions for different modalities.
+docling_eval create-eval \
+  --modality end-to-end \
+  --benchmark OmniDocBench \
+  --output-dir ./benchmarks/OmniDocBench/ \
+  --prediction-provider docling # use full-document predictions from docling
+  
+docling_eval create-eval \
+  --modality table_structure \
+  --benchmark DPBench \
+  --output-dir ./benchmarks/OmniDocBench/ \
+  --prediction-provider tableformer # use tableformer predictions only
 ```
-
-This command downloads runs the evaluations and produces the following files:
-
 
 ## Layout Evaluation
 
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m layout \
-    -b OmniDocBench \
-    -i benchmarks/OmniDocBench-dataset/layout \
-    -o benchmarks/OmniDocBench-dataset/layout
+docling_eval evaluate \
+  --modality layout \
+  --benchmark OmniDocBench \
+  --output-dir ./scratch/OmniDocBench/ 
+
 ```
 
 [Layout evaluation json](evaluations/OmniDocBench/evaluation_OmniDocBench_layout.json)
@@ -29,12 +39,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m layout \
-    -b OmniDocBench \
-    -i benchmarks/OmniDocBench-dataset/layout \
-    -o benchmarks/OmniDocBench-dataset/layout
+docling_eval visualize \
+  --modality layout \
+  --benchmark OmniDocBench \
+  --output-dir ./scratch/OmniDocBench/ 
 ```
 
 [mAP[0.5:0.95] report](evaluations/OmniDocBench/evaluation_OmniDocBench_layout_mAP_0.5_0.95.txt)
@@ -47,12 +55,10 @@ poetry run evaluate \
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m tableformer \
-    -b OmniDocBench \
-    -i benchmarks/OmniDocBench-dataset/tableformer \
-    -o benchmarks/OmniDocBench-dataset/tableformer
+docling_eval evaluate \
+  --modality table_structure \
+  --benchmark OmniDocBench \
+  --output-dir ./scratch/OmniDocBench/ 
 ```
 
 [Tableformer evaluation json](evaluations/OmniDocBench/evaluation_OmniDocBench_tableformer.json)
@@ -61,12 +67,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m tableformer \
-    -b OmniDocBench \
-    -i benchmarks/OmniDocBench-dataset/tableformer \
-    -o benchmarks/OmniDocBench-dataset/tableformer
+docling_eval visualize \
+  --modality table_structure \
+  --benchmark OmniDocBench \
+  --output-dir ./scratch/OmniDocBench/ 
 ```
 
 ![TEDS plot](evaluations/OmniDocBench/evaluation_OmniDocBench_tableformer-delta_row_col.png)
@@ -85,12 +89,10 @@ poetry run evaluate \
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m reading_order \
-    -b OmniDocBench \
-    -i benchmarks/OmniDocBench-dataset/layout \
-    -o benchmarks/OmniDocBench-dataset/layout
+docling_eval evaluate \
+  --modality reading_order \
+  --benchmark OmniDocBench \
+  --output-dir ./scratch/OmniDocBench/ 
 ```
 
 [Reading order json](evaluations/OmniDocBench/evaluation_OmniDocBench_reading_order.json)
@@ -99,12 +101,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m reading_order \
-    -b OmniDocBench \
-    -i benchmarks/OmniDocBench-dataset/layout \
-    -o benchmarks/OmniDocBench-dataset/layout
+docling_eval visualize \
+  --modality reading_order \
+  --benchmark OmniDocBench \
+  --output-dir ./scratch/OmniDocBench/ 
 ```
 
 [ARD report](evaluations/OmniDocBench/evaluation_OmniDocBench_reading_order_ARD_norm.txt)
@@ -121,12 +121,10 @@ poetry run evaluate \
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m markdown_text \
-    -b OmniDocBench \
-    -i benchmarks/OmniDocBench-dataset/layout \
-    -o benchmarks/OmniDocBench-dataset/layout
+docling_eval evaluate \
+  --modality markdown_text \
+  --benchmark OmniDocBench \
+  --output-dir ./scratch/OmniDocBench/ 
 ```
 
 [Markdown text json](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text.json)
@@ -135,12 +133,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m markdown_text \
-    -b OmniDocBench \
-    -i benchmarks/OmniDocBench-dataset/layout \
-    -o benchmarks/OmniDocBench-dataset/layout
+docling_eval visualize \
+  --modality markdown_text \
+  --benchmark OmniDocBench \
+  --output-dir ./scratch/OmniDocBench/ 
 ```
 
 [Markdown text report](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text.txt)

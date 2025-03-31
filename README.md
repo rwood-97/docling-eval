@@ -19,28 +19,23 @@ Evaluate [Docling](https://github.com/DS4SD/docling) on various datasets.
 
 Evaluate docling on various datasets. You can use the cli
 
-```sh
-docling-eval % poetry run evaluate --help
-
- Usage: python -m docling_eval.cli.main [OPTIONS]
-
-╭─ Options ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ *  --task            -t                 [create|evaluate|visualize]                                                                              Evaluation task [default: None] [required]                                                               │
-│ *  --modality        -m                 [end-to-end|layout|table_structure|code_transcription|math_transcription|reading_order|markdown_text|ca  Evaluation modality [default: None] [required]                                                           │
-│                                         ptioning|bboxes_text]                                                                                                                                                                                             │
-│ *  --benchmark       -b                 [DPBench|OmniDocBench|WordScape|PubLayNet|DocLayNetV1|DocLayNetV2|FUNSD|Pub1M|PubTabNet|FinTabNet|WikiT  Benchmark name [default: None] [required]                                                                │
-│                                         abNet]                                                                                                                                                                                                            │
-│ *  --output-dir      -o                 PATH                                                                                                     Output directory [default: None] [required]                                                              │
-│    --input-dir       -i                 PATH                                                                                                     Input directory [default: None]                                                                          │
-│    --converter_type  -c                 [Docling|SmolDocling]                                                                                    Type of document converter [default: Docling]                                                            │
-│    --split           -s                 TEXT                                                                                                     Dataset split [default: test]                                                                            │
-│    --artifacts-path  -a                 PATH                                                                                                     Load artifacts from local path [default: None]                                                           │
-│    --begin_index     -bi                INTEGER                                                                                                  Begin converting from the given sample index (inclusive). Zero based. [default: 0]                       │
-│    --end_index       -ei                INTEGER                                                                                                  End converting to the given sample index (exclusive). Zero based. -1 indicates to take all               │
-│                                                                                                                                                  [default: 1000]                                                                                          │
-│    --debug                --no-debug                                                                                                             Enable debugging [default: no-debug]                                                                     │
-│    --help                                                                                                                                        Show this message and exit.                                                                              │
-╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```shell
+terminal %> poetry run docling_eval --help
+                                                                                                                                                                                                                                                
+ Usage: docling_eval [OPTIONS] COMMAND [ARGS]...                                                                                                                                                                                                
+                                                                                                                                                                                                                                                
+ Docling Evaluation CLI for benchmarking document processing tasks.                                                                                                                                                                             
+                                                                                                                                                                                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --help          Show this message and exit.                                                                                                                                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ create        Create both ground truth and evaluation datasets in one step.                                                                                                                                                                  │
+│ create-eval   Create evaluation dataset from existing ground truth.                                                                                                                                                                          │
+│ create-gt     Create ground truth dataset only.                                                                                                                                                                                              │
+│ evaluate      Evaluate predictions against ground truth.                                                                                                                                                                                     │
+│ visualize     Visualize evaluation results.                                                                                                                                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 
 ```

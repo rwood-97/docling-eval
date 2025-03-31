@@ -2,27 +2,36 @@
 
 [DP-Bench on HuggingFace](https://huggingface.co/datasets/upstage/dp-bench)
 
-Create and evaluate DP-Bench using a single command:
+Create DPBench evaluation datasets:
 
 ```sh
-poetry run python docs/examples/benchmark_dpbench.py
+# Make the ground-truth
+docling_eval create-gt --benchmark DPBench --output-dir ./benchmarks/DPBench/ 
+
+# Make predictions for different modalities.
+docling_eval create-eval \
+  --modality end-to-end \
+  --benchmark DPBench \
+  --output-dir ./benchmarks/DPBench/ \
+  --prediction-provider docling # use full-document predictions from docling
+  
+docling_eval create-eval \
+  --modality table_structure \
+  --benchmark DPBench \
+  --output-dir ./benchmarks/DPBench/ \
+  --prediction-provider tableformer # use tableformer predictions only
 ```
-
-This command downloads the DP-Bench dataset, runs the evaluations and produces the following files
-
-
 
 ## Layout Evaluation
 
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m layout \
-    -b DPBench \
-    -i benchmarks/DPBench-dataset/layout \
-    -o benchmarks/DPBench-dataset/layout
+docling_eval evaluate \
+  --modality layout \
+  --benchmark DPBench \
+  --output-dir ./scratch/DPBench/ 
+
 ```
 
 [Layout evaluation json](evaluations/DPBench/evaluation_DPBench_layout.json)
@@ -30,12 +39,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m layout \
-    -b DPBench \
-    -i benchmarks/DPBench-dataset/layout \
-    -o benchmarks/DPBench-dataset/layout
+docling_eval visualize \
+  --modality layout \
+  --benchmark DPBench \
+  --output-dir ./scratch/DPBench/ 
 ```
 
 [mAP[0.5:0.95] report](evaluations/DPBench/evaluation_DPBench_layout_mAP_0.5_0.95.txt)
@@ -48,25 +55,24 @@ poetry run evaluate \
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m tableformer \
-    -b DPBench \
-    -i benchmarks/DPBench-dataset/tableformer \
-    -o benchmarks/DPBench-dataset/tableformer
+docling_eval evaluate \
+  --modality table_structure \
+  --benchmark DPBench \
+  --output-dir ./scratch/DPBench/ 
 ```
+
 
 Visualize the report:
 
 [Tableformer evaluation json](evaluations/DPBench/evaluation_DPBench_tableformer.json)
 
+Visualize the report:
+
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m tableformer \
-    -b DPBench \
-    -i benchmarks/DPBench-dataset/tableformer \
-    -o benchmarks/DPBench-dataset/tableformer
+docling_eval visualize \
+  --modality table_structure \
+  --benchmark DPBench \
+  --output-dir ./scratch/DPBench/ 
 ```
 
 ![TEDS plot](evaluations/DPBench/evaluation_DPBench_tableformer-delta_row_col.png)
@@ -85,12 +91,10 @@ poetry run evaluate \
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m reading_order \
-    -b DPBench \
-    -i benchmarks/DPBench-dataset/layout \
-    -o benchmarks/DPBench-dataset/layout
+docling_eval evaluate \
+  --modality reading_order \
+  --benchmark DPBench \
+  --output-dir ./scratch/DPBench/ 
 ```
 
 [Reading order json](evaluations/DPBench/evaluation_DPBench_reading_order.json)
@@ -98,12 +102,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visulize \
-    -m reading_order \
-    -b DPBench \
-    -i benchmarks/DPBench-dataset/layout \
-    -o benchmarks/DPBench-dataset/layout
+docling_eval visualize \
+  --modality reading_order \
+  --benchmark DPBench \
+  --output-dir ./scratch/DPBench/ 
 ```
 
 ![ARD plot](evaluations/DPBench/evaluation_DPBench_reading_order_ARD_norm.png)
@@ -120,12 +122,10 @@ poetry run evaluate \
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m markdown_text \
-    -b DPBench \
-    -i benchmarks/DPBench-dataset/layout \
-    -o benchmarks/DPBench-dataset/layout
+docling_eval evaluate \
+  --modality markdown_text \
+  --benchmark DPBench \
+  --output-dir ./scratch/DPBench/ 
 ```
 
 [Markdown text json](evaluations/DPBench/evaluation_DPBench_markdown_text.json)
@@ -134,13 +134,12 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m markdown_text \
-    -b DPBench \
-    -i benchmarks/DPBench-dataset/layout \
-    -o benchmarks/DPBench-dataset/layout
+docling_eval visualize \
+  --modality markdown_text \
+  --benchmark DPBench \
+  --output-dir ./scratch/DPBench/ 
 ```
+
 
 [Markdown text report](evaluations/DPBench/evaluation_DPBench_markdown_text.txt)
 

@@ -1,22 +1,29 @@
-# Pub1M Benchmarks
+# PubTabNet Benchmarks
 
-Create and evaluate PubTabNet dataset using a single command. This command downloads from Huggingface the [PubTabNet_OTSL dataset](https://huggingface.co/datasets/ds4sd/Pubtabnet_OTSL) and runs the evaluations for TableFormer using the first 1000 samples.
+Create PubTabNet evaluation datasets. This downloads from Huggingface the [PubTabNet_OTSL dataset](https://huggingface.co/datasets/ds4sd/Pubtabnet_OTSL) and runs the evaluations for TableFormer using the first 1000 samples.
 
 ```sh
-poetry run python docs/examples/benchmark_pubtabnet.py
+# Make the ground-truth
+docling_eval create-gt --benchmark PubTabNet --output-dir ./benchmarks/PubTabNet/ 
+
+# Make predictions for tables.
+docling_eval create-eval \
+  --modality table_structure \
+  --benchmark DPBench \
+  --output-dir ./benchmarks/PubTabNet/ \
+  --end-index 1000 \
+  --prediction-provider tableformer # use tableformer predictions only
 ```
 
-## Layout Evaluation
+## Tableformer Evaluation
 
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m tableformer \
-    -b PubTabNet \
-    -i legacy/PubTabNet-dataset/tableformer \
-    -o legacy/PubTabNet-dataset/tableformer
+docling_eval evaluate \
+  --modality table_structure \
+  --benchmark PubTabNet \
+  --output-dir ./scratch/PubTabNet/ 
 ```
 
 [Tableformer evaluation json](evaluations/PubTabNet/evaluation_PubTabNet_tableformer.json)
@@ -24,12 +31,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m tableformer \
-    -b PubTabNet \
-    -i legacy/PubTabNet-dataset/tableformer \
-    -o legacy/PubTabNet-dataset/tableformer
+docling_eval visualize \
+  --modality table_structure \
+  --benchmark PubTabNet \
+  --output-dir ./scratch/PubTabNet/ 
 ```
 
 ![TEDS plot](evaluations/PubTabNet/evaluation_PubTabNet_tableformer-delta_row_col.png)

@@ -109,7 +109,8 @@ def test_run_dpbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
-    ## Evaluate Reading order
+    ## Evaluate Reading order   <o05,69+9
+    0
     evaluate(
         modality=EvaluationModality.READING_ORDER,
         benchmark=BenchMarkNames.DPBENCH,
