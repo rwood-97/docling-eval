@@ -12,6 +12,7 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import PdfFormatOption
 from docling.models.factories import get_ocr_factory
 
+from docling_eval.cli.main import evaluate, visualize
 from docling_eval.datamodels.types import (
     BenchMarkNames,
     EvaluationModality,
@@ -30,7 +31,6 @@ from docling_eval.dataset_builders.otsl_table_dataset_builder import (
     PubTabNetDatasetBuilder,
 )
 from docling_eval.dataset_builders.xfund_builder import XFUNDDatasetBuilder
-from docling_eval.legacy.main import evaluate, visualise
 from docling_eval.prediction_providers.docling_provider import DoclingPredictionProvider
 from docling_eval.prediction_providers.file_provider import FilePredictionProvider
 from docling_eval.prediction_providers.tableformer_provider import (
@@ -84,9 +84,7 @@ def test_run_dpbench_e2e():
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_layout.save_to_disk(
-        chunk_size=5
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
@@ -102,7 +100,7 @@ def test_run_dpbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DPBENCH,
         idir=target_path / "eval_dataset",
@@ -117,7 +115,7 @@ def test_run_dpbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.READING_ORDER.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.READING_ORDER,
         benchmark=BenchMarkNames.DPBENCH,
         idir=target_path / "eval_dataset",
@@ -132,7 +130,7 @@ def test_run_dpbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.MARKDOWN_TEXT,
         benchmark=BenchMarkNames.DPBENCH,
         idir=target_path / "eval_dataset",
@@ -156,9 +154,7 @@ def test_run_doclaynet_with_doctags_fileprovider():
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_layout.save_to_disk(
-        chunk_size=80
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     file_provider.create_prediction_dataset(
         name=dataset_layout.name,
@@ -174,7 +170,7 @@ def test_run_doclaynet_with_doctags_fileprovider():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
         idir=target_path / "eval_dataset",
@@ -189,7 +185,7 @@ def test_run_doclaynet_with_doctags_fileprovider():
         odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.MARKDOWN_TEXT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
         idir=target_path / "eval_dataset",
@@ -207,9 +203,7 @@ def test_run_omnidocbench_e2e():
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_layout.save_to_disk(
-        chunk_size=5
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
@@ -225,7 +219,7 @@ def test_run_omnidocbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.OMNIDOCBENCH,
         idir=target_path / "eval_dataset",
@@ -240,7 +234,7 @@ def test_run_omnidocbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.READING_ORDER.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.READING_ORDER,
         benchmark=BenchMarkNames.OMNIDOCBENCH,
         idir=target_path / "eval_dataset",
@@ -255,7 +249,7 @@ def test_run_omnidocbench_e2e():
         odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.MARKDOWN_TEXT,
         benchmark=BenchMarkNames.OMNIDOCBENCH,
         idir=target_path / "eval_dataset",
@@ -265,19 +259,15 @@ def test_run_omnidocbench_e2e():
 
 def test_run_dpbench_tables():
     target_path = Path(f"./scratch/{BenchMarkNames.DPBENCH.value}/")
-    tableformer_provider = TableFormerPredictionProvider(
-        do_visualization=True, ignore_missing_predictions=False
-    )
+    tableformer_provider = TableFormerPredictionProvider()
 
     dataset_tables = DPBenchDatasetBuilder(
         target=target_path / "gt_dataset",
-        end_index=250,
+        end_index=25,
     )
 
-    # dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
-    # dataset_tables.save_to_disk(
-    #    chunk_size=5
-    # )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
+    dataset_tables.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
         name=dataset_tables.name,
@@ -292,7 +282,7 @@ def test_run_dpbench_tables():
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.DPBENCH,
         idir=target_path / "eval_dataset",
@@ -310,10 +300,7 @@ def test_run_omnidocbench_tables():
     )
 
     dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_tables.save_to_disk(
-        chunk_size=5,
-        max_num_chunks=1,
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_tables.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
         name=dataset_tables.name,
@@ -328,7 +315,7 @@ def test_run_omnidocbench_tables():
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.OMNIDOCBENCH,
         idir=target_path / "eval_dataset",
@@ -347,9 +334,7 @@ def test_run_doclaynet_v1_e2e():
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_layout.save_to_disk(
-        chunk_size=5
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
@@ -365,7 +350,7 @@ def test_run_doclaynet_v1_e2e():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
         idir=target_path / "eval_dataset",
@@ -380,7 +365,7 @@ def test_run_doclaynet_v1_e2e():
         odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.MARKDOWN_TEXT,
         benchmark=BenchMarkNames.DOCLAYNETV1,
         idir=target_path / "eval_dataset",
@@ -400,9 +385,7 @@ def test_run_doclaynet_v2_e2e():
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_layout.save_to_disk(
-        chunk_size=5
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
@@ -418,7 +401,7 @@ def test_run_doclaynet_v2_e2e():
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DOCLAYNETV2,
         idir=target_path / "eval_dataset",
@@ -433,7 +416,7 @@ def test_run_doclaynet_v2_e2e():
         odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.MARKDOWN_TEXT,
         benchmark=BenchMarkNames.DOCLAYNETV2,
         idir=target_path / "eval_dataset",
@@ -451,9 +434,7 @@ def test_run_funsd():
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_layout.save_to_disk(
-        chunk_size=5
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
 
 def test_run_xfund():
@@ -466,9 +447,7 @@ def test_run_xfund():
     )
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_layout.save_to_disk(
-        chunk_size=5
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
 
 def test_run_fintabnet_builder():
@@ -481,9 +460,7 @@ def test_run_fintabnet_builder():
     )
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset.save_to_disk(
-        chunk_size=5
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
         name=dataset.name,
@@ -498,7 +475,7 @@ def test_run_fintabnet_builder():
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.FINTABNET,
         idir=target_path / "eval_dataset",
@@ -516,9 +493,7 @@ def test_run_p1m_builder():
     )
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset.save_to_disk(
-        chunk_size=5
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
         name=dataset.name,
@@ -533,7 +508,7 @@ def test_run_p1m_builder():
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.PUB1M,
         idir=target_path / "eval_dataset",
@@ -551,9 +526,7 @@ def test_run_pubtabnet_builder():
     )
 
     dataset.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset.save_to_disk(
-        chunk_size=80
-    )  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    dataset.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
         name=dataset.name,
@@ -571,7 +544,7 @@ def test_run_pubtabnet_builder():
         split="val",
     )
 
-    visualise(
+    visualize(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.PUBTABNET,
         idir=target_path / "eval_dataset",

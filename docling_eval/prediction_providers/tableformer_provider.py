@@ -33,7 +33,11 @@ from docling_eval.datamodels.types import PageToken, PageTokens, PredictionForma
 from docling_eval.prediction_providers.base_prediction_provider import (
     BasePredictionProvider,
 )
-from docling_eval.utils.utils import docling_models_version, get_input_document
+from docling_eval.utils.utils import (
+    docling_models_version,
+    get_input_document,
+    insert_images_from_pil,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -119,6 +123,11 @@ class TableFormerPredictionProvider(BasePredictionProvider):
                     record.ground_truth_doc,
                     record.ground_truth_page_images,
                 )
+                pred_doc = insert_images_from_pil(
+                    pred_doc,
+                    record.ground_truth_pictures,
+                    record.ground_truth_page_images,
+                )
 
             else:
                 raise RuntimeError(
@@ -137,18 +146,9 @@ class TableFormerPredictionProvider(BasePredictionProvider):
                 deep=True
             )  # Use copy of ground truth as fallback
 
-        # Create prediction record
-        data = {
-            **record.as_record_dict(),
-            "predicted_doc": pred_doc,
-            "predicted_page_images": record.ground_truth_page_images,
-            "predicted_pictures": record.ground_truth_pictures,
-            "original_prediction": None,
-            "prediction_format": self.prediction_format,
-            "predictor_info": self.info(),
-            "status": status,
-        }
-        return DatasetRecordWithPrediction.model_validate(data)
+        pred_record = self.create_dataset_record_with_prediction(record, pred_doc, None)
+        pred_record.status = status
+        return pred_record
 
     def info(self) -> Dict:
         """Get information about the prediction provider."""

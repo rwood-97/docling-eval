@@ -217,9 +217,13 @@ class DatasetRecordWithPrediction(DatasetRecord):
                     self.get_field_alias("predicted_doc"): json.dumps(
                         self.predicted_doc.export_to_dict()
                     ),
-                    # self.get_field_alias("original_prediction"): (
-                    #    self.original_prediction
-                    # ),
+                    self.get_field_alias("predicted_pictures"): self.predicted_pictures,
+                    self.get_field_alias(
+                        "predicted_page_images"
+                    ): self.predicted_page_images,
+                    self.get_field_alias("original_prediction"): (
+                        self.original_prediction
+                    ),
                 }
             )
 

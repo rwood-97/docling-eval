@@ -18,8 +18,9 @@ from docling_eval.datamodels.dataset_record import (
     DatasetRecord,
     DatasetRecordWithPrediction,
 )
-from docling_eval.datamodels.types import PredictionFormats
+from docling_eval.datamodels.types import BenchMarkColumns, PredictionFormats
 from docling_eval.utils.utils import (
+    extract_images,
     insert_images_from_pil,
     save_shard_to_disk,
     write_datasets_info,
@@ -193,9 +194,21 @@ class BasePredictionProvider:
         Returns:
             Dataset record with prediction
         """
+        pred_page_images = []
+        pred_pictures = []
+        if predicted_doc is not None:
+            # Extract images from the ground truth document
+            predicted_doc, pred_pictures, pred_page_images = extract_images(
+                document=predicted_doc,
+                pictures_column=BenchMarkColumns.PREDICTION_PICTURES.value,
+                page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES.value,
+            )
+
         data = {
             **record.as_record_dict(),
             "predicted_doc": predicted_doc,
+            "predicted_page_images": pred_page_images,
+            "predicted_pictures": pred_pictures,
             "original_prediction": original_prediction,
             "prediction_format": self.prediction_format,
             "predictor_info": self.info(),
