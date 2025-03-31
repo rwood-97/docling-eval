@@ -12,13 +12,13 @@ docling_eval create-gt --benchmark OmniDocBench --output-dir ./benchmarks/OmniDo
 docling_eval create-eval \
   --modality end-to-end \
   --benchmark OmniDocBench \
-  --output-dir ./benchmarks/OmniDocBench/ \
+  --output-dir ./benchmarks/OmniDocBench-e2e/ \
   --prediction-provider docling # use full-document predictions from docling
   
 docling_eval create-eval \
   --modality table_structure \
   --benchmark DPBench \
-  --output-dir ./benchmarks/OmniDocBench/ \
+  --output-dir ./benchmarks/OmniDocBench-tables/ \
   --prediction-provider tableformer # use tableformer predictions only
 ```
 
@@ -30,7 +30,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality layout \
   --benchmark OmniDocBench \
-  --output-dir ./benchmarks/OmniDocBench/ 
+  --output-dir ./benchmarks/OmniDocBench-e2e/ 
 
 ```
 
@@ -42,7 +42,7 @@ Visualize the report:
 docling_eval visualize \
   --modality layout \
   --benchmark OmniDocBench \
-  --output-dir ./benchmarks/OmniDocBench/ 
+  --output-dir ./benchmarks/OmniDocBench-e2e/ 
 ```
 
 [mAP[0.5:0.95] report](evaluations/OmniDocBench/evaluation_OmniDocBench_layout_mAP_0.5_0.95.txt)
@@ -58,7 +58,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality table_structure \
   --benchmark OmniDocBench \
-  --output-dir ./benchmarks/OmniDocBench/ 
+  --output-dir ./benchmarks/OmniDocBench-tables/ 
 ```
 
 [Tableformer evaluation json](evaluations/OmniDocBench/evaluation_OmniDocBench_tableformer.json)
@@ -70,7 +70,7 @@ Visualize the report:
 docling_eval visualize \
   --modality table_structure \
   --benchmark OmniDocBench \
-  --output-dir ./benchmarks/OmniDocBench/ 
+  --output-dir ./benchmarks/OmniDocBench-tables/ 
 ```
 
 ![TEDS plot](evaluations/OmniDocBench/evaluation_OmniDocBench_tableformer-delta_row_col.png)
@@ -92,7 +92,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality reading_order \
   --benchmark OmniDocBench \
-  --output-dir ./benchmarks/OmniDocBench/ 
+  --output-dir ./benchmarks/OmniDocBench-e2e/ 
 ```
 
 [Reading order json](evaluations/OmniDocBench/evaluation_OmniDocBench_reading_order.json)
@@ -104,7 +104,7 @@ Visualize the report:
 docling_eval visualize \
   --modality reading_order \
   --benchmark OmniDocBench \
-  --output-dir ./benchmarks/OmniDocBench/ 
+  --output-dir ./benchmarks/OmniDocBench-e2e/ 
 ```
 
 [ARD report](evaluations/OmniDocBench/evaluation_OmniDocBench_reading_order_ARD_norm.txt)
@@ -124,7 +124,7 @@ Create the evaluation report:
 docling_eval evaluate \
   --modality markdown_text \
   --benchmark OmniDocBench \
-  --output-dir ./benchmarks/OmniDocBench/ 
+  --output-dir ./benchmarks/OmniDocBench-e2e/ 
 ```
 
 [Markdown text json](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text.json)
@@ -136,7 +136,7 @@ Visualize the report:
 docling_eval visualize \
   --modality markdown_text \
   --benchmark OmniDocBench \
-  --output-dir ./benchmarks/OmniDocBench/ 
+  --output-dir ./benchmarks/OmniDocBench-e2e/ 
 ```
 
 [Markdown text report](evaluations/OmniDocBench/evaluation_OmniDocBench_markdown_text.txt)
