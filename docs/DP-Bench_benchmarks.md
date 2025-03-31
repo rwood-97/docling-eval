@@ -6,18 +6,20 @@ Create DPBench evaluation datasets:
 
 ```sh
 # Make the ground-truth
-docling_eval create-gt --benchmark DPBench --output-dir ./benchmarks/DPBench/ 
+docling_eval create-gt --benchmark DPBench --output-dir ./benchmarks/DPBench-gt/ 
 
 # Make predictions for different modalities.
 docling_eval create-eval \
   --modality end-to-end \
   --benchmark DPBench \
+  --gt-dir ./benchmarks/DPBench-gt/ \
   --output-dir ./benchmarks/DPBench-e2e/ \
   --prediction-provider docling # use full-document predictions from docling
   
 docling_eval create-eval \
   --modality table_structure \
   --benchmark DPBench \
+  --gt-dir ./benchmarks/DPBench-gt/ \
   --output-dir ./benchmarks/DPBench-tables/ \
   --prediction-provider tableformer # use tableformer predictions only
 ```

@@ -629,10 +629,13 @@ def create_gt(
 def create_eval(
     modality: Annotated[EvaluationModality, typer.Option(help="Evaluation modality")],
     benchmark: Annotated[BenchMarkNames, typer.Option(help="Benchmark name")],
-    output_dir: Annotated[Path, typer.Option(help="Output directory")],
+    output_dir: Annotated[Path, typer.Option(help="Output directory.")],
     prediction_provider: Annotated[
         PredictionProviderType, typer.Option(help="Type of prediction provider to use")
     ],
+    gt_dir: Annotated[
+        Optional[Path], typer.Option(help="Input directory for GT")
+    ] = None,
     split: Annotated[str, typer.Option(help="Dataset split")] = "test",
     begin_index: Annotated[int, typer.Option(help="Begin index (inclusive)")] = 0,
     end_index: Annotated[
@@ -653,7 +656,7 @@ def create_eval(
     ] = None,
 ):
     """Create evaluation dataset from existing ground truth."""
-    gt_dir = output_dir / "gt_dataset"
+    gt_dir = gt_dir or output_dir / "gt_dataset"
     pred_dir = output_dir / "eval_dataset"
 
     # Check if ground truth exists
