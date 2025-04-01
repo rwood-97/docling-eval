@@ -20,6 +20,7 @@ from docling_eval.datamodels.types import BenchMarkColumns, PredictionFormats
 from docling_eval.evaluators.base_evaluator import (
     BaseEvaluator,
     DatasetEvaluation,
+    UnitEvaluation,
     docling_document_from_doctags,
 )
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
@@ -37,7 +38,7 @@ class ClassLayoutEvaluation(BaseModel):
     value: float  # mAP[0.5:0.05:0.95]
 
 
-class ImageLayoutEvaluation(BaseModel):
+class ImageLayoutEvaluation(UnitEvaluation):
     r"""
     Image based layout evaluation
     """

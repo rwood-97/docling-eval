@@ -1,7 +1,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Generic, List, Optional, TypeVar
 
 from docling_core.types.doc.document import (
     DoclingDocument,
@@ -16,12 +16,16 @@ from docling_eval.datamodels.types import PredictionFormats
 _log = logging.getLogger(__name__)
 
 
-class PageEvaluation(BaseModel):
+class UnitEvaluation(BaseModel):
     pass
 
 
 class DatasetEvaluation(BaseModel):
     pass
+
+
+UnitEvaluationType = TypeVar("UnitEvaluationType", bound=UnitEvaluation)
+DatasetEvaluationType = TypeVar("DatasetEvaluationType", bound=DatasetEvaluation)
 
 
 def docling_document_from_doctags(
@@ -47,7 +51,7 @@ def docling_document_from_doctags(
     return pred_doc
 
 
-class BaseEvaluator:
+class BaseEvaluator(Generic[UnitEvaluationType, DatasetEvaluationType]):
     r"""
     Base class for all evaluators
     """
@@ -81,7 +85,7 @@ class BaseEvaluator:
         self,
         ds_path: Path,
         split: str = "test",
-    ) -> DatasetEvaluation:
+    ) -> DatasetEvaluationType:
         r"""
         Perform the evaluation
         """
@@ -98,8 +102,7 @@ class BaseEvaluator:
         evaluation_name: str,
         enunumerate_id: int,
         doc_id: str,
-        # evaluations: List[PageEvaluation],
-        evaluations: List,
+        evaluations: List[UnitEvaluationType],
     ) -> Optional[Path]:
         r"""
         Utility method to save intermediate evaluation results

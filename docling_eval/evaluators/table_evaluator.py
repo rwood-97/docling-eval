@@ -17,6 +17,7 @@ from docling_eval.datamodels.types import BenchMarkColumns, PredictionFormats
 from docling_eval.evaluators.base_evaluator import (
     BaseEvaluator,
     DatasetEvaluation,
+    UnitEvaluation,
     docling_document_from_doctags,
 )
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
@@ -25,7 +26,7 @@ from docling_eval.evaluators.teds import TEDScorer
 _log = logging.getLogger(__name__)
 
 
-class TableEvaluation(BaseModel):
+class TableEvaluation(UnitEvaluation):
     filename: str = "<unknown>"
     table_id: int = -1
     TEDS: float
@@ -39,7 +40,7 @@ class TableEvaluation(BaseModel):
 
 
 class DatasetTableEvaluation(DatasetEvaluation):
-    evaluations: list[TableEvaluation]
+    evaluations: List[TableEvaluation]
 
     TEDS: DatasetStatistics
     TEDS_struct: DatasetStatistics
@@ -230,7 +231,7 @@ class TableEvaluator(BaseEvaluator):
         true_doc: DoclingDocument,
         pred_doc: DoclingDocument,
         structure_only: bool = False,
-    ) -> list[TableEvaluation]:
+    ) -> List[TableEvaluation]:
         r""" """
         table_evaluations = []
         true_tables = true_doc.tables
