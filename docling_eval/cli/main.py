@@ -1,15 +1,23 @@
 import json
 import logging
 import os
+import sys
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Optional, Tuple
+from typing import Annotated, Dict, Optional, Tuple
 
 import typer
 from docling.datamodel.base_models import InputFormat
-from docling.datamodel.pipeline_options import PdfPipelineOptions
-from docling.document_converter import PdfFormatOption
+from docling.datamodel.pipeline_options import (
+    PaginatedPipelineOptions,
+    PdfPipelineOptions,
+    VlmPipelineOptions,
+    smoldocling_vlm_conversion_options,
+    smoldocling_vlm_mlx_conversion_options,
+)
+from docling.document_converter import FormatOption, PdfFormatOption
 from docling.models.factories import get_ocr_factory
+from docling.pipeline.vlm_pipeline import VlmPipeline
 from tabulate import tabulate  # type: ignore
 
 from docling_eval.datamodels.types import (
@@ -74,6 +82,7 @@ class PredictionProviderType(str, Enum):
     DOCLING = "docling"
     TABLEFORMER = "tableformer"
     FILE = "file"
+    SMOLDOCLING = "smoldocling"
 
 
 def log_and_save_stats(
@@ -184,6 +193,7 @@ def get_prediction_provider(
     file_source_path: Optional[Path] = None,
     file_prediction_format: Optional[PredictionFormats] = None,
 ):
+    pipeline_options: PaginatedPipelineOptions
     """Get the appropriate prediction provider with default settings."""
     if provider_type == PredictionProviderType.DOCLING:
         ocr_factory = get_ocr_factory()
@@ -207,6 +217,36 @@ def get_prediction_provider(
                 InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
                 InputFormat.IMAGE: PdfFormatOption(pipeline_options=pipeline_options),
             },
+            do_visualization=True,
+            ignore_missing_predictions=True,
+        )
+
+    elif provider_type == PredictionProviderType.SMOLDOCLING:
+        pipeline_options = VlmPipelineOptions()
+
+        pipeline_options.vlm_options = smoldocling_vlm_conversion_options
+        if sys.platform == "darwin":
+            try:
+                import mlx_vlm  # type: ignore
+
+                pipeline_options.vlm_options = smoldocling_vlm_mlx_conversion_options
+            except ImportError:
+                _log.warning(
+                    "To run SmolDocling faster, please install mlx-vlm:\n"
+                    "pip install mlx-vlm"
+                )
+
+        pdf_format_option = PdfFormatOption(
+            pipeline_cls=VlmPipeline, pipeline_options=pipeline_options
+        )
+
+        format_options: Dict[InputFormat, FormatOption] = {
+            InputFormat.PDF: pdf_format_option,
+            InputFormat.IMAGE: pdf_format_option,
+        }
+
+        return DoclingPredictionProvider(
+            format_options=format_options,
             do_visualization=True,
             ignore_missing_predictions=True,
         )
