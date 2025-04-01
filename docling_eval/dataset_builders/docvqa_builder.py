@@ -79,6 +79,7 @@ class DocVQADatasetBuilder(BaseEvaluationDatasetBuilder):
 
         doc = DoclingDocument(name=f"{doc_id}")
         image: PIL.Image.Image = qa_items[0]["image"]
+        image = image.convert("RGB")
         image_ref = ImageRef(
             mimetype="image/png",
             dpi=72,
