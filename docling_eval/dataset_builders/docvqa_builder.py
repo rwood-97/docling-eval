@@ -42,9 +42,9 @@ _log = logging.getLogger(__name__)
 
 class DocVQADatasetBuilder(BaseEvaluationDatasetBuilder):
     """
-    DocLayNet V1 dataset builder implementing the base dataset builder interface.
+    DocVQA dataset builder implementing the base dataset builder interface.
 
-    This builder processes the DocLayNet V1.2 dataset, which contains document
+    This builder processes the DocVQA dataset, which contains document
     layout annotations for a variety of document types.
     """
 
@@ -139,7 +139,7 @@ class DocVQADatasetBuilder(BaseEvaluationDatasetBuilder):
         if self.dataset_local_path is not None:
             path = str(self.dataset_local_path)
         # Load dataset from the retrieved path
-        ds = load_dataset(path, split=f"{self.split}[1:50]", name="DocVQA")
+        ds = load_dataset(path, split=self.split, name="DocVQA")
 
         # Apply HuggingFace's select method for index ranges
         total_ds_len = len(ds)
