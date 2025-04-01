@@ -546,6 +546,6 @@ def sort_cell_ids(doc: DoclingDocument) -> None:
         mapping[item.cell_id] = i
     for i, item in enumerate(doc.key_value_items[0].graph.cells):
         item.cell_id = mapping[item.cell_id]
-    for i, item in enumerate(doc.key_value_items[0].graph.links):
-        item.source_cell_id = mapping[item.source_cell_id]
-        item.target_cell_id = mapping[item.target_cell_id]
+    for i, link in enumerate(doc.key_value_items[0].graph.links):
+        link.source_cell_id = mapping[link.source_cell_id]
+        link.target_cell_id = mapping[link.target_cell_id]

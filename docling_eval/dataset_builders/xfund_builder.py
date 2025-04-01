@@ -13,8 +13,6 @@ from docling_core.types.doc.document import GraphCell, GraphData, GraphLink
 from docling_core.types.doc.labels import GraphCellLabel, GraphLinkLabel
 from PIL import Image
 from tqdm import tqdm
-from docling_eval.utils.utils import sort_cell_ids
-
 
 from docling_eval.datamodels.dataset_record import DatasetRecord
 from docling_eval.datamodels.types import BenchMarkColumns, EvaluationModality
@@ -24,6 +22,7 @@ from docling_eval.utils.utils import (
     extract_images,
     from_pil_to_base64uri,
     get_binhash,
+    sort_cell_ids,
 )
 
 # Get logger
