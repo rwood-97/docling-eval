@@ -13,13 +13,22 @@ from nltk.translate.bleu_score import corpus_bleu
 from pydantic import BaseModel
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.datamodels.types import BenchMarkColumns  # type: ignore
+from docling_eval.datamodels.dataset_record import DatasetRecordWithPrediction
+from docling_eval.datamodels.types import (  # type: ignore
+    BenchMarkColumns,
+    PredictionFormats,
+)
+from docling_eval.evaluators.base_evaluator import (
+    BaseEvaluator,
+    DatasetEvaluation,
+    UnitEvaluation,
+)
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
 
 _log = logging.getLogger(__name__)
 
 
-class BoxesTextEvaluation(BaseModel):
+class BoxesTextEvaluation(UnitEvaluation):
     r"""Evaluation for matched bboxes of the same page"""
 
     doc_id: str
@@ -38,7 +47,7 @@ class BoxesTextEvaluation(BaseModel):
     meteor: float
 
 
-class DatasetBoxesTextEvaluation(BaseModel):
+class DatasetBoxesTextEvaluation(DatasetEvaluation):
     evaluations: List[BoxesTextEvaluation]
     bleu_stats: DatasetStatistics
     f1_score_stats: DatasetStatistics
@@ -48,7 +57,7 @@ class DatasetBoxesTextEvaluation(BaseModel):
     meteor_stats: DatasetStatistics
 
 
-class BboxTextEvaluator:
+class BboxTextEvaluator(BaseEvaluator):
     r"""
     1. Starting from a true DoclingDocument and a pred DoclingDocument.
     2. Take as a pivot the document with less bboxes.
@@ -63,7 +72,23 @@ class BboxTextEvaluator:
     7. Compute text metrics (BLEU, f1, recall, precision, meteor, edit_dist) for the pivot/other tokens.
     """
 
-    def __init_(self):
+    def __init_(
+        self,
+        intermediate_evaluations_path: Optional[Path] = None,
+        prediction_sources: List[PredictionFormats] = [],
+    ):
+        r""" """
+        supported_prediction_formats: List[PredictionFormats] = [
+            PredictionFormats.DOCLING_DOCUMENT,
+        ]
+        if not prediction_sources:
+            prediction_sources = supported_prediction_formats
+        super().__init__(
+            intermediate_evaluations_path=intermediate_evaluations_path,
+            prediction_sources=prediction_sources,
+            supported_prediction_formats=supported_prediction_formats,
+        )
+
         # Download the NLTK data
         nltk.download("popular", quiet=True)
 
@@ -93,15 +118,13 @@ class BboxTextEvaluator:
             ncols=120,
             total=len(ds_selection),
         ):
-            doc_id: str = data[BenchMarkColumns.DOC_ID]
-            true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
-            true_doc: DoclingDocument = DoclingDocument.model_validate_json(
-                true_doc_dict
-            )
-            pred_doc_dict = data[BenchMarkColumns.PREDICTION]
-            pred_doc: DoclingDocument = DoclingDocument.model_validate_json(
-                pred_doc_dict
-            )
+            data_record = DatasetRecordWithPrediction.model_validate(data)
+            doc_id = data_record.doc_id
+            true_doc = data_record.ground_truth_doc
+            pred_doc = data_record.predicted_doc
+            if pred_doc is None:
+                _log.error("There is no prediction for doc_id=%s", doc_id)
+                continue
 
             # Match the bboxes/text from the true/pred documents
             matches = self._match_bboxes(true_doc, pred_doc)
