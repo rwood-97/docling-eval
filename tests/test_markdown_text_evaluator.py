@@ -7,12 +7,12 @@ from docling_eval.evaluators.markdown_text_evaluator import MarkdownTextEvaluato
 
 
 @pytest.mark.dependency(
-    depends=["tests/test_dataset_builder.py::test_run_doclaynet_v1_e2e"],
+    depends=["tests/test_dataset_builder.py::test_run_dpbench_e2e"],
     scope="session",
 )
 def test_markdown_text_evaluator():
     r""" """
-    test_dataset_dir = Path("scratch/DocLayNetV1/eval_dataset")
+    test_dataset_dir = Path("scratch/DPBench/eval_dataset_e2e")
 
     # Default evaluator
     eval1 = MarkdownTextEvaluator()

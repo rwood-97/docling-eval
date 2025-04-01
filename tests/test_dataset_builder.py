@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -38,6 +39,8 @@ from docling_eval.prediction_providers.tableformer_provider import (
 )
 
 ocr_factory = get_ocr_factory()
+
+IS_CI = os.getenv("RUN_IN_CI") == "1"
 
 
 def create_docling_prediction_provider(
@@ -89,21 +92,21 @@ def test_run_dpbench_e2e():
     docling_provider.create_prediction_dataset(
         name=dataset_layout.name,
         gt_dataset_dir=target_path / "gt_dataset",
-        target_dataset_dir=target_path / "eval_dataset",
+        target_dataset_dir=target_path / "eval_dataset_e2e",
     )
 
     ## Evaluate Layout
     evaluate(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "eval_dataset",
+        idir=target_path / "eval_dataset_e2e",
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
     visualize(
         modality=EvaluationModality.LAYOUT,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "eval_dataset",
+        idir=target_path / "eval_dataset_e2e",
         odir=target_path / "evaluations" / EvaluationModality.LAYOUT.value,
     )
 
@@ -111,14 +114,14 @@ def test_run_dpbench_e2e():
     evaluate(
         modality=EvaluationModality.READING_ORDER,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "eval_dataset",
+        idir=target_path / "eval_dataset_e2e",
         odir=target_path / "evaluations" / EvaluationModality.READING_ORDER.value,
     )
 
     visualize(
         modality=EvaluationModality.READING_ORDER,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "eval_dataset",
+        idir=target_path / "eval_dataset_e2e",
         odir=target_path / "evaluations" / EvaluationModality.READING_ORDER.value,
     )
 
@@ -126,18 +129,21 @@ def test_run_dpbench_e2e():
     evaluate(
         modality=EvaluationModality.MARKDOWN_TEXT,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "eval_dataset",
+        idir=target_path / "eval_dataset_e2e",
         odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
     visualize(
         modality=EvaluationModality.MARKDOWN_TEXT,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "eval_dataset",
+        idir=target_path / "eval_dataset_e2e",
         odir=target_path / "evaluations" / EvaluationModality.MARKDOWN_TEXT.value,
     )
 
 
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
 def test_run_doclaynet_with_doctags_fileprovider():
     target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}-SmolDocling/")
     file_provider = FilePredictionProvider(
@@ -193,6 +199,9 @@ def test_run_doclaynet_with_doctags_fileprovider():
     )
 
 
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
 def test_run_omnidocbench_e2e():
     target_path = Path(f"./scratch/{BenchMarkNames.OMNIDOCBENCH.value}/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
@@ -272,24 +281,27 @@ def test_run_dpbench_tables():
     tableformer_provider.create_prediction_dataset(
         name=dataset_tables.name,
         gt_dataset_dir=target_path / "gt_dataset",
-        target_dataset_dir=target_path / "eval_dataset",
+        target_dataset_dir=target_path / "eval_dataset_tables",
     )
 
     evaluate(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "eval_dataset",
+        idir=target_path / "eval_dataset_tables",
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
     visualize(
         modality=EvaluationModality.TABLE_STRUCTURE,
         benchmark=BenchMarkNames.DPBENCH,
-        idir=target_path / "eval_dataset",
+        idir=target_path / "eval_dataset_tables",
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
     )
 
 
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
 def test_run_omnidocbench_tables():
     target_path = Path(f"./scratch/{BenchMarkNames.OMNIDOCBENCH.value}/")
     tableformer_provider = TableFormerPredictionProvider()
@@ -323,6 +335,9 @@ def test_run_omnidocbench_tables():
     )
 
 
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
 @pytest.mark.dependency()
 def test_run_doclaynet_v1_e2e():
     target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}/")
@@ -425,6 +440,9 @@ def test_run_doclaynet_v2_e2e():
     )
 
 
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
 def test_run_funsd():
     target_path = Path(f"./scratch/{BenchMarkNames.FUNSD.value}/")
 
@@ -438,6 +456,9 @@ def test_run_funsd():
     dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
 
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
 def test_run_xfund():
     target_path = Path(f"./scratch/{BenchMarkNames.XFUND.value}/")
 
@@ -451,6 +472,9 @@ def test_run_xfund():
     dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
 
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
 @pytest.mark.dependency()
 def test_run_fintabnet_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}/")
@@ -485,6 +509,9 @@ def test_run_fintabnet_builder():
     )
 
 
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
 def test_run_p1m_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.PUB1M.value}/")
     tableformer_provider = TableFormerPredictionProvider(do_visualization=True)
@@ -518,6 +545,9 @@ def test_run_p1m_builder():
     )
 
 
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
 def test_run_pubtabnet_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.PUBTABNET.value}/")
     tableformer_provider = TableFormerPredictionProvider(do_visualization=True)

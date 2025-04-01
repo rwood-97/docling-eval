@@ -292,12 +292,12 @@ def test_evaluate_tables():
 
 
 @pytest.mark.dependency(
-    depends=["tests/test_dataset_builder.py::test_run_fintabnet_builder"],
+    depends=["tests/test_dataset_builder.py::test_run_dpbench_tables"],
     scope="session",
 )
 def test_table_evaluator():
     r""" """
-    test_dataset_dir = Path("scratch/FinTabNet/eval_dataset")
+    test_dataset_dir = Path("scratch/DPBench/eval_dataset_tables")
 
     # Default evaluator
     eval1 = TableEvaluator()
