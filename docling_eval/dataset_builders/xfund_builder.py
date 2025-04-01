@@ -13,6 +13,8 @@ from docling_core.types.doc.document import GraphCell, GraphData, GraphLink
 from docling_core.types.doc.labels import GraphCellLabel, GraphLinkLabel
 from PIL import Image
 from tqdm import tqdm
+from docling_eval.utils.utils import sort_cell_ids
+
 
 from docling_eval.datamodels.dataset_record import DatasetRecord
 from docling_eval.datamodels.types import BenchMarkColumns, EvaluationModality
@@ -285,6 +287,8 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
         classify_cells(graph=graph)
 
         doc.add_key_values(graph=graph, prov=prov)
+
+        sort_cell_ids(doc)
 
         return doc
 
