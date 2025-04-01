@@ -4,7 +4,7 @@ import io
 import json
 import logging
 from collections import defaultdict
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -549,3 +549,10 @@ def sort_cell_ids(doc: DoclingDocument) -> None:
     for i, link in enumerate(doc.key_value_items[0].graph.links):
         link.source_cell_id = mapping[link.source_cell_id]
         link.target_cell_id = mapping[link.target_cell_id]
+
+
+def get_package_version(package_name):
+    try:
+        return version(package_name)
+    except PackageNotFoundError:
+        return None
