@@ -45,6 +45,7 @@ class EvaluationModality(str, Enum):
     CAPTIONING = "captioning"  # to compute the accuracy of captions to table/figure
     BBOXES_TEXT = "bboxes_text"
     KEY_VALUE = "key_value"
+    QUESTION_ANSWERING = "question_answering"
 
 
 class BenchMarkNames(str, Enum):
@@ -66,6 +67,8 @@ class BenchMarkNames(str, Enum):
     PUBTABNET = "PubTabNet"
     FINTABNET = "FinTabNet"
     WIKITABNET = "WikiTabNet"
+
+    DOCVQA = "DocVQA"
 
     # Formula
     # ???
