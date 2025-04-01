@@ -224,6 +224,10 @@ def get_prediction_provider(
     elif provider_type == PredictionProviderType.SMOLDOCLING:
         pipeline_options = VlmPipelineOptions()
 
+        pipeline_options.images_scale = 2.0
+        pipeline_options.generate_page_images = True
+        pipeline_options.generate_picture_images = True
+
         pipeline_options.vlm_options = smoldocling_vlm_conversion_options
         if sys.platform == "darwin":
             try:
@@ -274,67 +278,6 @@ def get_prediction_provider(
 
     else:
         raise ValueError(f"Unsupported prediction provider: {provider_type}")
-
-
-def create_datasets(
-    modality: EvaluationModality,
-    benchmark: BenchMarkNames,
-    output_dir: Path,
-    dataset_source: Optional[Path] = None,
-    split: str = "test",
-    begin_index: int = 0,
-    end_index: int = -1,
-    prediction_provider: Optional[PredictionProviderType] = None,
-    file_prediction_format: Optional[PredictionFormats] = None,
-    file_source_path: Optional[Path] = None,
-    debug: bool = False,
-):
-    """Create datasets using dataset builders and prediction providers."""
-    # Set up ground truth directory - matching test_dataset_builder.py layout
-    gt_dir = output_dir / "gt_dataset"
-
-    # Create dataset builder
-    try:
-        dataset_builder = get_dataset_builder(
-            benchmark=benchmark,
-            target=gt_dir,
-            split=split,
-            begin_index=begin_index,
-            end_index=end_index,
-            dataset_source=dataset_source,
-        )
-    except ValueError as e:
-        _log.error(f"Error creating dataset builder: {str(e)}")
-        return
-
-    # Retrieve and save the dataset
-    dataset_builder.retrieve_input_dataset()
-    dataset_builder.save_to_disk(chunk_size=80)
-
-    # If prediction provider is specified, create predictions
-    if prediction_provider:
-        # Set up eval dataset directory - matching test_dataset_builder.py layout
-        pred_dir = output_dir / "eval_dataset"
-
-        try:
-            # Create the appropriate prediction provider
-            provider = get_prediction_provider(
-                provider_type=prediction_provider,
-                file_source_path=file_source_path,
-                file_prediction_format=file_prediction_format,
-            )
-
-            # Create predictions
-            provider.create_prediction_dataset(
-                name=dataset_builder.name,
-                gt_dataset_dir=gt_dir,
-                target_dataset_dir=pred_dir,
-                split=split,
-                begin_index=begin_index,
-                end_index=end_index,
-            )
-        except ValueError as e:
-            _log.error(f"Error creating prediction provider: {str(e)}")
 
 
 def evaluate(

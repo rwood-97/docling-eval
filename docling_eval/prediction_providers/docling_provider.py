@@ -4,6 +4,7 @@ from typing import Dict, Optional, Set
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import DocumentConverter, FormatOption
 from docling_core.types.doc import DocItemLabel
+from pydantic import TypeAdapter
 
 from docling_eval.datamodels.dataset_record import (
     DatasetRecord,
@@ -88,4 +89,10 @@ class DoclingPredictionProvider(BasePredictionProvider):
 
     def info(self) -> Dict:
         """Get information about the prediction provider."""
-        return {"asset": "Docling", "version": docling_version()}
+        format_map_t = TypeAdapter(Dict[InputFormat, FormatOption])
+
+        return {
+            "asset": "Docling",
+            "version": docling_version(),
+            "options": format_map_t.dump_python(self.doc_converter.format_to_options),
+        }

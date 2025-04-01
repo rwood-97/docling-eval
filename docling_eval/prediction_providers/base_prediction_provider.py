@@ -65,6 +65,7 @@ PRED_HTML_EXPORT_LABELS: Set[DocItemLabel] = {
     DocItemLabel.LIST_ITEM,
     DocItemLabel.CODE,
     DocItemLabel.REFERENCE,
+    DocItemLabel.CAPTION,
     DocItemLabel.PAGE_HEADER,
     DocItemLabel.PAGE_FOOTER,
     DocItemLabel.FOOTNOTE,
