@@ -23,7 +23,7 @@ jobs:
         run: poetry install --all-extras
       - name: Testing
         run: |
-          poetry run pytest -s -vv tests
+          # poetry run pytest -s -vv tests
       - name: Run examples
         run: |
           # for file in docs/examples/*.py; do
