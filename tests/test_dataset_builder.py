@@ -75,7 +75,6 @@ def create_docling_prediction_provider(
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
         },
         do_visualization=True,
-        ignore_missing_predictions=False,
     )
 
 
