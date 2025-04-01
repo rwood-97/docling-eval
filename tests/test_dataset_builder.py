@@ -77,6 +77,7 @@ def create_docling_prediction_provider(
     )
 
 
+@pytest.mark.dependency()
 def test_run_dpbench_e2e():
     target_path = Path(f"./scratch/{BenchMarkNames.DPBENCH.value}/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
@@ -266,6 +267,7 @@ def test_run_omnidocbench_e2e():
     )
 
 
+@pytest.mark.dependency()
 def test_run_dpbench_tables():
     target_path = Path(f"./scratch/{BenchMarkNames.DPBENCH.value}/")
     tableformer_provider = TableFormerPredictionProvider()
@@ -338,7 +340,6 @@ def test_run_omnidocbench_tables():
 @pytest.mark.skipif(
     IS_CI, reason="Skipping test in CI because the dataset is too heavy."
 )
-@pytest.mark.dependency()
 def test_run_doclaynet_v1_e2e():
     target_path = Path(f"./scratch/{BenchMarkNames.DOCLAYNETV1.value}/")
     docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
@@ -475,7 +476,6 @@ def test_run_xfund():
 @pytest.mark.skipif(
     IS_CI, reason="Skipping test in CI because the dataset is too heavy."
 )
-@pytest.mark.dependency()
 def test_run_fintabnet_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}/")
     tableformer_provider = TableFormerPredictionProvider(do_visualization=True)
