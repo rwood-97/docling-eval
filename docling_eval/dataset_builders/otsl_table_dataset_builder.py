@@ -128,14 +128,19 @@ class TableDatasetBuilder(BaseEvaluationDatasetBuilder):
         Yields:
             DatasetRecord objects
         """
-        if not self.retrieved:
+        if not self.retrieved and self.must_retrieve:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )
 
         assert isinstance(self.dataset_source, HFSource)
         # Load dataset from the retrieved path
-        ds = load_dataset(self.dataset_source.repo_id, split=self.split)
+
+        path = self.dataset_source.repo_id
+        if self.dataset_local_path:
+            path = str(self.dataset_local_path)
+
+        ds = load_dataset(path, split=self.split)
 
         # Apply index range
         total_items = len(ds)

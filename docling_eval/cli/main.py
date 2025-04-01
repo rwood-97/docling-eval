@@ -617,7 +617,8 @@ def create_gt(
         )
 
         # Retrieve and save the dataset
-        dataset_builder.retrieve_input_dataset()
+        if dataset_builder.must_retrieve:
+            dataset_builder.retrieve_input_dataset()
         dataset_builder.save_to_disk(chunk_size=80)
 
         _log.info(f"Ground truth dataset created at {gt_dir}")

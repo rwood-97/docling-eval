@@ -72,6 +72,8 @@ class XFUNDDatasetBuilder(BaseEvaluationDatasetBuilder):
             "pt",
         ]  # Fixed supported languages
 
+        self.must_retrieve = True
+
     def retrieve_input_dataset(self) -> Path:
         """
         Download and extract the XFUND dataset if needed.

@@ -115,6 +115,8 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
             end_index=end_index,
         )
 
+        self.must_retrieve = True
+
     def _update_gt_doc(
         self,
         doc: DoclingDocument,
@@ -276,7 +278,7 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
         Yields:
             DatasetRecord objects
         """
-        if not self.retrieved:
+        if not self.retrieved and self.must_retrieve:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )

@@ -40,6 +40,7 @@ class BaseEvaluationDatasetBuilder:
         name: str,
         dataset_source: Union[HFSource, S3Source, Path],
         target: Path,
+        dataset_local_path: Optional[Path] = None,
         split: str = "test",
         begin_index: int = 0,
         end_index: int = -1,
@@ -58,11 +59,13 @@ class BaseEvaluationDatasetBuilder:
         self.name = name
         self.target: Path = target
         self.dataset_source = dataset_source
-        self.dataset_local_path: Optional[Path] = None
+        self.dataset_local_path = dataset_local_path
         self.split = split
         self.begin_index = begin_index
         self.end_index = end_index
         self.retrieved = False
+
+        self.must_retrieve = False
 
     def retrieve_input_dataset(self) -> Path:
         """
@@ -161,7 +164,7 @@ class BaseEvaluationDatasetBuilder:
             chunk_size: Number of records per chunk
             max_num_chunks: Maximum number of chunks to save
         """
-        if not self.retrieved:
+        if not self.retrieved and self.must_retrieve:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )

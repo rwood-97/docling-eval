@@ -115,6 +115,8 @@ class OmniDocBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
             end_index=end_index,
         )
 
+        self.must_retrieve = True
+
     def update_gt_into_map(self, gt: List[Dict]) -> Dict[str, Dict]:
         """
         Convert list of annotation items to a map keyed by image path.
@@ -326,7 +328,7 @@ class OmniDocBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
         Yields:
             DatasetRecord objects
         """
-        if not self.retrieved:
+        if not self.retrieved and self.must_retrieve:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )

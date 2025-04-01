@@ -153,7 +153,7 @@ def test_run_doclaynet_with_doctags_fileprovider():
         end_index=5,
     )
 
-    dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
+    # dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     file_provider.create_prediction_dataset(
@@ -334,7 +334,7 @@ def test_run_doclaynet_v1_e2e():
         end_index=5,
     )
 
-    dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
+    # dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     docling_provider.create_prediction_dataset(
@@ -461,7 +461,7 @@ def test_run_fintabnet_builder():
         end_index=5,
     )
 
-    dataset.retrieve_input_dataset()  # fetches the source dataset from HF
+    # dataset.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
@@ -494,7 +494,7 @@ def test_run_p1m_builder():
         end_index=5,
     )
 
-    dataset.retrieve_input_dataset()  # fetches the source dataset from HF
+    # dataset.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(
@@ -527,7 +527,7 @@ def test_run_pubtabnet_builder():
         end_index=25,
     )
 
-    dataset.retrieve_input_dataset()  # fetches the source dataset from HF
+    # dataset.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
 
     tableformer_provider.create_prediction_dataset(

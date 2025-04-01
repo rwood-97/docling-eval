@@ -76,6 +76,8 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
             end_index=end_index,
         )
 
+        self.must_retrieve = True
+
     def extract_tokens_and_text(self, s: str) -> Tuple[List[str], List[str]]:
         """
         Extract tokens and text from a string.
@@ -578,7 +580,7 @@ class DocLayNetV2DatasetBuilder(BaseEvaluationDatasetBuilder):
         Yields:
             DatasetRecord objects
         """
-        if not self.retrieved:
+        if not self.retrieved and self.must_retrieve:
             raise RuntimeError(
                 "You must first retrieve the source dataset. Call retrieve_input_dataset()."
             )

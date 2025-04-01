@@ -283,15 +283,12 @@ class DocLayNetV1DatasetBuilder(BaseEvaluationDatasetBuilder):
         Yields:
             DatasetRecord objects
         """
-        if not self.retrieved:
-            raise RuntimeError(
-                "You must first retrieve the source dataset. Call retrieve_input_dataset()."
-            )
 
-        assert self.dataset_local_path is not None
-
+        path = "ds4sd/DocLayNet-v1.2"
+        if self.dataset_local_path is not None:
+            path = str(self.dataset_local_path)
         # Load dataset from the retrieved path
-        ds = load_dataset("ds4sd/DocLayNet-v1.2", split=self.split)
+        ds = load_dataset(path, split=self.split)
 
         # Apply HuggingFace's select method for index ranges
         total_ds_len = len(ds)

@@ -62,6 +62,8 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
             end_index=end_index,
         )
 
+        self.must_retrieve = True
+
     def retrieve_input_dataset(self) -> Path:
         """
         Download and extract the FUNSD dataset if needed.
@@ -113,6 +115,8 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
                 shutil.move(str(test_adj), str(test_ann))
 
             _log.info(f"FUNSD dataset downloaded to {dataset_path}")
+
+            shutil.rmtree(extracted_path)
 
         self.retrieved = True
         return dataset_path
