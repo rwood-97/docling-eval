@@ -21,6 +21,7 @@ from docling_eval.datamodels.types import (
 )
 from docling_eval.dataset_builders.doclaynet_v1_builder import DocLayNetV1DatasetBuilder
 from docling_eval.dataset_builders.doclaynet_v2_builder import DocLayNetV2DatasetBuilder
+from docling_eval.dataset_builders.docvqa_builder import DocVQADatasetBuilder
 from docling_eval.dataset_builders.dpbench_builder import DPBenchDatasetBuilder
 from docling_eval.dataset_builders.funsd_builder import FUNSDDatasetBuilder
 from docling_eval.dataset_builders.omnidocbench_builder import (
@@ -74,6 +75,7 @@ def create_docling_prediction_provider(
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
         },
         do_visualization=True,
+        ignore_missing_predictions=False,
     )
 
 
@@ -578,4 +580,25 @@ def test_run_pubtabnet_builder():
         idir=target_path / "eval_dataset",
         odir=target_path / "evaluations" / EvaluationModality.TABLE_STRUCTURE.value,
         split="val",
+    )
+
+
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
+def test_run_docvqa_builder():
+    target_path = Path(f"./scratch/{BenchMarkNames.DOCVQA.value}/")
+
+    dataset_layout = DocVQADatasetBuilder(
+        target=target_path / "gt_dataset",
+        end_index=25,
+    )
+
+    dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    docling_provider = create_docling_prediction_provider(page_image_scale=2.0)
+
+    docling_provider.create_prediction_dataset(
+        name=dataset_layout.name,
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset_e2e",
     )
