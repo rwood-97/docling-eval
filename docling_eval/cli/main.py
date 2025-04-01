@@ -19,6 +19,7 @@ from docling_eval.datamodels.types import (
 )
 from docling_eval.dataset_builders.doclaynet_v1_builder import DocLayNetV1DatasetBuilder
 from docling_eval.dataset_builders.doclaynet_v2_builder import DocLayNetV2DatasetBuilder
+from docling_eval.dataset_builders.docvqa_builder import DocVQADatasetBuilder
 from docling_eval.dataset_builders.dpbench_builder import DPBenchDatasetBuilder
 from docling_eval.dataset_builders.funsd_builder import FUNSDDatasetBuilder
 from docling_eval.dataset_builders.omnidocbench_builder import (
@@ -170,6 +171,9 @@ def get_dataset_builder(
 
     elif benchmark == BenchMarkNames.PUBTABNET:
         return PubTabNetDatasetBuilder(**common_params)  # type: ignore
+
+    elif benchmark == BenchMarkNames.DOCVQA:
+        return DocVQADatasetBuilder(**common_params)  # type: ignore
 
     else:
         raise ValueError(f"Unsupported benchmark: {benchmark}")
