@@ -25,7 +25,7 @@ from docling_eval.datamodels.types import BenchMarkColumns, PredictionFormats
 from docling_eval.evaluators.base_evaluator import (
     BaseEvaluator,
     DatasetEvaluation,
-    PageEvaluation,
+    UnitEvaluation,
 )
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
 from docling_eval.visualisation.visualisations import draw_arrow
@@ -33,7 +33,7 @@ from docling_eval.visualisation.visualisations import draw_arrow
 _log = logging.getLogger(__name__)
 
 
-class PageReadingOrderEvaluation(PageEvaluation):
+class PageReadingOrderEvaluation(UnitEvaluation):
     doc_id: str
 
     # BBoxes are in BOTTOMLEFT origin and in the true order

@@ -19,13 +19,17 @@ from docling_eval.datamodels.types import (  # type: ignore
     BenchMarkColumns,
     PredictionFormats,
 )
-from docling_eval.evaluators.base_evaluator import BaseEvaluator, DatasetEvaluation
+from docling_eval.evaluators.base_evaluator import (
+    BaseEvaluator,
+    DatasetEvaluation,
+    UnitEvaluation,
+)
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
 
 _log = logging.getLogger(__name__)
 
 
-class PageMarkdownEvaluation(BaseModel):
+class PageMarkdownEvaluation(UnitEvaluation):
     doc_id: str
 
     true_md: str
