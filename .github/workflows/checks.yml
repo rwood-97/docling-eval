@@ -1,6 +1,9 @@
 on:
   workflow_call:
 
+env:
+  RUN_IN_CI: "1"
+
 jobs:
   run-checks:
     runs-on: ubuntu-latest

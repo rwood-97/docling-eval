@@ -15,7 +15,14 @@ from pydantic import BaseModel
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.datamodels.dataset_record import DatasetRecordWithPrediction
+from docling_eval.datamodels.types import BenchMarkColumns, PredictionFormats
+from docling_eval.evaluators.base_evaluator import (
+    BaseEvaluator,
+    DatasetEvaluation,
+    UnitEvaluation,
+    docling_document_from_doctags,
+)
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
 
 _log = logging.getLogger(__name__)
@@ -31,7 +38,7 @@ class ClassLayoutEvaluation(BaseModel):
     value: float  # mAP[0.5:0.05:0.95]
 
 
-class ImageLayoutEvaluation(BaseModel):
+class ImageLayoutEvaluation(UnitEvaluation):
     r"""
     Image based layout evaluation
     """
@@ -51,7 +58,7 @@ class ImageLayoutEvaluation(BaseModel):
     avg_weighted_label_matched_iou_95: float
 
 
-class DatasetLayoutEvaluation(BaseModel):
+class DatasetLayoutEvaluation(DatasetEvaluation):
     true_labels: Dict[str, int]
     pred_labels: Dict[str, int]
     mAP: float  # The mean AP[0.5:0.05:0.95] across all classes
@@ -84,11 +91,27 @@ class DatasetLayoutEvaluation(BaseModel):
         return table, headers
 
 
-class LayoutEvaluator:
-
+class LayoutEvaluator(BaseEvaluator):
     def __init__(
-        self, label_mapping: Optional[Dict[DocItemLabel, Optional[DocItemLabel]]] = None
-    ) -> None:
+        self,
+        label_mapping: Optional[Dict[DocItemLabel, Optional[DocItemLabel]]] = None,
+        intermediate_evaluations_path: Optional[Path] = None,
+        prediction_sources: List[PredictionFormats] = [],
+    ):
+        supported_prediction_formats: List[PredictionFormats] = [
+            PredictionFormats.DOCLING_DOCUMENT,
+            PredictionFormats.DOCTAGS,
+            PredictionFormats.JSON,
+            PredictionFormats.YAML,
+        ]
+        if not prediction_sources:
+            prediction_sources = supported_prediction_formats
+        super().__init__(
+            intermediate_evaluations_path=intermediate_evaluations_path,
+            prediction_sources=prediction_sources,
+            supported_prediction_formats=supported_prediction_formats,
+        )
+
         self.filter_labels = []
         self.label_names = {}
         self.label_mapping = label_mapping or {v: v for v in DocItemLabel}
@@ -101,7 +124,6 @@ class LayoutEvaluator:
         self,
         ds_path: Path,
         split: str = "test",
-        pred_dict: Optional[Dict[str, DoclingDocument]] = None,
     ) -> DatasetLayoutEvaluation:
         logging.info("Loading the split '%s' from: '%s'", split, ds_path)
 
@@ -116,7 +138,7 @@ class LayoutEvaluator:
         ds_selection: Dataset = ds[split]
 
         true_labels, pred_labels, intersection_labels = self._find_intersecting_labels(
-            ds_selection, pred_dict=pred_dict
+            ds_selection
         )
         intersection_labels_str = "\n" + "\n".join(sorted(intersection_labels))
         logging.info(f"Intersection labels: {intersection_labels_str}")
@@ -132,21 +154,15 @@ class LayoutEvaluator:
             ncols=120,
             total=len(ds_selection),
         ):
-            doc_id = data[BenchMarkColumns.DOC_ID]
-
-            true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
-            true_doc = DoclingDocument.model_validate_json(true_doc_dict)
-            if pred_dict is None:
-                pred_doc_dict = data[BenchMarkColumns.PREDICTION]
-                pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
-            else:
-                if doc_id not in pred_dict:
-                    _log.error("Missing pred_doc from dict argument for %s", doc_id)
-                    continue
-                pred_doc = pred_dict[doc_id]
+            data_record = DatasetRecordWithPrediction.model_validate(data)
+            doc_id = data_record.doc_id
+            true_doc = data_record.ground_truth_doc
+            pred_doc = self._get_pred_doc(data_record)
+            if not pred_doc:
+                _log.error("There is no prediction for doc_id=%s", doc_id)
+                continue
 
             gts, preds = self._extract_layout_data(
-                doc_id=doc_id,
                 true_doc=true_doc,
                 pred_doc=pred_doc,
                 filter_labels=intersection_labels,
@@ -243,19 +259,22 @@ class LayoutEvaluator:
             average_iou_95 = result["average_iou_95"]
 
             map_values.append(map_value)
-            evaluations_per_image.append(
-                ImageLayoutEvaluation(
-                    name=doc_id,
-                    value=average_iou_50,
-                    map_val=map_value,
-                    map_50=map_50,
-                    map_75=map_75,
-                    avg_weighted_label_matched_iou_50=average_iou_50,
-                    avg_weighted_label_matched_iou_75=average_iou_75,
-                    avg_weighted_label_matched_iou_90=average_iou_90,
-                    avg_weighted_label_matched_iou_95=average_iou_95,
-                )
+            image_evaluation = ImageLayoutEvaluation(
+                name=doc_id,
+                value=average_iou_50,
+                map_val=map_value,
+                map_50=map_50,
+                map_75=map_75,
+                avg_weighted_label_matched_iou_50=average_iou_50,
+                avg_weighted_label_matched_iou_75=average_iou_75,
+                avg_weighted_label_matched_iou_90=average_iou_90,
+                avg_weighted_label_matched_iou_95=average_iou_95,
             )
+            evaluations_per_image.append(image_evaluation)
+            if self._intermediate_evaluations_path:
+                self.save_intermediate_evalutions(
+                    "Layout_image", i, doc_id, evaluations_per_image
+                )
 
         evaluations_per_class = sorted(evaluations_per_class, key=lambda x: -x.value)
         evaluations_per_image = sorted(evaluations_per_image, key=lambda x: -x.value)
@@ -269,6 +288,33 @@ class LayoutEvaluator:
             pred_labels=pred_labels,
             intersecting_labels=[_.value for _ in intersection_labels],
         )
+
+    def _get_pred_doc(
+        self, data_record: DatasetRecordWithPrediction
+    ) -> Optional[DoclingDocument]:
+        r"""
+        Get the predicted DoclingDocument
+        """
+        pred_doc = None
+        for prediction_format in self._prediction_sources:
+            if prediction_format == PredictionFormats.DOCLING_DOCUMENT:
+                pred_doc = data_record.predicted_doc
+            elif prediction_format == PredictionFormats.JSON:
+                if data_record.original_prediction:
+                    pred_doc = DoclingDocument.load_from_json(
+                        data_record.original_prediction
+                    )
+            elif prediction_format == PredictionFormats.YAML:
+                if data_record.original_prediction:
+                    pred_doc = DoclingDocument.load_from_yaml(
+                        data_record.original_prediction
+                    )
+            elif prediction_format == PredictionFormats.DOCTAGS:
+                pred_doc = docling_document_from_doctags(data_record)
+            if pred_doc is not None:
+                break
+
+        return pred_doc
 
     def _compute_iou(self, box1, box2):
         """Compute IoU between two bounding boxes."""
@@ -358,7 +404,8 @@ class LayoutEvaluator:
         }
 
     def _find_intersecting_labels(
-        self, ds: Dataset, pred_dict: Optional[Dict[str, DoclingDocument]] = None
+        self,
+        ds: Dataset,
     ) -> tuple[dict[str, int], dict[str, int], list[DocItemLabel]]:
         r"""
         Compute counters per labels for the groundtruth, prediciton and their intersections
@@ -376,19 +423,9 @@ class LayoutEvaluator:
         for i, data in tqdm(
             enumerate(ds), desc="Layout evaluations", ncols=120, total=len(ds)
         ):
-            doc_id = data[BenchMarkColumns.DOC_ID]
-
-            true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
-            true_doc = DoclingDocument.model_validate_json(true_doc_dict)
-
-            if pred_dict is None:
-                pred_doc_dict = data[BenchMarkColumns.PREDICTION]
-                pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
-            else:
-                if doc_id not in pred_dict:
-                    _log.error("Missing pred_doc from dict argument for %s", doc_id)
-                    continue
-                pred_doc = pred_dict[doc_id]
+            data_record = DatasetRecordWithPrediction.model_validate(data)
+            true_doc = data_record.ground_truth_doc
+            pred_doc = self._get_pred_doc(data_record)
 
             for item, level in true_doc.iterate_items():
                 if isinstance(item, DocItem):  # and item.label in filter_labels:
@@ -400,15 +437,16 @@ class LayoutEvaluator:
                         elif self.label_mapping[item.label]:
                             true_labels[self.label_mapping[item.label]] = 1  # type: ignore
 
-            for item, level in pred_doc.iterate_items():
-                if isinstance(item, DocItem):  # and item.label in filter_labels:
-                    for prov in item.prov:
-                        if item.label in [
-                            self.label_mapping[v] for v in pred_labels if v is not None  # type: ignore
-                        ]:
-                            pred_labels[item.label] += 1
-                        elif self.label_mapping[item.label] is not None:
-                            pred_labels[self.label_mapping[item.label]] = 1  # type: ignore
+            if pred_doc:
+                for item, level in pred_doc.iterate_items():
+                    if isinstance(item, DocItem):  # and item.label in filter_labels:
+                        for prov in item.prov:
+                            if item.label in [
+                                self.label_mapping[v] for v in pred_labels if v is not None  # type: ignore
+                            ]:
+                                pred_labels[item.label] += 1
+                            elif self.label_mapping[item.label] is not None:
+                                pred_labels[self.label_mapping[item.label]] = 1  # type: ignore
 
         """
         logging.info(f"True labels:")
@@ -429,7 +467,6 @@ class LayoutEvaluator:
 
     def _extract_layout_data(
         self,
-        doc_id: str,
         true_doc: DoclingDocument,
         pred_doc: DoclingDocument,
         filter_labels: List[DocItemLabel],
@@ -443,8 +480,6 @@ class LayoutEvaluator:
         ground_truths: List of dict with keys "bboxes", "labels" and values are tensors
         predictions: List of dict with keys "bboxes", "labels", "scores" and values are tensors
         """
-
-        # logging.info(f"#-true-tables: {len(true_tables)}, #-pred-tables: {len(pred_tables)}")
         assert len(true_doc.pages) == len(
             pred_doc.pages
         ), f"len(true_doc.pages)==len(pred_doc.pages) => {len(true_doc.pages)}=={len(pred_doc.pages)}"

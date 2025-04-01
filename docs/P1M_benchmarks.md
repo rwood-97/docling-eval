@@ -1,22 +1,29 @@
 # Pub1M Benchmarks
 
-Create and evaluate Pub1M dataset using a single command. This command downloads from Huggingface the [Pub1M_OTSL](https://huggingface.co/datasets/ds4sd/Pub1M_OTSL) and runs the evaluations for TableFormer using the first 1000 samples. 
+Create Pub1M evaluation datasets. This downloads from Huggingface the [Pub1M_OTSL](https://huggingface.co/datasets/ds4sd/Pub1M_OTSL) and runs the evaluations for TableFormer using the first 1000 samples. 
 
 ```sh
-poetry run python docs/examples/benchmark_p1m.py
+# Make the ground-truth
+docling_eval create-gt --benchmark Pub1M --output-dir ./benchmarks/Pub1M/ 
+
+# Make predictions for tables.
+docling_eval create-eval \
+  --modality table_structure \
+  --benchmark DPBench \
+  --output-dir ./benchmarks/Pub1M/ \
+  --end-index 1000 \
+  --prediction-provider tableformer # use tableformer predictions only
 ```
 
-## Layout Evaluation
+## Tableformer Evaluation
 
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m tableformer \
-    -b Pub1M \
-    -i benchmarks/Pub1M-dataset/tableformer \
-    -o benchmarks/Pub1M-dataset/tableformer
+docling_eval evaluate \
+  --modality table_structure \
+  --benchmark Pub1M \
+  --output-dir ./benchmarks/Pub1M/ 
 ```
 
 [Tableformer evaluation json](evaluations/Pub1M/evaluation_Pub1M_tableformer.json)
@@ -24,12 +31,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m tableformer \
-    -b Pub1M \
-    -i benchmarks/Pub1M-dataset/tableformer \
-    -o benchmarks/Pub1M-dataset/tableformer
+docling_eval visualize \
+  --modality table_structure \
+  --benchmark Pub1M \
+  --output-dir ./benchmarks/Pub1M/ 
 ```
 
 ![TEDS plot](evaluations/Pub1M/evaluation_Pub1M_tableformer-delta_row_col.png)

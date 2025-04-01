@@ -1,9 +1,8 @@
 import glob
-import json
 import logging
 import random
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 from datasets import Dataset, load_dataset
@@ -13,14 +12,21 @@ from lxml import html
 from pydantic import BaseModel
 from tqdm import tqdm  # type: ignore
 
-from docling_eval.benchmarks.constants import BenchMarkColumns
+from docling_eval.datamodels.dataset_record import DatasetRecordWithPrediction
+from docling_eval.datamodels.types import BenchMarkColumns, PredictionFormats
+from docling_eval.evaluators.base_evaluator import (
+    BaseEvaluator,
+    DatasetEvaluation,
+    UnitEvaluation,
+    docling_document_from_doctags,
+)
 from docling_eval.evaluators.stats import DatasetStatistics, compute_stats
 from docling_eval.evaluators.teds import TEDScorer
 
 _log = logging.getLogger(__name__)
 
 
-class TableEvaluation(BaseModel):
+class TableEvaluation(UnitEvaluation):
     filename: str = "<unknown>"
     table_id: int = -1
     TEDS: float
@@ -33,8 +39,8 @@ class TableEvaluation(BaseModel):
     pred_nrows: int = -1
 
 
-class DatasetTableEvaluation(BaseModel):
-    evaluations: list[TableEvaluation]
+class DatasetTableEvaluation(DatasetEvaluation):
+    evaluations: List[TableEvaluation]
 
     TEDS: DatasetStatistics
     TEDS_struct: DatasetStatistics
@@ -46,12 +52,12 @@ class DatasetTableEvaluation(BaseModel):
         delta_row = {i: 0 for i in range(-10, 11)}
         delta_col = {i: 0 for i in range(-10, 11)}
 
-        for _ in self.evaluations:
-            if _.true_nrows - _.pred_nrows in delta_row:
-                delta_row[_.true_nrows - _.pred_nrows] += 1
+        for evaluation in self.evaluations:
+            if evaluation.true_nrows - evaluation.pred_nrows in delta_row:
+                delta_row[evaluation.true_nrows - evaluation.pred_nrows] += 1
 
-            if _.true_ncols - _.pred_ncols in delta_col:
-                delta_col[_.true_ncols - _.pred_ncols] += 1
+            if evaluation.true_ncols - evaluation.pred_ncols in delta_col:
+                delta_col[evaluation.true_ncols - evaluation.pred_ncols] += 1
 
         x_row, y_row = [], []
         for k, v in delta_row.items():
@@ -93,12 +99,30 @@ def is_complex_table(table: TableItem) -> bool:
     return False
 
 
-class TableEvaluator:
+class TableEvaluator(BaseEvaluator):
     r"""
     Evaluate table predictions from HF dataset with the columns:
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        intermediate_evaluations_path: Optional[Path] = None,
+        structure_only: bool = False,
+        prediction_sources: List[PredictionFormats] = [],
+    ):
+        supported_prediction_formats: List[PredictionFormats] = [
+            PredictionFormats.DOCLING_DOCUMENT,
+            PredictionFormats.DOCTAGS,
+        ]
+        if not prediction_sources:
+            prediction_sources = supported_prediction_formats
+        super().__init__(
+            intermediate_evaluations_path=intermediate_evaluations_path,
+            prediction_sources=prediction_sources,
+            supported_prediction_formats=supported_prediction_formats,
+        )
+
+        self._structure_only = structure_only
         self._teds_scorer = TEDScorer()
         self._stopwords = ["<i>", "</i>", "<b>", "</b>", "<u>", "</u>"]
 
@@ -106,9 +130,6 @@ class TableEvaluator:
         self,
         ds_path: Path,
         split: str = "test",
-        structure_only: bool = False,
-        pred_dict: Optional[Dict[str, DoclingDocument]] = None,
-        intermediate_results_dir: Optional[Path] = None,
     ) -> DatasetTableEvaluation:
         r"""
         Load a dataset in HF format. Expected columns with DoclingDocuments
@@ -136,35 +157,27 @@ class TableEvaluator:
             ncols=120,
             total=len(ds_selection),
         ):
-            doc_id = data[BenchMarkColumns.DOC_ID]
-
-            gt_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
-            gt_doc = DoclingDocument.model_validate_json(gt_doc_dict)
-
-            if pred_dict is None:
-                pred_doc_dict = data[BenchMarkColumns.PREDICTION]
-                pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
-            else:
-                if doc_id.endswith(".png") or doc_id.endswith(".jpg"):
-                    doc_id = doc_id[:-4]
-                if doc_id not in pred_dict:
-                    _log.error("Missing pred_doc from dict argument for %s", doc_id)
-                    continue
-                pred_doc = pred_dict[doc_id]
+            data_record = DatasetRecordWithPrediction.model_validate(data)
+            doc_id = data_record.doc_id
+            gt_doc = data_record.ground_truth_doc
+            pred_doc = self._get_pred_doc(data_record)
+            if not pred_doc:
+                _log.error("There is no prediction for doc_id=%s", doc_id)
+                continue
 
             try:
-                if not structure_only:
+                if not self._structure_only:
                     results = self._evaluate_tables_in_documents(
-                        doc_id=data[BenchMarkColumns.DOC_ID],
+                        doc_id=doc_id,
                         true_doc=gt_doc,
                         pred_doc=pred_doc,
                         structure_only=False,
                     )
                     table_evaluations.extend(results)
 
-                    if intermediate_results_dir:
-                        self._save_table_evalutions(
-                            False, i, doc_id, results, intermediate_results_dir
+                    if self._intermediate_evaluations_path:
+                        self.save_intermediate_evalutions(
+                            "TEDs_struct_content", i, doc_id, results
                         )
 
                 results = self._evaluate_tables_in_documents(
@@ -174,10 +187,9 @@ class TableEvaluator:
                     structure_only=True,
                 )
                 table_struct_evaluations.extend(results)
-                if intermediate_results_dir:
-                    self._save_table_evalutions(
-                        True, i, doc_id, results, intermediate_results_dir
-                    )
+                if self._intermediate_evaluations_path:
+                    self.save_intermediate_evalutions("TEDs_struct", i, doc_id, results)
+
             except Exception as ex:
                 evaluation_errors += 1
                 _log.error("Error during tables evaluation for %s", doc_id)
@@ -191,7 +203,7 @@ class TableEvaluator:
         teds_simple = []
         teds_complex = []
         teds_all = []
-        if not structure_only:
+        if not self._structure_only:
             for te in table_evaluations:
                 teds_all.append(te.TEDS)
 
@@ -219,7 +231,7 @@ class TableEvaluator:
         true_doc: DoclingDocument,
         pred_doc: DoclingDocument,
         structure_only: bool = False,
-    ) -> list[TableEvaluation]:
+    ) -> List[TableEvaluation]:
         r""" """
         table_evaluations = []
         true_tables = true_doc.tables
@@ -283,21 +295,19 @@ class TableEvaluator:
 
         return table_evaluations
 
-    def _save_table_evalutions(
-        self,
-        structure_only: bool,
-        enunumerate_id: int,
-        doc_id: str,
-        table_evaluations: list[TableEvaluation],
-        save_dir: Path,
-    ):
-        r""" """
-        evals = [ev.model_dump() for ev in table_evaluations]
+    def _get_pred_doc(
+        self, data_record: DatasetRecordWithPrediction
+    ) -> Optional[DoclingDocument]:
+        r"""
+        Get the predicted DoclingDocument
+        """
+        pred_doc = None
+        for prediction_format in self._prediction_sources:
+            if prediction_format == PredictionFormats.DOCLING_DOCUMENT:
+                pred_doc = data_record.predicted_doc
+            elif prediction_format == PredictionFormats.DOCTAGS:
+                pred_doc = docling_document_from_doctags(data_record)
+            if pred_doc is not None:
+                break
 
-        prefix = "struct" if structure_only else "struct_content"
-        evaluation_filename = f"TED_{prefix}_{enunumerate_id:05d}_{doc_id}.json"
-        evaluation_fn = save_dir / evaluation_filename
-        _log.info("Saving intermediate TEDs: %s", evaluation_fn)
-
-        with open(evaluation_fn, "w") as fd:
-            json.dump(evals, fd)
+        return pred_doc
