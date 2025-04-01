@@ -268,10 +268,10 @@ def test_run_omnidocbench_e2e():
     )
 
 
-# @pytest.mark.dependency(
-#    depends=["tests/test_dataset_builder.py::test_run_dpbench_e2e"],
-#    scope="session",
-# )
+@pytest.mark.dependency(
+    depends=["tests/test_dataset_builder.py::test_run_dpbench_e2e"],
+    scope="session",
+)
 def test_run_dpbench_tables():
     target_path = Path(f"./scratch/{BenchMarkNames.DPBENCH.value}/")
     tableformer_provider = TableFormerPredictionProvider(do_visualization=True)
