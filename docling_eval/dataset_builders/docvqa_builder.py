@@ -75,7 +75,7 @@ class DocVQADatasetBuilder(BaseEvaluationDatasetBuilder):
 
     def _process_document(self, doc_id, qa_items) -> DatasetRecord:
         """Process all QA items for a single document."""
-        print(f"Processing document: {doc_id}")
+        _log.debug(f"Processing document: {doc_id}")
 
         doc = DoclingDocument(name=f"{doc_id}")
         image: PIL.Image.Image = qa_items[0]["image"]
@@ -94,7 +94,7 @@ class DocVQADatasetBuilder(BaseEvaluationDatasetBuilder):
 
         doc.pages[1] = page_item
         for qa_item in qa_items:
-            print(f"  Processing QA item data...")
+            _log.debug(f"  Processing QA item data...")
 
         # Extract images from the ground truth document
         doc, true_pictures, true_page_images = extract_images(
