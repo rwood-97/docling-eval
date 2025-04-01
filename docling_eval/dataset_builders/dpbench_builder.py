@@ -304,7 +304,7 @@ class DPBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
 
         for filename in tqdm(
             selected_filenames,
-            desc="Processing files for DP-Bench with end-to-end",
+            desc="Processing files for DP-Bench",
             ncols=128,
         ):
             # Get annotations for this file

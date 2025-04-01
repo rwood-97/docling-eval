@@ -361,7 +361,7 @@ class OmniDocBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
             page_tuples,
             total=selected_items,
             ncols=128,
-            desc="Processing files for OmniDocBench with end-to-end",
+            desc="Processing files for OmniDocBench",
         ):
             jpg_path = page_tuple[0]
             pdf_path = Path(page_tuple[1])

@@ -145,12 +145,12 @@ class BasePredictionProvider:
             and prediction_record.ground_truth_page_images
         ):
             gt_doc = insert_images_from_pil(
-                prediction_record.ground_truth_doc,
+                prediction_record.ground_truth_doc.model_copy(),
                 prediction_record.ground_truth_pictures,
                 prediction_record.ground_truth_page_images,
             )
             pred_doc = insert_images_from_pil(
-                prediction_record.predicted_doc,
+                prediction_record.predicted_doc.model_copy(),
                 prediction_record.predicted_pictures,
                 prediction_record.predicted_page_images,
             )

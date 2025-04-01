@@ -84,8 +84,9 @@ def test_run_dpbench_e2e():
 
     dataset_layout = DPBenchDatasetBuilder(
         target=target_path / "gt_dataset",
-        end_index=5,
-    )
+        begin_index=10,
+        end_index=25,
+    )  # 10-25 is a small range which has samples with tables included.
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
     dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
@@ -267,21 +268,16 @@ def test_run_omnidocbench_e2e():
     )
 
 
-@pytest.mark.dependency()
+# @pytest.mark.dependency(
+#    depends=["tests/test_dataset_builder.py::test_run_dpbench_e2e"],
+#    scope="session",
+# )
 def test_run_dpbench_tables():
     target_path = Path(f"./scratch/{BenchMarkNames.DPBENCH.value}/")
-    tableformer_provider = TableFormerPredictionProvider()
-
-    dataset_tables = DPBenchDatasetBuilder(
-        target=target_path / "gt_dataset",
-        end_index=25,
-    )
-
-    dataset_tables.retrieve_input_dataset()  # fetches the source dataset from HF
-    dataset_tables.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    tableformer_provider = TableFormerPredictionProvider(do_visualization=True)
 
     tableformer_provider.create_prediction_dataset(
-        name=dataset_tables.name,
+        name="DPBench tables eval",
         gt_dataset_dir=target_path / "gt_dataset",
         target_dataset_dir=target_path / "eval_dataset_tables",
     )

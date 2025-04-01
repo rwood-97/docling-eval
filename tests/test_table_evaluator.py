@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import List
 
 import pytest
 from docling_core.types.doc.document import DoclingDocument, TableCell, TableData

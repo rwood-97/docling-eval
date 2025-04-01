@@ -123,17 +123,16 @@ class TableFormerPredictionProvider(BasePredictionProvider):
                     record.ground_truth_doc,
                     record.ground_truth_page_images,
                 )
-                pred_doc = insert_images_from_pil(
-                    pred_doc,
-                    record.ground_truth_pictures,
-                    record.ground_truth_page_images,
-                )
-
             else:
                 raise RuntimeError(
                     f"Unsupported mime type: {record.mime_type}. TableFormerPredictionProvider supports 'application/pdf' and 'image/png'"
                 )
 
+            pred_doc = insert_images_from_pil(
+                pred_doc,
+                record.ground_truth_pictures,
+                record.ground_truth_page_images,
+            )
             # Set status based on update success
             status = ConversionStatus.SUCCESS if updated else ConversionStatus.FAILURE
 
@@ -318,7 +317,8 @@ class TableFormerUpdater:
                                 # Update item data
                                 item.data = table_data
                                 updated = True
-
+                    except Exception as e:
+                        raise
                     finally:
                         # Ensure page backend is unloaded to free resources
                         if hasattr(page, "_backend") and page._backend is not None:
