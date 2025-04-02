@@ -547,8 +547,7 @@ def test_run_docvqa_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.DOCVQA.value}/")
 
     dataset_layout = DocVQADatasetBuilder(
-        target=target_path / "gt_dataset",
-        end_index=25,
+        target=target_path / "gt_dataset", end_index=25, split="validation"
     )
 
     dataset_layout.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.

@@ -21,7 +21,7 @@ class DatasetRecord(
 
     doc_id: str = Field(alias="document_id")
     doc_path: Optional[Path] = Field(alias="document_filepath", default=None)
-    doc_hash: Optional[str] = Field(alias="document_filehash")
+    doc_hash: Optional[str] = Field(alias="document_filehash", default=None)
 
     ground_truth_doc: DoclingDocument = Field(alias="GroundTruthDocument")
     original: Optional[Union[DocumentStream, Path]] = Field(

@@ -19,6 +19,13 @@ from docling_core.types.doc import (
     TableCell,
     TableData,
 )
+from docling_core.types.doc.document import (
+    GraphCell,
+    GraphData,
+    GraphLink,
+    KeyValueItem,
+)
+from docling_core.types.doc.labels import GraphCellLabel, GraphLinkLabel
 from docling_core.types.io import DocumentStream
 from tqdm import tqdm
 
@@ -93,8 +100,52 @@ class DocVQADatasetBuilder(BaseEvaluationDatasetBuilder):
         )
 
         doc.pages[1] = page_item
+
+        cells = []
+        links = []
+        index = 0
+
         for qa_item in qa_items:
             _log.debug(f"  Processing QA item data...")
+            cells.append(
+                GraphCell(
+                    label=GraphCellLabel.KEY,
+                    cell_id=index,
+                    text=qa_item["question"],
+                    orig=qa_item["question"],
+                )
+            )
+
+            answer_index = index + 1
+            for answer in qa_item["answers"]:
+                cells.append(
+                    GraphCell(
+                        label=GraphCellLabel.VALUE,
+                        cell_id=answer_index,
+                        text=answer,
+                        orig=answer,
+                    )
+                )
+                links.extend(
+                    [
+                        GraphLink(
+                            label=GraphLinkLabel.TO_VALUE,
+                            source_cell_id=index,
+                            target_cell_id=answer_index,
+                        ),
+                        GraphLink(
+                            label=GraphLinkLabel.TO_KEY,
+                            source_cell_id=answer_index,
+                            target_cell_id=index,
+                        ),
+                    ]
+                )
+                answer_index += 1
+
+            index = answer_index
+
+        graph = GraphData(cells=cells, links=links)
+        doc.add_key_values(graph)
 
         # Extract images from the ground truth document
         doc, true_pictures, true_page_images = extract_images(
