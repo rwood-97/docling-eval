@@ -373,12 +373,12 @@ class BasePredictionProvider:
                 )
                 break
 
-        _log.info(f"Saved {count} records in {chunk_count} chunks to {test_dir}")
+            # Write dataset info
+            write_datasets_info(
+                name=name,
+                output_dir=target_dataset_dir,
+                num_train_rows=0,
+                num_test_rows=count,
+            )
 
-        # Write dataset info
-        write_datasets_info(
-            name=name,
-            output_dir=target_dataset_dir,
-            num_train_rows=0,
-            num_test_rows=count,
-        )
+        _log.info(f"Saved {count} records in {chunk_count} chunks to {test_dir}")

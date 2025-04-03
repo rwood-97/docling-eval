@@ -978,33 +978,29 @@ name = "docling-core"
 version = "2.25.0"
 description = "A python library to define and validate data types in Docling."
 optional = false
-python-versions = "^3.9"
+python-versions = "<4.0,>=3.9"
 groups = ["main"]
-files = []
-develop = false
+files = [
+    {file = "docling_core-2.25.0-py3-none-any.whl", hash = "sha256:24fe431005518df8e554b69c33178bca903bcf91c230cdcd31a905369f53a461"},
+    {file = "docling_core-2.25.0.tar.gz", hash = "sha256:a2019392592840b2829082ef0c1d1a9096fb3512ae44c3a93dc04a5eaef81b2f"},
+]
 
 [package.dependencies]
-jsonref = "^1.1.0"
-jsonschema = "^4.16.0"
-latex2mathml = "^3.77.0"
-pandas = "^2.1.4"
+jsonref = ">=1.1.0,<2.0.0"
+jsonschema = ">=4.16.0,<5.0.0"
+latex2mathml = ">=3.77.0,<4.0.0"
+pandas = ">=2.1.4,<3.0.0"
 pillow = ">=10.0.0,<12.0.0"
-pydantic = ">=2.6.0,<3.0.0,!=2.10.0,!=2.10.1,!=2.10.2"
+pydantic = ">=2.6.0,<2.10.0 || >2.10.0,<2.10.1 || >2.10.1,<2.10.2 || >2.10.2,<3.0.0"
 pyyaml = ">=5.1,<7.0.0"
-semchunk = {version = "^2.2.0", optional = true}
-tabulate = "^0.9.0"
-transformers = {version = "^4.34.0", optional = true}
-typer = "^0.12.5"
-typing-extensions = "^4.12.2"
+semchunk = {version = ">=2.2.0,<3.0.0", optional = true, markers = "extra == \"chunking\""}
+tabulate = ">=0.9.0,<0.10.0"
+transformers = {version = ">=4.34.0,<5.0.0", optional = true, markers = "extra == \"chunking\""}
+typer = ">=0.12.5,<0.13.0"
+typing-extensions = ">=4.12.2,<5.0.0"
 
 [package.extras]
 chunking = ["semchunk (>=2.2.0,<3.0.0)", "transformers (>=4.34.0,<5.0.0)"]
-
-[package.source]
-type = "git"
-url = "https://github.com/DS4SD/docling-core"
-reference = "dev/doctags-import-location-fix"
-resolved_reference = "a85032f1b6d5d71e9aab179518d9c6bec21de483"
 
 [[package]]
 name = "docling-ibm-models"
@@ -6808,4 +6804,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "09081e6f2a4b321cb85dccd7f74741b3e58888953b9361d5d03668773c77f3ed"
+content-hash = "c2ef927f93d7dd8151eff7cba8e56fd3e503f9c543e64e282b63b44c43cb37d6"
