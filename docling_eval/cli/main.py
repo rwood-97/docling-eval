@@ -257,7 +257,7 @@ def get_prediction_provider(
 
     elif provider_type == PredictionProviderType.TABLEFORMER:
         return TableFormerPredictionProvider(
-            do_visualization=True,
+            do_visualization=False,
             ignore_missing_predictions=True,
         )
 

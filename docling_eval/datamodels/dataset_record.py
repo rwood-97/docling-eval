@@ -36,7 +36,7 @@ class DatasetRecord(
         alias="GroundTruthPictures", default=[]
     )
 
-    mime_type: str = Field(default="")
+    mime_type: str = Field(default="application/pdf")
     modalities: List[EvaluationModality] = Field(default=[])
 
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
