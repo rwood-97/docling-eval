@@ -1,23 +1,38 @@
 # DocLayNet V1.2 Benchmarks
 
-Create and evaluate DocLayNetv1.2 dataset using a single command. This command downloads from Huggingface the [DocLayNetv1.2_OTSL](https://huggingface.co/datasets/ds4sd/DocLayNet-v1.2) and runs the evaluations using the PDF Docling converter for all supported modalities.
+Create and evaluate DocLayNetv1.2 datasets using the following commands. This downloads the [DocLayNetv1.2_OTSL](https://huggingface.co/datasets/ds4sd/DocLayNet-v1.2) from HuggingFace and runs the evaluations using the PDF Docling converter for all supported modalities.
 
+Create evaluation datasets
 ```sh
-poetry run python docs/examples/benchmark_doclaynet_v1.py
+# Make the ground-truth
+docling_eval create-gt --benchmark DocLayNetV1 --output-dir ./benchmarks/DocLayNetV1/ 
+
+# Make predictions for different modalities.
+docling_eval create-eval \
+  --modality end-to-end \
+  --benchmark DocLayNetV1 \
+  --output-dir ./benchmarks/DocLayNetV1/ \
+  --prediction-provider docling # use full-document predictions from docling
+  
+docling_eval create-eval \
+  --modality table_structure \
+  --benchmark DPBench \
+  --output-dir ./benchmarks/DocLayNetV1/ \
+  --prediction-provider tableformer # use tableformer predictions only
 ```
+
 
 
 ## Layout Evaluation
 
-Create the report:
+Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m layout \
-    -b DocLayNetV1 \
-    -i benchmarks/DocLayNetV1-dataset/layout \
-    -o benchmarks/DocLayNetV1-dataset/layout
+docling_eval evaluate \
+  --modality layout \
+  --benchmark DocLayNetV1 \
+  --output-dir ./benchmarks/DocLayNetV1/ 
+
 ```
 
 [Layout evaluation json](evaluations/DocLayNetV1/evaluation_DocLayNetV1_layout.json)
@@ -25,12 +40,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m layout \
-    -b DocLayNetV1 \
-    -i benchmarks/DocLayNetV1-dataset/layout \
-    -o benchmarks/DocLayNetV1-dataset/layout
+docling_eval visualize \
+  --modality layout \
+  --benchmark DocLayNetV1 \
+  --output-dir ./benchmarks/DocLayNetV1/ 
 ```
 
 [mAP[0.5:0.95] report](evaluations/DocLayNetV1/evaluation_DocLayNetV1_layout_mAP_0.5_0.95.txt)
@@ -43,12 +56,10 @@ poetry run evaluate \
 Create the report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m markdown_text \
-    -b DocLayNetV1 \
-    -i benchmarks/DocLayNetV1-dataset/layout \
-    -o benchmarks/DocLayNetV1-dataset/layout
+docling_eval evaluate \
+  --modality markdown_text \
+  --benchmark DocLayNetV1 \
+  --output-dir ./benchmarks/DocLayNetV1/ 
 ```
 
 [Markdown text json](evaluations/DocLayNetV1/evaluation_DocLayNetV1_markdown_text.json)
@@ -57,12 +68,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m markdown_text \
-    -b DocLayNetV1 \
-    -i benchmarks/DocLayNetV1-dataset/layout \
-    -o benchmarks/DocLayNetV1-dataset/layout
+docling_eval visualize \
+  --modality markdown_text \
+  --benchmark DocLayNetV1 \
+  --output-dir ./benchmarks/DocLayNetV1/ 
 ```
 
 [Markdown text report](evaluations/DocLayNetV1/evaluation_DocLayNetV1_markdown_text.txt)

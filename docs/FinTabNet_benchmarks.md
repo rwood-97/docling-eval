@@ -1,22 +1,29 @@
 # FinTabNet Benchmarks
 
-Create and evaluate FinTabNet dataset using a single command. This command downloads from Huggingface the [FinTabNet_OTSL dataset](https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL)) and runs the evaluations for tableformer using the first 1000 samples.
+Create FinTabNet evaluation datasets. This downloads from Huggingface the [FinTabNet_OTSL dataset](https://huggingface.co/datasets/ds4sd/FinTabNet_OTSL)) and runs the evaluations for tableformer using the first 1000 samples.
 
 ```sh
-poetry run python docs/examples/benchmark_tableformer_fintabnet.py
+# Make the ground-truth
+docling_eval create-gt --benchmark FinTabNet --output-dir ./benchmarks/FinTabNet/ 
+
+# Make predictions for tables.
+docling_eval create-eval \
+  --modality table_structure \
+  --benchmark DPBench \
+  --output-dir ./benchmarks/FinTabNet/ \
+  --end-index 1000 \
+  --prediction-provider tableformer # use tableformer predictions only
 ```
 
-## Layout Evaluation
+## Tableformer Evaluation
 
 Create the evaluation report:
 
 ```sh
-poetry run evaluate \
-    -t evaluate \
-    -m tableformer \
-    -b FinTabNet \
-    -i benchmarks/FinTabNet-dataset/tableformer \
-    -o benchmarks/FinTabNet-dataset/tableformer
+docling_eval evaluate \
+  --modality table_structure \
+  --benchmark FinTabNet \
+  --output-dir ./benchmarks/FinTabNet/ 
 ```
 
 [Tableformer evaluation json](evaluations/FinTabNet/evaluation_FinTabNet_tableformer.json)
@@ -24,12 +31,10 @@ poetry run evaluate \
 Visualize the report:
 
 ```sh
-poetry run evaluate \
-    -t visualize \
-    -m tableformer \
-    -b FinTabNet \
-    -i benchmarks/FinTabNet-dataset/tableformer \
-    -o benchmarks/FinTabNet-dataset/tableformer
+docling_eval visualize \
+  --modality table_structure \
+  --benchmark FinTabNet \
+  --output-dir ./benchmarks/FinTabNet/ 
 ```
 
 ![TEDS plot](evaluations/FinTabNet/evaluation_FinTabNet_tableformer-delta_row_col.png)

@@ -1,16 +1,17 @@
-#
-# Copyright IBM Corp. 2024 - 2024
-# SPDX-License-Identifier: MIT
-#
+from pathlib import Path
+from typing import List
 
-
+import pytest
 from docling_core.types.doc.document import DoclingDocument, TableCell, TableData
 
+from docling_eval.datamodels.types import BenchMarkColumns, PredictionFormats
 from docling_eval.evaluators.table_evaluator import TableEvaluation, TableEvaluator
 
 
-def test_table_evaluator():
-    r""" """
+def test_evaluate_tables():
+    r"""
+    Testing the internal _evaluate_tables_in_documents
+    """
     data_table_cells = []
     num_cols = 6
     num_rows = 5
@@ -282,7 +283,7 @@ def test_table_evaluator():
     table_evaluator = TableEvaluator()
 
     # Evaluate equal tables
-    evaluations: list[TableEvaluation] = table_evaluator._evaluate_tables_in_documents(
+    evaluations: List[TableEvaluation] = table_evaluator._evaluate_tables_in_documents(
         doc_id="test", true_doc=doc, pred_doc=doc
     )
     assert len(evaluations) == 1
@@ -290,8 +291,34 @@ def test_table_evaluator():
     assert evaluation.TEDS == 1.0
     assert evaluation.is_complex
 
-    # TODO: Add test data with sample from HF dataset and test the __call__()
+
+@pytest.mark.dependency(
+    depends=["tests/test_dataset_builder.py::test_run_dpbench_tables"],
+    scope="session",
+)
+def test_table_evaluator():
+    r""" """
+    test_dataset_dir = Path("scratch/DPBench/eval_dataset_tables")
+
+    # Default evaluator
+    eval1 = TableEvaluator()
+    v1 = eval1(test_dataset_dir)
+    assert v1 is not None
+
+    # # Specify order in prediction_sources
+    # eval2 = TableEvaluator(prediction_sources=[PredictionFormats.DOCTAGS])
+    # v2 = eval2(test_dataset_dir)
+    # assert v2 is not None
+
+    # Specify invalid order in prediction_sources
+    is_exception = False
+    try:
+        eval3 = TableEvaluator(prediction_sources=[PredictionFormats.MARKDOWN])
+        eval3(test_dataset_dir)
+    except RuntimeError as ex:
+        is_exception = True
+    assert is_exception
 
 
-if __name__ == "__main__":
-    test_table_evaluator()
+# if __name__ == "__main__":
+#     test_table_evaluator()

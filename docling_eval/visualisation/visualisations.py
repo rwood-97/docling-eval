@@ -5,11 +5,16 @@ from typing import Set
 
 from docling.datamodel.base_models import BoundingBox, Cluster
 from docling.utils.visualization import draw_clusters
-from docling_core.types.doc.document import DocItem, DoclingDocument, ImageRefMode
+from docling_core.types.doc.document import (
+    ContentLayer,
+    DocItem,
+    DoclingDocument,
+    ImageRefMode,
+)
 from docling_core.types.doc.labels import DocItemLabel
 from PIL import Image, ImageDraw, ImageFont
 
-from docling_eval.benchmarks.utils import from_pil_to_base64
+from docling_eval.utils.utils import from_pil_to_base64
 from docling_eval.visualisation.constants import (
     HTML_COMPARISON_PAGE,
     HTML_COMPARISON_PAGE_WITH_CLUSTERS,
@@ -133,7 +138,9 @@ def draw_clusters_with_reading_order(
 
     x0, y0 = None, None
 
-    for item, level in doc.iterate_items():
+    for item, level in doc.iterate_items(
+        included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
+    ):
         if isinstance(item, DocItem):  # and item.label in labels:
             for prov in item.prov:
 
@@ -252,7 +259,11 @@ def save_comparison_html_with_clusters(
         Draw the document clusters and optionaly the reading order
         """
         clusters = []
-        for idx, (elem, _) in enumerate(doc.iterate_items()):
+        for idx, (elem, _) in enumerate(
+            doc.iterate_items(
+                included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
+            )
+        ):
             if not isinstance(elem, DocItem):
                 continue
             if len(elem.prov) == 0:
@@ -287,7 +298,9 @@ def save_comparison_html_with_clusters(
         draw = ImageDraw.Draw(image)
         x0, y0 = None, None
 
-        for elem, _ in doc.iterate_items():
+        for elem, _ in doc.iterate_items(
+            included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
+        ):
             if not isinstance(elem, DocItem):
                 continue
             if len(elem.prov) == 0:
