@@ -12,14 +12,14 @@ docling_eval create-gt --benchmark DPBench --output-dir ./benchmarks/DPBench-gt/
 docling_eval create-eval \
   --modality end-to-end \
   --benchmark DPBench \
-  --gt-dir ./benchmarks/DPBench-gt/ \
+  --gt-dir ./benchmarks/DPBench-gt/gt_dataset/ \
   --output-dir ./benchmarks/DPBench-e2e/ \
   --prediction-provider docling # use full-document predictions from docling
   
 docling_eval create-eval \
   --modality table_structure \
   --benchmark DPBench \
-  --gt-dir ./benchmarks/DPBench-gt/ \
+  --gt-dir ./benchmarks/DPBench-gt/gt_dataset/ \
   --output-dir ./benchmarks/DPBench-tables/ \
   --prediction-provider tableformer # use tableformer predictions only
 ```
