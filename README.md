@@ -64,7 +64,8 @@ On our list for next benchmarks:
 - Hyperscalers
 - [CoMix](https://github.com/emanuelevivoli/CoMix/tree/main/docs/datasets)
 - [DocVQA](https://huggingface.co/datasets/lmms-lab/DocVQA)
-
+- [rd-tablebench](https://huggingface.co/datasets/reducto/rd-tablebench)
+  
 ## Contributing
 
 Please read [Contributing to Docling](https://github.com/DS4SD/docling/blob/main/CONTRIBUTING.md) for details.
