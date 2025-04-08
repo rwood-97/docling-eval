@@ -224,29 +224,12 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
             RuntimeError: If ground truth doc is not available or if mime type is unsupported
         """
 
-        # TODO: Please remove this code. Caching prediction results can not be handled in a PredictionProvider.
-        #       We must use a snapshot of the once-created eval dataset instead to avoid repeated predictions.
-        # _log.info(f"Creating prediction for file - {record.original.name}..")
-        # stream_file_basename = Path(record.original.name).stem
-
-        # prediction_file_name = os.path.join(self.predictions_dir, f"{stream_file_basename}.json")
-        # _log.debug(f"{prediction_file_name=}")
-
-        # prediction_file_exists = False
-        # Check if the prediction exists, if so - reuse it
-
-        # if (self.skip_api_if_prediction_is_present and os.path.exists(prediction_file_name)):
-        #     prediction_file_exists = True
-        #     print(f"Skipping Azure API call and re-using existing prediction from [{prediction_file_name}].")
-        #     with open(prediction_file_name, "r", encoding="utf-8") as f:
-        #         result_json = json.load(f)
-        #     result_json
-        # else:
-
         status = ConversionStatus.SUCCESS
+        result_orig = None
         assert record.original is not None
 
         try:
+            _log.info(f"Processing file '{record.doc_id}'..")
             if record.mime_type == "application/pdf":
                 if not isinstance(record.original, DocumentStream):
                     raise RuntimeError(
@@ -270,7 +253,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                 record.ground_truth_page_images[0].save(buf, format="PNG")
 
                 poller = self.doc_intelligence_client.begin_analyze_document(
-                    "prebuilt-layout", buf, features=[]
+                    "prebuilt-layout", BytesIO(buf.getvalue()), features=[]
                 )
                 result = poller.result()
                 result_json = result.to_dict()
@@ -286,28 +269,13 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
             result_orig = json.dumps(result_json)
 
         except Exception as e:
-            _log.error(f"Error in TableFormer prediction: {str(e)}")
+            _log.error(f"Error in TableFormer prediction for '{record.doc_id}': {str(e)}")
             status = ConversionStatus.FAILURE
             if not self.ignore_missing_predictions:
                 raise
             pred_doc = record.ground_truth_doc.model_copy(
                 deep=True
             )  # Use copy of ground truth as fallback
-
-        # TODO: Remove this code. We must not save predictions to the filesystem, bypassing the eval dataset record
-        # save both the prediction json as well as converted docling_document into the subfolders underneath
-        # if not prediction_file_exists:
-        #     with open(prediction_file_name, 'w', encoding="utf-8") as f:
-        #         json.dump(result_json, f, indent=2)
-        #     print(f"Saved Prediction output to - {prediction_file_name}")
-        #
-        # # Directory for storing docling_document output
-        # output_dir = os.path.join(self.predictions_dir, "docling_document")
-        # os.makedirs(output_dir, exist_ok=True)
-        # docling_document_file_name = os.path.join(output_dir, f"{record.original.name}.json")    # include full name
-        # with open(docling_document_file_name, 'w', encoding="utf-8") as f:
-        #     json.dump(pred_docling_doc.export_to_dict(), f, indent=2)
-        # print(f"Saved Docling Document output of prediction to - {docling_document_file_name}")
 
         pred_record = self.create_dataset_record_with_prediction(
             record, pred_doc, result_orig
