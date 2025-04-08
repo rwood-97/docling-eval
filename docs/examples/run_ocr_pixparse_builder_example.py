@@ -2,15 +2,12 @@ import logging
 import os
 from pathlib import Path
 
-from docling_eval.evaluators.ocr.ocr_evaluator import OCREvaluator
-from docling_eval_next.dataset_builders.pixparse_builder import PixparseDatasetBuilder
-from docling_eval_next.prediction_providers.aws_prediction_provider import (
+from docling_eval.dataset_builders.pixparse_builder import PixparseDatasetBuilder
+from docling_eval.evaluators.ocr_evaluator import OCREvaluator
+from docling_eval.prediction_providers.aws_prediction_provider import (
     AWSTextractPredictionProvider,
 )
-from docling_eval_next.prediction_providers.azure_prediction_provider import (
-    AzureDocIntelligencePredictionProvider,
-)
-from docling_eval_next.prediction_providers.google_prediction_provider import (
+from docling_eval.prediction_providers.google_prediction_provider import (
     GoogleDocAIPredictionProvider,
 )
 
