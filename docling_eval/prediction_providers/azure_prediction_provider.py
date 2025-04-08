@@ -12,6 +12,7 @@ from docling_core.types.doc import DocItemLabel
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
     DoclingDocument,
+    ImageRef,
     PageItem,
     ProvenanceItem,
     TableCell,
@@ -27,6 +28,7 @@ from docling_eval.datamodels.types import PredictionFormats
 from docling_eval.prediction_providers.base_prediction_provider import (
     BasePredictionProvider,
 )
+from docling_eval.utils.utils import from_pil_to_base64uri
 
 # from docling_core.types.doc.labels import DocItemLabel
 
@@ -101,20 +103,32 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
             return {"l": 0, "t": 0, "r": 0, "b": 0}
 
     def convert_azure_output_to_docling(
-        self, analyze_result, filename
+        self, analyze_result, record: DatasetRecord
     ) -> DoclingDocument:
         """Converts Azure Document Intelligence output to DoclingDocument format."""
-        doc = DoclingDocument(name=filename)
+        doc = DoclingDocument(name=record.doc_id)
 
         for page in analyze_result.get("pages", []):
             page_no = page.get("page_number", 1)
 
             page_width = page.get("width")
             page_height = page.get("height")
-            doc.pages[page_no] = PageItem(
-                size=Size(width=float(page_width), height=float(page_height)),
-                page_no=page_no,
+
+            im = record.ground_truth_page_images[page_no - 1]
+
+            # Add page with image
+            image_ref = ImageRef(
+                mimetype=f"image/png",
+                dpi=72,
+                size=Size(width=float(im.width), height=float(im.height)),
+                uri=from_pil_to_base64uri(im),
             )
+            page_item = PageItem(
+                page_no=page_no,
+                size=Size(width=page_width, height=page_height),
+                image=image_ref,
+            )
+            doc.pages[page_no] = page_item
 
             for word in page.get("words", []):
                 polygon = word.get("polygon", [])
@@ -208,7 +222,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
     @property
     def prediction_format(self) -> PredictionFormats:
         """Get the prediction format."""
-        return PredictionFormats.DOCLING_DOCUMENT
+        return PredictionFormats.JSON
 
     def predict(self, record: DatasetRecord) -> DatasetRecordWithPrediction:
         """
@@ -282,7 +296,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                     f"Unsupported mime type: {record.mime_type}. AzureDocIntelligencePredictionProvider supports 'application/pdf' and 'image/png'"
                 )
             # Convert the prediction to doclingDocument
-            pred_doc = self.convert_azure_output_to_docling(result_json, record.doc_id)
+            pred_doc = self.convert_azure_output_to_docling(result_json, record)
             result_orig = json.dumps(result_json)
 
         except Exception as e:
