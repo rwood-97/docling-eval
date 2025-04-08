@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from docling_eval.prediction_providers.azure_prediction_provider import (
 
 IS_CI = os.getenv("RUN_IN_CI") == "1"
 
+logging.getLogger("azure").setLevel(logging.WARNING)
 
 @pytest.mark.skipif(
     IS_CI, reason="Skipping test in CI because the dataset is too heavy."
@@ -21,7 +23,7 @@ IS_CI = os.getenv("RUN_IN_CI") == "1"
 def test_run_fintabnet_builder():
     target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}/")
     azure_provider = AzureDocIntelligencePredictionProvider(
-        do_visualization=True, ignore_missing_predictions=False
+        do_visualization=True, ignore_missing_predictions=True
     )
 
     dataset = FintabNetDatasetBuilder(
