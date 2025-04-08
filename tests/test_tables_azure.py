@@ -17,6 +17,7 @@ IS_CI = os.getenv("RUN_IN_CI") == "1"
 
 logging.getLogger("azure").setLevel(logging.WARNING)
 
+
 @pytest.mark.skipif(
     IS_CI, reason="Skipping test in CI because the dataset is too heavy."
 )

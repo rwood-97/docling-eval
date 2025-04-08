@@ -73,14 +73,6 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
             endpoint, AzureKeyCredential(key)
         )
 
-        # Save the flags for intermediate results and processing
-        # self.skip_api_if_prediction_is_present = bool(
-        #    kwargs.get("skip_api_if_prediction_is_present", False) is True
-        # )
-
-        # self.predictions_dir = kwargs.get("predictions_dir")
-        # os.makedirs(self.predictions_dir, exist_ok=True)
-
     def extract_bbox_from_polygon(self, polygon):
         """Helper function to extract bbox coordinates from polygon data."""
         if not polygon or not isinstance(polygon, list):
@@ -283,7 +275,9 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
             result_orig = json.dumps(result_json)
 
         except Exception as e:
-            _log.error(f"Error in TableFormer prediction for '{record.doc_id}': {str(e)}")
+            _log.error(
+                f"Error in TableFormer prediction for '{record.doc_id}': {str(e)}"
+            )
             status = ConversionStatus.FAILURE
             if not self.ignore_missing_predictions:
                 raise
