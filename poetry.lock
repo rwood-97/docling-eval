@@ -290,7 +290,7 @@ tomli = {version = "*", markers = "python_version < \"3.11\""}
 name = "azure-ai-formrecognizer"
 version = "3.3.3"
 description = "Microsoft Azure Form Recognizer Client Library for Python"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 markers = "extra == \"hyperscalers\""
@@ -309,7 +309,7 @@ typing-extensions = ">=4.0.1"
 name = "azure-common"
 version = "1.1.28"
 description = "Microsoft Azure Client Library for Python (Common)"
-optional = true
+optional = false
 python-versions = "*"
 groups = ["main"]
 markers = "extra == \"hyperscalers\""
@@ -322,7 +322,7 @@ files = [
 name = "azure-core"
 version = "1.33.0"
 description = "Microsoft Azure Core Library for Python"
-optional = true
+optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 markers = "extra == \"hyperscalers\""
@@ -1630,6 +1630,56 @@ torch = ["safetensors[torch]", "torch"]
 typing = ["types-PyYAML", "types-requests", "types-simplejson", "types-toml", "types-tqdm", "types-urllib3", "typing-extensions (>=4.8.0)"]
 
 [[package]]
+name = "ibm-cos-sdk"
+version = "2.14.0"
+description = "IBM SDK for Python"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+markers = "extra == \"hyperscalers\""
+files = [
+    {file = "ibm-cos-sdk-2.14.0.tar.gz", hash = "sha256:732fb5cdf6cc58f954bd78612d317187cd36dff48801b0b937a81df3ece2c4be"},
+]
+
+[package.dependencies]
+ibm-cos-sdk-core = "2.14.0"
+ibm-cos-sdk-s3transfer = "2.14.0"
+jmespath = ">=0.10.0,<=1.0.1"
+
+[[package]]
+name = "ibm-cos-sdk-core"
+version = "2.14.0"
+description = "Low-level, data-driven core of IBM SDK for Python"
+optional = false
+python-versions = ">=3.6"
+groups = ["main"]
+markers = "extra == \"hyperscalers\""
+files = [
+    {file = "ibm-cos-sdk-core-2.14.0.tar.gz", hash = "sha256:2905e00a9cc61aed945a4f58daa6037ae7c2ca76fa0ae75b2949b300557bf5ca"},
+]
+
+[package.dependencies]
+jmespath = ">=0.10.0,<=1.0.1"
+python-dateutil = ">=2.9.0,<3.0.0"
+requests = ">=2.32.0,<2.32.3"
+urllib3 = ">=1.26.18,<3"
+
+[[package]]
+name = "ibm-cos-sdk-s3transfer"
+version = "2.14.0"
+description = "IBM S3 Transfer Manager"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+markers = "extra == \"hyperscalers\""
+files = [
+    {file = "ibm-cos-sdk-s3transfer-2.14.0.tar.gz", hash = "sha256:8eda9af12477c31d399449f655c42c694ae9c3dad46801ed923f4cd5bdc4ff13"},
+]
+
+[package.dependencies]
+ibm-cos-sdk-core = "2.14.0"
+
+[[package]]
 name = "identify"
 version = "2.6.9"
 description = "File identification library for Python"
@@ -1891,7 +1941,7 @@ test = ["ipykernel", "jsonschema", "pytest (>=3.6.0)", "pytest-cov", "pytz"]
 name = "isodate"
 version = "0.7.2"
 description = "An ISO 8601 date/time/duration parser and formatter"
-optional = true
+optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 markers = "extra == \"hyperscalers\""
@@ -2030,6 +2080,19 @@ MarkupSafe = ">=2.0"
 
 [package.extras]
 i18n = ["Babel (>=2.7)"]
+
+[[package]]
+name = "jmespath"
+version = "1.0.1"
+description = "JSON Matching Expressions"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+markers = "extra == \"hyperscalers\""
+files = [
+    {file = "jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980"},
+    {file = "jmespath-1.0.1.tar.gz", hash = "sha256:90261b206d6defd58fdd5e85f478bf633a2901798906be2ad389150c5c60edbe"},
+]
 
 [[package]]
 name = "joblib"
@@ -2810,7 +2873,7 @@ tests = ["pytest (>=4.6)"]
 name = "msrest"
 version = "0.7.1"
 description = "AutoRest swagger generator Python client runtime."
-optional = true
+optional = false
 python-versions = ">=3.6"
 groups = ["main"]
 markers = "extra == \"hyperscalers\""
@@ -3487,7 +3550,7 @@ files = [
 name = "oauthlib"
 version = "3.2.2"
 description = "A generic, spec-compliant, thorough implementation of the OAuth request-signing logic"
-optional = true
+optional = false
 python-versions = ">=3.6"
 groups = ["main"]
 markers = "extra == \"hyperscalers\""
@@ -4226,14 +4289,14 @@ files = [
 
 [[package]]
 name = "pydantic"
-version = "2.11.2"
+version = "2.11.3"
 description = "Data validation using Python type hints"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pydantic-2.11.2-py3-none-any.whl", hash = "sha256:7f17d25846bcdf89b670a86cdfe7b29a9f1c9ca23dee154221c9aa81845cfca7"},
-    {file = "pydantic-2.11.2.tar.gz", hash = "sha256:2138628e050bd7a1e70b91d4bf4a91167f4ad76fdb83209b107c8d84b854917e"},
+    {file = "pydantic-2.11.3-py3-none-any.whl", hash = "sha256:a082753436a07f9ba1289c6ffa01cd93db3548776088aa917cc43b63f68fa60f"},
+    {file = "pydantic-2.11.3.tar.gz", hash = "sha256:7471657138c16adad9322fe3070c0116dd6c3ad8d649300e3cbdfe91f4db4ec3"},
 ]
 
 [package.dependencies]
@@ -5161,14 +5224,14 @@ files = [
 
 [[package]]
 name = "requests"
-version = "2.32.3"
+version = "2.32.2"
 description = "Python HTTP for Humans."
 optional = false
 python-versions = ">=3.8"
 groups = ["main", "dev"]
 files = [
-    {file = "requests-2.32.3-py3-none-any.whl", hash = "sha256:70761cfe03c773ceb22aa2f671b4757976145175cdfca038c02654d061d6dcc6"},
-    {file = "requests-2.32.3.tar.gz", hash = "sha256:55365417734eb18255590a9ff9eb97e9e1da868d4ccd6402399eaf68af20a760"},
+    {file = "requests-2.32.2-py3-none-any.whl", hash = "sha256:fc06670dd0ed212426dfeb94fc1b983d917c4f9847c863f313c9dfaaffb7c23c"},
+    {file = "requests-2.32.2.tar.gz", hash = "sha256:dd951ff5ecf3e3b3aa26b40703ba77495dab41da839ae72ef3c8e5d8e2433289"},
 ]
 
 [package.dependencies]
@@ -5185,7 +5248,7 @@ use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 name = "requests-oauthlib"
 version = "2.0.0"
 description = "OAuthlib authentication support for Requests."
-optional = true
+optional = false
 python-versions = ">=3.4"
 groups = ["main"]
 markers = "extra == \"hyperscalers\""
@@ -6951,9 +7014,9 @@ test = ["big-O", "importlib-resources ; python_version < \"3.9\"", "jaraco.funct
 type = ["pytest-mypy"]
 
 [extras]
-hyperscalers = ["azure-ai-formrecognizer", "azure-common", "azure-core"]
+hyperscalers = ["azure-ai-formrecognizer", "azure-common", "azure-core", "ibm-cos-sdk"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "a97cbe8ddb6984d5dabffdb8165b473f5677c17ba115067bfada0927dd5e56de"
+content-hash = "4237a90c5f52646132577894c3f8fecc5a06d66f91086242d8d05af6ca16945e"

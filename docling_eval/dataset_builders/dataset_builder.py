@@ -3,8 +3,9 @@ import os
 import sys
 from abc import abstractmethod
 from pathlib import Path
-from typing import Iterable, Optional, Union
+from typing import Any, Iterable, Optional, Union
 
+import ibm_boto3  # type: ignore
 from docling.utils.utils import chunkify
 from huggingface_hub import snapshot_download
 from pydantic import BaseModel
@@ -23,8 +24,82 @@ class HFSource(BaseModel):
 
 
 class S3Source(BaseModel):
-    # TBD
-    pass
+    endpoint: str
+    access_key: str
+    secret_key: str
+    cos_bucket: str  # Bucket of interest inside of COS.
+    cos_dir: str  # Path to dataset "directory" of interest in COS.
+    cos_resource: Optional[Any] = None
+    cos_client: Optional[Any] = None
+    overwrite_downloads: Optional[bool] = True
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.cos_resource = self.initialize_s3_resource()
+        self.cos_client = self.initialize_s3_client()
+
+    def initialize_s3_client(self):
+        """Initializes boto3 resource - s3 instance
+        Returns the s3 instance
+        """
+        return ibm_boto3.client(
+            "s3",
+            endpoint_url=self.endpoint,
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+        )
+
+    def initialize_s3_resource(self):
+        """Initializes boto3 resource - s3 instance
+        Returns the s3 instance
+        """
+
+        return ibm_boto3.resource(
+            "s3",
+            endpoint_url=self.endpoint,
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+        )
+
+    def download_objects(self, download_dir):
+        """Downloads the objects from the bucket to the given download directory."""
+        _log.info(
+            f"Download objects from {self.cos_bucket}/{self.cos_dir} to {download_dir}"
+        )
+        paginator = self.cos_client.get_paginator("list_objects_v2")
+        pagination_params = {
+            "Bucket": self.cos_bucket,
+            "Prefix": self.cos_dir,
+            "MaxKeys": 100,
+        }
+        page_iterator = paginator.paginate(**pagination_params)
+        for page in page_iterator:
+            for file_meta in page["Contents"]:
+                relative_path = file_meta["Key"][len(self.cos_dir) + 1 :]
+                if len(relative_path) == 0:
+                    continue
+                if file_meta["Size"] == 0:
+                    continue
+
+                # Identify the path to the file on disk.
+                local_file_path = os.path.join(download_dir, relative_path)
+
+                # If the option to overwrite downloads is ON, and the file already exists, skip it.
+                if self.overwrite_downloads and os.path.exists(local_file_path):
+                    _log.info(f"File {local_file_path} already exists. Skipping.")
+                    continue
+
+                # Create the directories as required
+                local_dir = os.path.dirname(local_file_path)
+                if not os.path.exists(local_dir):
+                    os.makedirs(local_dir)
+
+                self.cos_resource.Bucket(self.cos_bucket).download_file(
+                    file_meta["Key"], local_file_path
+                )
+                _log.info(f"Downloaded {file_meta['Key']} to {local_file_path}")
+
+        return download_dir
 
 
 class BaseEvaluationDatasetBuilder:
@@ -93,6 +168,11 @@ class BaseEvaluationDatasetBuilder:
                 path = Path(path_str)
         elif isinstance(self.dataset_source, Path):
             path = self.dataset_source
+        elif isinstance(self.dataset_source, S3Source):
+            # Download the data from S3 bucket to the target folder
+            self.dataset_source.download_objects(self.target)
+            path = Path(self.target)
+            self.dataset_local_path = path
         else:
             raise RuntimeError(
                 f"Unknown dataset_source type {type(self.dataset_source)}"
