@@ -27,16 +27,14 @@ class S3Source(BaseModel):
     endpoint: str
     access_key: str
     secret_key: str
-    cos_bucket: str  # Bucket of interest inside of COS.
-    cos_dir: str  # Path to dataset "directory" of interest in COS.
-    cos_resource: Optional[Any] = None
-    cos_client: Optional[Any] = None
-    overwrite_downloads: Optional[bool] = True
+    bucket: str  # Bucket of interest inside of COS.
+    key_prefix: str  # Path to dataset "directory" of interest in COS.
+    overwrite_downloads: bool = True
 
     def __init__(self, **data):
         super().__init__(**data)
-        self.cos_resource = self.initialize_s3_resource()
-        self.cos_client = self.initialize_s3_client()
+        self._cos_resource = self.initialize_s3_resource()
+        self._cos_client = self.initialize_s3_client()
 
     def initialize_s3_client(self):
         """Initializes boto3 resource - s3 instance
@@ -61,21 +59,21 @@ class S3Source(BaseModel):
             aws_secret_access_key=self.secret_key,
         )
 
-    def download_objects(self, download_dir):
+    def download_objects(self, download_dir: Path) -> Path:
         """Downloads the objects from the bucket to the given download directory."""
         _log.info(
-            f"Download objects from {self.cos_bucket}/{self.cos_dir} to {download_dir}"
+            f"Download objects from {self.bucket}/{self.key_prefix} to {download_dir}"
         )
-        paginator = self.cos_client.get_paginator("list_objects_v2")
+        paginator = self._cos_client.get_paginator("list_objects_v2")
         pagination_params = {
-            "Bucket": self.cos_bucket,
-            "Prefix": self.cos_dir,
+            "Bucket": self.bucket,
+            "Prefix": self.key_prefix,
             "MaxKeys": 100,
         }
         page_iterator = paginator.paginate(**pagination_params)
         for page in page_iterator:
             for file_meta in page["Contents"]:
-                relative_path = file_meta["Key"][len(self.cos_dir) + 1 :]
+                relative_path = file_meta["Key"][len(self.key_prefix) + 1 :]
                 if len(relative_path) == 0:
                     continue
                 if file_meta["Size"] == 0:
@@ -94,7 +92,7 @@ class S3Source(BaseModel):
                 if not os.path.exists(local_dir):
                     os.makedirs(local_dir)
 
-                self.cos_resource.Bucket(self.cos_bucket).download_file(
+                self._cos_resource.Bucket(self.bucket).download_file(
                     file_meta["Key"], local_file_path
                 )
                 _log.info(f"Downloaded {file_meta['Key']} to {local_file_path}")

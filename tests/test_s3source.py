@@ -48,8 +48,8 @@ def test_s3source():
         endpoint=endpoint,
         access_key=access_key,
         secret_key=secret_key,
-        cos_bucket=cos_bucket,
-        cos_dir=cos_dir,
+        bucket=cos_bucket,
+        key_prefix=cos_dir,
         overwrite_downloads=True,
     )
 
