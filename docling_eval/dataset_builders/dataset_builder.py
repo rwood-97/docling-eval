@@ -33,12 +33,12 @@ class S3Source(BaseModel):
 
     def __init__(self, **data):
         super().__init__(**data)
-        self._cos_resource = self.initialize_s3_resource()
-        self._cos_client = self.initialize_s3_client()
+        self._cos_resource: ibm_boto3.resource = self.initialize_s3_resource()
+        self._cos_client: ibm_boto3.client = self.initialize_s3_client()
 
-    def initialize_s3_client(self):
-        """Initializes boto3 resource - s3 instance
-        Returns the s3 instance
+    def initialize_s3_client(self) -> ibm_boto3.client:
+        """Initializes boto3 client - s3 instance
+        Returns the s3 client
         """
         return ibm_boto3.client(
             "s3",
@@ -47,7 +47,7 @@ class S3Source(BaseModel):
             aws_secret_access_key=self.secret_key,
         )
 
-    def initialize_s3_resource(self):
+    def initialize_s3_resource(self) -> ibm_boto3.resource:
         """Initializes boto3 resource - s3 instance
         Returns the s3 instance
         """
