@@ -3,7 +3,7 @@ import os
 import sys
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, Iterable, Optional, Union
+from typing import Iterable, Optional, Union
 
 import ibm_boto3  # type: ignore
 from docling.utils.utils import chunkify
