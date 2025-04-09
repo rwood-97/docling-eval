@@ -125,6 +125,7 @@ class BaseEvaluationDatasetBuilder:
             name: Name of the dataset
             dataset_source: Source of the dataset (HuggingFace, S3, or local path)
             target: Path where processed dataset will be saved
+            dataset_local_path: Path where the dataset will be saved as-is locally
             split: Dataset split to use (train, test, etc.)
             begin_index: Start index for processing (inclusive)
             end_index: End index for processing (exclusive), -1 means process all
@@ -167,10 +168,15 @@ class BaseEvaluationDatasetBuilder:
         elif isinstance(self.dataset_source, Path):
             path = self.dataset_source
         elif isinstance(self.dataset_source, S3Source):
-            # Download the data from S3 bucket to the target folder
-            self.dataset_source.download_objects(self.target)
-            path = Path(self.target)
-            self.dataset_local_path = path
+            if not self.dataset_local_path:
+                self.dataset_local_path = self.target / "source_data"
+
+            _log.info("Dataset local path = [%s]", self.dataset_local_path)
+            _log.info("Target path = [%s]", self.target)
+
+            # Download the data from S3 bucket
+            self.dataset_source.download_objects(self.dataset_local_path)
+            path = self.dataset_local_path
         else:
             raise RuntimeError(
                 f"Unknown dataset_source type {type(self.dataset_source)}"
