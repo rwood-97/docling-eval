@@ -7856,6 +7856,7 @@ type = ["pytest-mypy"]
 [extras]
 hyperscalers = ["azure-ai-formrecognizer", "azure-common", "azure-core", "boto3", "google-cloud-documentai", "ibm-cos-sdk"]
 
+
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"

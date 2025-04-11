@@ -55,8 +55,11 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
         # TODO - Need a temp directory to save Azure outputs
         # Validate the required library
         try:
-            from azure.ai.formrecognizer import AnalysisFeature, DocumentAnalysisClient
-            from azure.core.credentials import AzureKeyCredential
+            from azure.ai.formrecognizer import (  # type: ignore
+                AnalysisFeature,
+                DocumentAnalysisClient,
+            )
+            from azure.core.credentials import AzureKeyCredential  # type: ignore
         except ImportError:
             raise ImportError("azure-ai-formrecognizer library is not installed..")
 
