@@ -19,7 +19,7 @@ IS_CI = os.getenv("RUN_IN_CI") == "1"
     IS_CI, reason="Skipping test in CI because the dataset is too heavy."
 )
 def test_run_fintabnet_builder():
-    target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}/")
+    target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}_google/")
     google_provider = GoogleDocAIPredictionProvider(
         do_visualization=True, ignore_missing_predictions=False
     )

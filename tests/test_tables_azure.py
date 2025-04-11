@@ -22,7 +22,7 @@ logging.getLogger("azure").setLevel(logging.WARNING)
     IS_CI, reason="Skipping test in CI because the dataset is too heavy."
 )
 def test_run_fintabnet_builder():
-    target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}/")
+    target_path = Path(f"./scratch/{BenchMarkNames.FINTABNET.value}_azure/")
     azure_provider = AzureDocIntelligencePredictionProvider(
         do_visualization=True, ignore_missing_predictions=True
     )
