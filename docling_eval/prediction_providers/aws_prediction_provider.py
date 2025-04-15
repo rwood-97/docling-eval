@@ -1,3 +1,4 @@
+import importlib.metadata
 import json
 import logging
 import os
@@ -290,4 +291,4 @@ class AWSTextractPredictionProvider(BasePredictionProvider):
         return pred_record
 
     def info(self) -> Dict:
-        return {"asset": "AWS Textract", "version": "1.0.0"}
+        return {"asset": "AWS Textract", "version": importlib.metadata.version("boto3")}

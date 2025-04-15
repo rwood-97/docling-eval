@@ -1,3 +1,4 @@
+import importlib.metadata
 import json
 import logging
 import os
@@ -300,4 +301,7 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
         return pred_record
 
     def info(self) -> Dict:
-        return {"asset": "Google Document AI", "version": "1.0.0"}
+        return {
+            "asset": "Google Document AI",
+            "version": importlib.metadata.version("google-cloud-documentai"),
+        }

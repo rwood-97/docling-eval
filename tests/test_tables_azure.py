@@ -16,6 +16,7 @@ from docling_eval.prediction_providers.azure_prediction_provider import (
 IS_CI = os.getenv("RUN_IN_CI") == "1"
 
 logging.getLogger("azure").setLevel(logging.WARNING)
+logging.getLogger("PIL").setLevel(logging.WARNING)
 
 
 @pytest.mark.skipif(

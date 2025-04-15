@@ -1,3 +1,4 @@
+import importlib.metadata
 import json
 import logging
 import os
@@ -295,4 +296,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
         return pred_record
 
     def info(self) -> Dict:
-        return {"asset": "Azure AI Document Intelligence", "version": "1.0.0"}
+        return {
+            "asset": "Azure AI Document Intelligence",
+            "version": importlib.metadata.version("azure-ai-formrecognizer"),
+        }
