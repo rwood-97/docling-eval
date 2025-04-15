@@ -27,6 +27,7 @@ from docling_eval.dataset_builders.otsl_table_dataset_builder import (
     PubTables1MDatasetBuilder,
     PubTabNetDatasetBuilder,
 )
+from docling_eval.dataset_builders.pixparse_builder import PixparseDatasetBuilder
 from docling_eval.dataset_builders.xfund_builder import XFUNDDatasetBuilder
 from docling_eval.prediction_providers.file_provider import FilePredictionProvider
 from docling_eval.prediction_providers.tableformer_provider import (
@@ -557,4 +558,24 @@ def test_run_docvqa_builder():
         name=dataset_layout.name,
         gt_dataset_dir=target_path / "gt_dataset",
         target_dataset_dir=target_path / "eval_dataset_e2e",
+    )
+
+
+@pytest.mark.skipif(
+    IS_CI, reason="Skipping test in CI because the dataset is too heavy."
+)
+def test_run_pixparse_builder():
+    target_path = Path(f"./scratch/{BenchMarkNames.PIXPARSEIDL.value}/")
+
+    dataset_pixparse = PixparseDatasetBuilder(target=target_path / "gt_dataset")
+
+    dataset_pixparse.retrieve_input_dataset()
+    dataset_pixparse.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.
+    docling_provider = get_prediction_provider(PredictionProviderType.DOCLING)
+
+    docling_provider.create_prediction_dataset(
+        name=dataset_pixparse.name,
+        gt_dataset_dir=target_path / "gt_dataset",
+        target_dataset_dir=target_path / "eval_dataset_e2e",
+        end_index=5,
     )
