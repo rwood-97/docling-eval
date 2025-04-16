@@ -252,7 +252,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                 result = poller.result()
                 result_json = result.to_dict()
                 _log.info(
-                    f"Successfully processed [{record.original.name}] using Azure API..!!"
+                    f"Successfully processed [{record.doc_id}] using Azure API..!!"
                 )
 
             elif record.mime_type == "image/png":
@@ -268,7 +268,7 @@ class AzureDocIntelligencePredictionProvider(BasePredictionProvider):
                 result = poller.result()
                 result_json = result.to_dict()
                 _log.info(
-                    f"Successfully processed [{record.original.name}] using Azure API..!!"
+                    f"Successfully processed [{record.doc_id}] using Azure API..!!"
                 )
             else:
                 raise RuntimeError(

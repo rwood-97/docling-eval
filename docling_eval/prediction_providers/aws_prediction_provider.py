@@ -265,7 +265,7 @@ class AWSTextractPredictionProvider(BasePredictionProvider):
                 result_orig = json.dumps(response, default=str)
                 result_json = json.loads(result_orig)
                 _log.info(
-                    f"Successfully processed [{record.original.name}] using AWS Textract API!"
+                    f"Successfully processed [{record.doc_id}] using AWS Textract API!"
                 )
 
                 pred_doc = self.convert_aws_output_to_docling(
