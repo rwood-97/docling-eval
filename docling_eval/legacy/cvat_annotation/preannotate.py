@@ -12,6 +12,7 @@ from docling_core.types.doc.document import DocItem, DoclingDocument
 from docling_core.types.doc.labels import DocItemLabel, PictureClassificationLabel
 from tqdm import tqdm  # type: ignore
 
+from docling_eval.datamodels.dataset_record import DatasetRecordWithPrediction
 from docling_eval.datamodels.types import BenchMarkColumns
 from docling_eval.legacy.cvat_annotation.utils import (
     AnnotatedDoc,
@@ -23,7 +24,7 @@ from docling_eval.legacy.cvat_annotation.utils import (
     TableComponentLabel,
     rgb_to_hex,
 )
-from docling_eval.utils.utils import get_binhash, insert_images
+from docling_eval.utils.utils import get_binhash, insert_images, insert_images_from_pil
 
 # Configure logging
 logging.basicConfig(
@@ -324,48 +325,39 @@ def export_from_dataset_supplementary_files(
         ncols=120,
         total=len(ds_selection),
     ):
-        # Get the Docling predicted document
-        pred_doc_dict = data[BenchMarkColumns.PREDICTION]
-        pred_doc = DoclingDocument.model_validate_json(pred_doc_dict)
-
-        page_images = data[BenchMarkColumns.PREDICTION_PAGE_IMAGES]
-        pics_images = data[BenchMarkColumns.PREDICTION_PICTURES]
-
-        pred_doc = insert_images(
-            pred_doc, page_images=page_images, pictures=pics_images
-        )
-
-        # Get the groundtruth document (to cherry pick table structure later ...)
-        true_doc = pred_doc
-        if BenchMarkColumns.GROUNDTRUTH in data:
-            true_doc_dict = data[BenchMarkColumns.GROUNDTRUTH]
-            true_doc = DoclingDocument.model_validate_json(true_doc_dict)
-
-            true_page_images = data[BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES]
-            true_pics_images = data[BenchMarkColumns.GROUNDTRUTH_PICTURES]
-
-            true_doc = insert_images(
-                true_doc, page_images=true_page_images, pictures=true_pics_images
-            )
+        data_record = DatasetRecordWithPrediction.model_validate(data)
 
         # FIXME: make the unique name in a column
-        doc_name = f"{pred_doc.name}"
+        doc_name = f"{data_record.doc_id}"
 
-        bin_doc = data[BenchMarkColumns.ORIGINAL]
-        if BenchMarkColumns.DOC_HASH in data:
-            doc_hash = data[BenchMarkColumns.DOC_HASH]
-        else:
-            doc_hash = get_binhash(binary_data=bin_doc)
+        bin_doc = data_record.original
+
+        doc_hash = data_record.doc_hash
+
+        if doc_hash is None:
+            doc_hash = get_binhash(binary_data=bin_doc.stream)
 
         # Write groundtruth and predicted document. The groundtruth will
         # be replaced/updated by the annoted ones later on
         true_file = benchmark_dirs.json_true_dir / f"{doc_name}.json"
+        true_doc = data_record.ground_truth_doc
+        true_doc = insert_images_from_pil(
+            true_doc,
+            data_record.ground_truth_pictures,
+            data_record.ground_truth_page_images,
+        )
         true_doc.save_as_json(filename=true_file, image_mode=ImageRefMode.EMBEDDED)
 
         pred_file = benchmark_dirs.json_pred_dir / f"{doc_name}.json"
+        pred_doc = data_record.predicted_doc
+        pred_doc = insert_images_from_pil(
+            pred_doc,
+            data_record.predicted_pictures,
+            data_record.predicted_page_images,
+        )
         pred_doc.save_as_json(filename=pred_file, image_mode=ImageRefMode.EMBEDDED)
 
-        mime_type = data[BenchMarkColumns.MIMETYPE]
+        mime_type = data_record.mime_type
 
         bin_name = None
         if mime_type == "application/pdf":  # Write original pdf ...
@@ -375,11 +367,11 @@ def export_from_dataset_supplementary_files(
         elif mime_type == "image/jpg":  # Write original jpg ...
             bin_name = f"{doc_hash}.jpg"
         else:
-            exit(-1)
+            raise ValueError(f"Unsupported mime-type {mime_type}")
 
         bin_file = str(benchmark_dirs.bins_dir / bin_name)
         with open(bin_file, "wb") as fw:
-            fw.write(data[BenchMarkColumns.ORIGINAL])
+            fw.write(bin_doc.stream.read())
 
         overview.doc_annotations.append(
             AnnotatedDoc(

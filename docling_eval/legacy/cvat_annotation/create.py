@@ -44,7 +44,10 @@ from docling_eval.utils.utils import (
     save_shard_to_disk,
     write_datasets_info,
 )
-from docling_eval.visualisation.visualisations import save_comparison_html_with_clusters
+from docling_eval.visualisation.visualisations import (
+    save_comparison_html_with_clusters,
+    save_inspection_html,
+)
 
 # from pydantic import
 
@@ -922,12 +925,7 @@ PRED_HTML_EXPORT_LABELS = {
 def create_layout_dataset_from_annotations(
     benchmark_dirs: BenchMarkDirs, annot_files: List[Path]
 ):
-
     overview = AnnotationOverview.load_from_json(filename=benchmark_dirs.overview_file)
-
-    # Create Converter
-    image_scale = 2.0
-    doc_converter = create_pdf_docling_converter(page_image_scale=image_scale)
 
     records = []
     for basename, desc, true_doc in tqdm(
@@ -954,9 +952,15 @@ def create_layout_dataset_from_annotations(
 
         pdf_file = desc.bin_file
 
-        # Create the predicted Document
-        conv_results = doc_converter.convert(source=pdf_file, raises_on_error=True)
-        pred_doc = conv_results.document
+        if True:
+            vizname = benchmark_dirs.html_comp_dir / f"{basename}-clusters.html"
+            # logging.info(f"creating visualization: {vizname}")
+
+            save_inspection_html(
+                filename=vizname,
+                doc=true_doc,
+                labels=TRUE_HTML_EXPORT_LABELS,
+            )
 
         true_doc, true_pictures, true_page_images = extract_images(
             document=true_doc,
@@ -964,38 +968,15 @@ def create_layout_dataset_from_annotations(
             page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES.value,  # page_images_column,
         )
 
-        pred_doc, pred_pictures, pred_page_images = extract_images(
-            document=pred_doc,
-            pictures_column=BenchMarkColumns.PREDICTION_PICTURES.value,  # pictures_column,
-            page_images_column=BenchMarkColumns.PREDICTION_PAGE_IMAGES.value,  # page_images_column,
-        )
-
-        if True:
-            vizname = benchmark_dirs.html_comp_dir / f"{basename}-clusters.html"
-            # logging.info(f"creating visualization: {vizname}")
-
-            save_comparison_html_with_clusters(
-                filename=vizname,
-                true_doc=true_doc,
-                pred_doc=pred_doc,
-                page_image=true_page_images[0],
-                true_labels=TRUE_HTML_EXPORT_LABELS,
-                pred_labels=PRED_HTML_EXPORT_LABELS,
-            )
-
         record = {
             BenchMarkColumns.CONVERTER_TYPE: ConverterTypes.DOCLING,
             BenchMarkColumns.CONVERTER_VERSION: docling_version(),
-            BenchMarkColumns.STATUS: str(conv_results.status),
             BenchMarkColumns.DOC_ID: str(basename),
             BenchMarkColumns.DOC_PATH: str(basename),
             BenchMarkColumns.DOC_HASH: get_binhash(get_binary(pdf_file)),
             BenchMarkColumns.GROUNDTRUTH: json.dumps(true_doc.export_to_dict()),
             BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES: true_page_images,
             BenchMarkColumns.GROUNDTRUTH_PICTURES: true_pictures,
-            BenchMarkColumns.PREDICTION: json.dumps(pred_doc.export_to_dict()),
-            BenchMarkColumns.PREDICTION_PAGE_IMAGES: pred_page_images,
-            BenchMarkColumns.PREDICTION_PICTURES: pred_pictures,
             BenchMarkColumns.ORIGINAL: get_binary(pdf_file),
             BenchMarkColumns.MIMETYPE: "application/pdf",
             BenchMarkColumns.MODALITIES: [
