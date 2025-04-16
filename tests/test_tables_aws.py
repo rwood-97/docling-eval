@@ -15,6 +15,7 @@ from docling_eval.prediction_providers.aws_prediction_provider import (
 
 IS_CI = os.getenv("RUN_IN_CI") == "1"
 
+logging.getLogger("botocore").setLevel(logging.WARNING)
 logging.getLogger("PIL").setLevel(logging.WARNING)
 logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
