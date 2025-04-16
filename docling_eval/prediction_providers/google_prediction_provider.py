@@ -19,7 +19,7 @@ from docling_core.types.doc.document import (
 )
 from docling_core.types.doc.labels import DocItemLabel
 from docling_core.types.io import DocumentStream
-from google.cloud import documentai
+from google.cloud import documentai  # type: ignore
 from google.protobuf.json_format import MessageToDict  # Convert to JSON for storage
 from PIL.Image import Image
 

@@ -65,8 +65,8 @@ def test_run_cvat_on_pred():
 
     dataset_layout = DPBenchDatasetBuilder(
         target=target_path / "gt_dataset",
-        begin_index=10,
-        end_index=25,
+        begin_index=15,
+        end_index=20,
     )  # 10-25 is a small range which has samples with tables included.
 
     dataset_layout.retrieve_input_dataset()  # fetches the source dataset from HF
