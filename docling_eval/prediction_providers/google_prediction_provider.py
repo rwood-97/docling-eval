@@ -89,6 +89,7 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
     def process_table_row(self, row, row_index, document, table_data, is_header=False):
         """Process a table row and add cells to table_data."""
         for cell_index, cell in enumerate(row.get("cells", [])):
+            # Get the content inside the cell
             cell_text_content = ""
             if "layout" in cell and "textAnchor" in cell["layout"]:
                 for text_segment in cell["layout"]["textAnchor"].get(
@@ -98,6 +99,8 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
                     end_index = int(text_segment.get("endIndex", 0))
                     if document.get("text") and start_index < len(document["text"]):
                         cell_text_content += document["text"][start_index:end_index]
+
+            # Get cell boundaries
             cell_bbox = self.extract_bbox_from_vertices(
                 cell.get("layout", {}).get("boundingPoly", {}).get("vertices", [])
             )
@@ -115,9 +118,9 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
                 row_span=row_span,
                 col_span=col_span,
                 start_row_offset_idx=row_index,
-                end_row_offset_idx=row_index + row_span - 1,
+                end_row_offset_idx=row_index + row_span,
                 start_col_offset_idx=cell_index,
-                end_col_offset_idx=cell_index + col_span - 1,
+                end_col_offset_idx=cell_index + col_span,
                 text=cell_text_content.strip(),
                 column_header=is_header,
                 row_header=not is_header
