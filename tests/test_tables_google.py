@@ -1,3 +1,4 @@
+import logging
 import os
 from pathlib import Path
 
@@ -14,6 +15,11 @@ from docling_eval.prediction_providers.google_prediction_provider import (
 
 IS_CI = os.getenv("RUN_IN_CI") == "1"
 
+logging.getLogger("matplotlib").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("PIL").setLevel(logging.WARNING)
+logging.getLogger("filelock").setLevel(logging.WARNING)
+
 
 @pytest.mark.skipif(
     IS_CI, reason="Skipping test in CI because the dataset is too heavy."
@@ -26,7 +32,7 @@ def test_run_fintabnet_builder():
 
     dataset = FintabNetDatasetBuilder(
         target=target_path / "gt_dataset",
-        end_index=5,
+        end_index=15,
     )
 
     dataset.save_to_disk()  # does all the job of iterating the dataset, making GT+prediction records, and saving them in shards as parquet.

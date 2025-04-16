@@ -60,6 +60,7 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
         google_project_id = os.getenv("GOOGLE_PROJECT_ID")
         google_location = os.getenv("GOOGLE_LOCATION", "us")
         google_processor_id = os.getenv("GOOGLE_PROCESSOR_ID")
+        google_processor_version = "pretrained-ocr-v2.1-2024-08-07"  # latest model
 
         if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
             raise ValueError(
@@ -72,7 +73,7 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
             )
 
         self.doc_ai_client = documentai.DocumentProcessorServiceClient()
-        self.google_processor_name = f"projects/{google_project_id}/locations/{google_location}/processors/{google_processor_id}"
+        self.google_processor_name = f"projects/{google_project_id}/locations/{google_location}/processors/{google_processor_id}/processorVersions/{google_processor_version}"
 
     def extract_bbox_from_vertices(self, vertices):
         """Helper function to extract bbox coordinates from vertices."""
@@ -126,9 +127,7 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
 
             table_data.table_cells.append(table_cell)
 
-    def convert_google_output_to_docling(
-        self, document, record: DatasetRecord, file_bytes
-    ):
+    def convert_google_output_to_docling(self, document, record: DatasetRecord):
         """Converts Google Document AI output to DoclingDocument format."""
         doc = DoclingDocument(name=record.doc_id)
 
@@ -209,7 +208,7 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
                 )
 
                 table_prov = ProvenanceItem(
-                    page_no=page_no, bbox=table_bbox_obj, charspan=[]
+                    page_no=page_no, bbox=table_bbox_obj, charspan=(0, 0)
                 )
 
                 table_data = TableData(
@@ -269,8 +268,33 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
                 raw_document = documentai.RawDocument(
                     content=file_content, mime_type=record.mime_type
                 )
+
+                # Optional: Additional configurations for Document OCR Processor.
+                # For more information: https://cloud.google.com/document-ai/docs/enterprise-document-ocr
+                process_options = documentai.ProcessOptions(
+                    ocr_config=documentai.OcrConfig(
+                        enable_native_pdf_parsing=True,
+                        enable_image_quality_scores=True,
+                        enable_symbol=True,
+                        # OCR Add Ons https://cloud.google.com/document-ai/docs/ocr-add-ons
+                        # If these are not specified, tables are not output
+                        premium_features=documentai.OcrConfig.PremiumFeatures(
+                            compute_style_info=False,
+                            enable_math_ocr=False,  # Enable to use Math OCR Model
+                            enable_selection_mark_detection=True,
+                        ),
+                    ),
+                    # Although the docs say this is not applicable to OCR and FORM parser, it actually works with OCR parser and outputs the tables
+                    layout_config=documentai.ProcessOptions.LayoutConfig(
+                        chunking_config=documentai.ProcessOptions.LayoutConfig.ChunkingConfig(
+                            include_ancestor_headings=True
+                        )
+                    ),
+                )
                 request = documentai.ProcessRequest(
-                    name=self.google_processor_name, raw_document=raw_document
+                    name=self.google_processor_name,
+                    raw_document=raw_document,
+                    process_options=process_options,
                 )
                 response = self.doc_ai_client.process_document(request=request)
                 result_json = MessageToDict(response.document._pb)
@@ -278,9 +302,7 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
                     f"Successfully processed [{record.doc_id}] using Google Document AI API!"
                 )
 
-                pred_doc = self.convert_google_output_to_docling(
-                    result_json, record, file_content
-                )
+                pred_doc = self.convert_google_output_to_docling(result_json, record)
             else:
                 raise RuntimeError(
                     f"Unsupported mime type: {record.mime_type}. GoogleDocAIPredictionProvider supports 'application/pdf' and 'image/png'"
