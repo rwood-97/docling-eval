@@ -3,19 +3,16 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from datasets import load_dataset
 from docling_core.types.doc import DocItemLabel
 from docling_core.types.doc.base import BoundingBox
-from docling_core.types.doc.document import DoclingDocument
-from pydantic import BaseModel
+from docling_core.types.doc.document import ContentLayer, DocItem, DoclingDocument
+from docling_core.types.io import DocumentStream
+from pydantic import ValidationError
 
-from docling_eval.datamodels.dataset_record import (
-    DatasetRecord,
-    DatasetRecordWithPrediction,
-)
-from docling_eval.legacy.cvat_annotation.utils import (
+from docling_eval.datamodels.cvat_types import (
     AnnotatedDoc,
     AnnotatedImage,
     AnnotationBBox,
@@ -23,7 +20,10 @@ from docling_eval.legacy.cvat_annotation.utils import (
     BenchMarkDirs,
     DocLinkLabel,
     TableComponentLabel,
-    rgb_to_hex,
+)
+from docling_eval.datamodels.dataset_record import (
+    DatasetRecord,
+    DatasetRecordWithPrediction,
 )
 from docling_eval.utils.utils import get_binhash, insert_images_from_pil
 
@@ -35,40 +35,46 @@ class CvatPreannotationBuilder:
     """
     Builder class for creating CVAT preannotations from a dataset.
 
-    This class takes an existing dataset (ground truth or with predictions)
-    and prepares files and preannotations for CVAT annotation.
+    This class takes an existing dataset (ground truth or predictions) and prepares
+    files and preannotations for CVAT annotation.
     """
 
     def __init__(
         self,
-        source_dir: Path,
-        target_dir: Path,
+        dataset_source: Path,
+        target: Path,
         bucket_size: int = 200,
+        use_predictions: bool = False,
     ):
         """
         Initialize the CvatPreannotationBuilder.
 
         Args:
-            source_dir: Directory containing the source dataset
-            target_dir: Directory where CVAT preannotations will be saved
+            dataset_source: Directory containing the source dataset
+            target: Directory where CVAT preannotations will be saved
             bucket_size: Number of documents per bucket for CVAT tasks
         """
-        self.source_dir = source_dir
-        self.target_dir = target_dir
+        self.source_dir = dataset_source
+        self.target_dir = target
         self.bucket_size = bucket_size
         self.benchmark_dirs = BenchMarkDirs()
         self.benchmark_dirs.set_up_directory_structure(
-            source=source_dir, target=target_dir
+            source=dataset_source, target=target
         )
         self.overview = AnnotationOverview()
+        self.use_predictions = use_predictions
 
-    def export_from_dataset(self) -> AnnotationOverview:
+    def _export_from_dataset(self) -> AnnotationOverview:
         """
         Export supplementary files from the dataset.
+
+        This method extracts document data from the dataset and creates the necessary
+        files needed for CVAT annotation, ensuring proper file paths for ground truth.
 
         Returns:
             AnnotationOverview object with dataset information
         """
+        # Load dataset from parquet files
         test_files = sorted(
             glob.glob(str(self.benchmark_dirs.source_dir / "*.parquet"))
         )
@@ -83,84 +89,112 @@ class CvatPreannotationBuilder:
         overview = AnnotationOverview()
 
         for data in ds_selection:
-
-            dataset_record = None
             try:
-                data_record = DatasetRecordWithPrediction.model_validate(data)
-            except:
-                data_record = DatasetRecord.model_validate(data)
+                record: DatasetRecord
+                if self.use_predictions:
+                    try:
+                        record = DatasetRecordWithPrediction.model_validate(data)
+                        document = record.predicted_doc
+                        pictures = record.predicted_pictures
+                        page_images = record.predicted_page_images
+                    except ValidationError:
+                        _log.error(
+                            "The provided input dataset does not have predictions. Set use_predictions = False."
+                        )
+                        raise
+                else:
+                    try:
+                        # Load as a regular ground truth record
+                        record = DatasetRecord.model_validate(data)
+                        document = record.ground_truth_doc
+                        pictures = record.ground_truth_pictures
+                        page_images = record.ground_truth_page_images
+                    except ValidationError:
+                        _log.error(
+                            "The provided input dataset does not contain valid records."
+                        )
+                        raise
 
-            # Use document ID as name
-            doc_name = f"{data_record.doc_id}"
+                assert record is not None
+                assert document is not None
 
-            bin_doc = data_record.original
-            doc_hash = data_record.doc_hash
+                # Use document ID as name - ensure it's a consistent identifier
+                doc_name = f"{record.doc_id}"
+                doc_hash = record.doc_hash or ""
 
-            if doc_hash is None and bin_doc is not None:
-                doc_hash = get_binhash(binary_data=bin_doc.stream.read())
-                # Reset stream position after reading
-                bin_doc.stream.seek(0)
+                if doc_hash == "" and record.original is not None:
+                    bin_data = record.original
+                    if isinstance(bin_data, Path):
+                        with open(bin_data, "rb") as f:
+                            doc_hash = get_binhash(f.read())
+                    elif isinstance(bin_data, DocumentStream):
+                        bin_data.stream.seek(0)
+                        doc_hash = get_binhash(bin_data.stream.read())
+                        bin_data.stream.seek(0)
 
-            # Write ground truth and predicted document
-            true_file = self.benchmark_dirs.json_true_dir / f"{doc_name}.json"
-            true_doc = data_record.ground_truth_doc
-            true_doc = insert_images_from_pil(
-                true_doc,
-                data_record.ground_truth_pictures,
-                data_record.ground_truth_page_images,
-            )
-            true_doc.save_as_json(filename=true_file)
+                # Insert images into document
+                document = insert_images_from_pil(document, pictures, page_images)
 
-            pred_file = true_file
-            if isinstance(dataset_record, DatasetRecordWithPrediction):
-                # Process predicted document if available
-                pred_file = self.benchmark_dirs.json_pred_dir / f"{doc_name}.json"
-                pred_doc = data_record.predicted_doc
-                if pred_doc is not None:
-                    pred_doc = insert_images_from_pil(
-                        pred_doc,
-                        data_record.predicted_pictures,
-                        data_record.predicted_page_images,
+                # Write ground truth document to JSON - this is the ONLY JSON file we'll save
+                # The name must be consistent for later retrieval
+                json_file = self.benchmark_dirs.json_true_dir / f"{doc_name}.json"
+                document.save_as_json(filename=json_file)
+                _log.info(f"Saved ground truth document to {json_file}")
+
+                # Get MIME type and determine file extension
+                mime_type = record.mime_type
+                bin_ext = ".bin"  # Default extension
+
+                if mime_type == "application/pdf":
+                    bin_ext = ".pdf"
+                elif mime_type == "image/png":
+                    bin_ext = ".png"
+                elif mime_type in ["image/jpg", "image/jpeg"]:
+                    bin_ext = ".jpg"
+                else:
+                    _log.warning(
+                        f"Unsupported mime-type {mime_type}, using .bin extension"
                     )
-                    pred_doc.save_as_json(filename=pred_file)
 
-            mime_type = data_record.mime_type
+                # Write binary document
+                bin_name = f"{doc_hash}{bin_ext}"
+                bin_file = self.benchmark_dirs.bins_dir / bin_name
 
-            # Determine file extension based on MIME type
-            bin_name = None
-            if mime_type == "application/pdf":
-                bin_name = f"{doc_hash}.pdf"
-            elif mime_type == "image/png":
-                bin_name = f"{doc_hash}.png"
-            elif mime_type == "image/jpg" or mime_type == "image/jpeg":
-                bin_name = f"{doc_hash}.jpg"
-            else:
-                raise ValueError(f"Unsupported mime-type {mime_type}")
+                if record.original is not None:
+                    bin_data = record.original
+                    with open(bin_file, "wb") as fw:
+                        if isinstance(bin_data, Path):
+                            with open(bin_data, "rb") as fr:
+                                fw.write(fr.read())
+                        elif isinstance(bin_data, DocumentStream):
+                            bin_data.stream.seek(0)
+                            fw.write(bin_data.stream.read())
+                            bin_data.stream.seek(0)
 
-            # Write binary document
-            bin_file = self.benchmark_dirs.bins_dir / bin_name
-            if bin_doc is not None:
-                with open(bin_file, "wb") as fw:
-                    fw.write(bin_doc.stream.read())
-                    # Reset stream position after writing
-                    bin_doc.stream.seek(0)
-
-            overview.doc_annotations.append(
-                AnnotatedDoc(
-                    mime_type=mime_type,
-                    true_file=true_file,
-                    pred_file=pred_file,
-                    bin_file=bin_file,
-                    doc_hash=doc_hash,
-                    doc_name=doc_name,
+                # Add to overview - using consistent file paths
+                overview.doc_annotations.append(
+                    AnnotatedDoc(
+                        mime_type=mime_type,
+                        document_file=json_file,  # The one and only JSON file
+                        bin_file=bin_file,
+                        doc_hash=doc_hash,
+                        doc_name=doc_name,
+                    )
                 )
-            )
+
+            except Exception as e:
+                _log.error(f"Error processing record: {str(e)}")
+                raise
+                # continue
 
         return overview
 
-    def create_project_properties(self) -> None:
+    def _create_project_properties(self) -> None:
         """
         Create CVAT project properties file.
+
+        This file defines the label categories and their attributes
+        for the CVAT annotation project.
         """
         results = []
 
@@ -254,141 +288,202 @@ class CvatPreannotationBuilder:
         with open(str(self.benchmark_dirs.project_desc_file), "w") as fw:
             json.dump(results, fw, indent=2)
 
-    def create_preannotation_files(self) -> None:
+    def _create_preannotation_files(self) -> None:
         """
         Create CVAT preannotation files.
-        """
-        cvat_annots: List[str] = []
 
-        img_id, img_cnt, bucket_id = 0, 0, 0
+        This method processes each document in the overview and generates
+        CVAT annotation XML files and image files for each page, with the
+        correct file paths for later processing.
+        """
+        # Dictionary to store annotations by bucket ID
+        bucket_annotations: Dict[int, List[str]] = {}
+
+        img_id = 0
         for doc_overview in self.overview.doc_annotations:
             try:
-                doc = DoclingDocument.load_from_json(doc_overview.pred_file)
-            except Exception as e:
-                _log.error(f"Failed to load document {doc_overview.pred_file}: {e}")
-                continue
+                # Load document from the saved JSON file
+                doc = DoclingDocument.load_from_json(doc_overview.document_file)
 
-            for page_no, page in doc.pages.items():
-                img_cnt += 1
+                # Process each page in the document
+                for page_no, page in doc.pages.items():
+                    img_id += 1
 
-                bucket_id = int((img_cnt - 1) / float(self.bucket_size))
-                bucket_dir = self.benchmark_dirs.tasks_dir / f"task_{bucket_id:02}"
+                    # Calculate bucket ID consistently for both folder and XML naming
+                    bucket_id = (img_id - 1) // self.bucket_size
+                    bucket_dir = self.benchmark_dirs.tasks_dir / f"task_{bucket_id:02}"
+                    os.makedirs(bucket_dir, exist_ok=True)
 
-                if not os.path.exists(bucket_dir) and len(cvat_annots) > 0:
-                    # Write the pre-annotation files
-                    _log.info(f"#-annots: {len(cvat_annots)}")
+                    # Initialize bucket annotation list if needed
+                    if bucket_id not in bucket_annotations:
+                        bucket_annotations[bucket_id] = []
 
-                    prev_bucket_id = int((img_cnt - 2) / float(self.bucket_size))
-                    preannot_file = (
-                        self.benchmark_dirs.tasks_dir
-                        / f"task_{prev_bucket_id:02}_preannotate.xml"
+                    # Use document name and hash for consistent naming
+                    doc_name = doc_overview.doc_name
+                    doc_hash = doc_overview.doc_hash
+
+                    # Create unique filename for the page image
+                    filename = f"doc_{doc_hash}_page_{page_no:06}.png"
+
+                    # Create annotated image record - using the SAME document file path
+                    annotated_image = AnnotatedImage(
+                        img_id=img_id,
+                        mime_type=doc_overview.mime_type,
+                        document_file=doc_overview.document_file,  # Use the consistent file path
+                        bin_file=doc_overview.bin_file,
+                        doc_name=doc_name,
+                        doc_hash=doc_hash,
+                        bucket_dir=bucket_dir,
+                        img_file=bucket_dir / filename,
                     )
 
-                    with open(preannot_file, "w") as fw:
-                        fw.write('<?xml version="1.0" encoding="utf-8"?>\n')
-                        fw.write("<annotations>\n")
-                        for cvat_annot in cvat_annots:
-                            fw.write(f"{cvat_annot}\n")
-                        fw.write("</annotations>\n")
+                    # Save page image to both task directory and page images directory
+                    page_img_file = self.benchmark_dirs.page_imgs_dir / filename
+                    annotated_image.page_img_files = [page_img_file]
 
-                    cvat_annots = []
+                    # Extract and save page image
+                    page_image_ref = page.image
+                    if page_image_ref is not None:
+                        page_image = page_image_ref.pil_image
 
-                os.makedirs(bucket_dir, exist_ok=True)
+                        if page_image is not None:
+                            page_image.save(str(annotated_image.img_file))
+                            page_image.save(str(annotated_image.page_img_files[0]))
 
-                doc_name = doc_overview.doc_name
-                doc_hash = doc_overview.doc_hash
+                            annotated_image.img_w = page_image.width
+                            annotated_image.img_h = page_image.height
+                            annotated_image.page_nos = [page_no]
 
-                filename = f"doc_{doc_hash}_page_{page_no:06}.png"
-
-                annotated_image = AnnotatedImage(
-                    img_id=img_cnt,
-                    mime_type=doc_overview.mime_type,
-                    true_file=doc_overview.true_file,
-                    pred_file=doc_overview.pred_file,
-                    bin_file=doc_overview.bin_file,
-                    doc_name=doc_name,
-                    doc_hash=doc_hash,
-                    bucket_dir=bucket_dir,
-                    filename=filename,
-                )
-
-                annotated_image.img_file = bucket_dir / filename
-
-                page_img_file = self.benchmark_dirs.page_imgs_dir / filename
-                annotated_image.page_img_files = [page_img_file]
-
-                page_image_ref = page.image
-                if page_image_ref is not None:
-                    page_image = page_image_ref.pil_image
-
-                    if page_image is not None:
-                        page_image.save(str(annotated_image.img_file))
-                        page_image.save(str(annotated_image.page_img_files[0]))
-
-                        annotated_image.img_w = page_image.width
-                        annotated_image.img_h = page_image.height
-
-                        annotated_image.page_nos = [page_no]
-                        self.overview.img_annotations[filename] = annotated_image
+                            # Add to overview using filename as key
+                            self.overview.img_annotations[filename] = annotated_image
+                        else:
+                            _log.warning(
+                                f"Missing pillow image for page {page_no}, skipping..."
+                            )
+                            continue
                     else:
                         _log.warning(
-                            f"Missing pillow image of page {page_no}, skipping..."
+                            f"Missing image reference for page {page_no}, skipping..."
                         )
                         continue
-                else:
-                    _log.warning(f"Missing image-ref of page {page_no}, skipping...")
-                    continue
 
-                # Extract bounding boxes for annotation
-                page_bboxes = []
-                for item, _ in doc.iterate_items():
-                    for prov in item.prov:
-                        if page_no == prov.page_no:
-                            page_w = doc.pages[prov.page_no].size.width
-                            page_h = doc.pages[prov.page_no].size.height
+                    # Extract bounding boxes for annotation
+                    page_bboxes = self._extract_page_bounding_boxes(
+                        doc, page_no, annotated_image.img_w, annotated_image.img_h
+                    )
 
-                            img_w = annotated_image.img_w
-                            img_h = annotated_image.img_h
+                    annotated_image.bbox_annotations = page_bboxes
+                    bucket_annotations[bucket_id].append(annotated_image.to_cvat())
 
-                            page_bbox = prov.bbox.to_top_left_origin(page_height=page_h)
+            except Exception as e:
+                _log.error(
+                    f"Error processing document {doc_overview.doc_name}: {str(e)}"
+                )
+                continue
 
-                            page_bboxes.append(
-                                AnnotationBBox(
-                                    bbox_id=len(page_bboxes),
-                                    label=item.label,
-                                    bbox=BoundingBox(
-                                        l=page_bbox.l / page_w * img_w,
-                                        r=page_bbox.r / page_w * img_w,
-                                        t=page_bbox.t / page_h * img_h,
-                                        b=page_bbox.b / page_h * img_h,
-                                        coord_origin=page_bbox.coord_origin,
-                                    ),
-                                )
-                            )
+        # Write preannotation XML files for each bucket
+        for bucket_id, annotations in bucket_annotations.items():
+            self._write_preannotation_file(bucket_id, annotations)
 
-                annotated_image.pred_boxes = page_bboxes
-                cvat_annots.append(annotated_image.to_cvat())
-
-        # Write remaining preannotation files
-        if len(cvat_annots) > 0:
-            preannot_file = (
-                self.benchmark_dirs.tasks_dir / f"task_{bucket_id:02}_preannotate.xml"
-            )
-
-            with open(preannot_file, "w") as fw:
-                fw.write('<?xml version="1.0" encoding="utf-8"?>\n')
-                fw.write("<annotations>\n")
-                for cvat_annot in cvat_annots:
-                    fw.write(f"{cvat_annot}\n")
-                fw.write("</annotations>\n")
-
-        # Save overview
+        # Save overview with all the properly set file paths
         self.overview.save_as_json(self.benchmark_dirs.overview_file)
+        _log.info(
+            f"Saved annotation overview to {self.benchmark_dirs.overview_file} with {len(self.overview.img_annotations)} images"
+        )
+
+    def _extract_page_bounding_boxes(
+        self, doc: DoclingDocument, page_no: int, img_w: int, img_h: int
+    ) -> List[AnnotationBBox]:
+        """
+        Extract bounding boxes for all items on a page.
+
+        Args:
+            doc: The document to extract from
+            page_no: Page number to extract boxes from
+            img_w: Width of the image
+            img_h: Height of the image
+
+        Returns:
+            List of AnnotationBBox objects
+        """
+        page_bboxes: List[AnnotationBBox] = []
+        for item, _ in doc.iterate_items(
+            included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
+        ):
+            assert isinstance(item, DocItem)
+
+            for prov in item.prov:
+                if page_no == prov.page_no:
+                    page_w = doc.pages[prov.page_no].size.width
+                    page_h = doc.pages[prov.page_no].size.height
+
+                    # Convert document coordinates to image coordinates
+                    page_bbox = prov.bbox.to_top_left_origin(page_height=page_h)
+
+                    page_bboxes.append(
+                        AnnotationBBox(
+                            bbox_id=len(page_bboxes),
+                            label=item.label,
+                            bbox=BoundingBox(
+                                l=page_bbox.l / page_w * img_w,
+                                r=page_bbox.r / page_w * img_w,
+                                t=page_bbox.t / page_h * img_h,
+                                b=page_bbox.b / page_h * img_h,
+                                coord_origin=page_bbox.coord_origin,
+                            ),
+                        )
+                    )
+        return page_bboxes
+
+    def _write_preannotation_file(self, bucket_id: int, annotations: List[str]) -> None:
+        """
+        Write CVAT preannotation XML file for a bucket.
+
+        Args:
+            bucket_id: ID of the bucket
+            annotations: List of annotation strings to include
+        """
+        preannot_file = (
+            self.benchmark_dirs.tasks_dir / f"task_{bucket_id:02}_preannotate.xml"
+        )
+
+        with open(preannot_file, "w") as fw:
+            fw.write('<?xml version="1.0" encoding="utf-8"?>\n')
+            fw.write("<annotations>\n")
+            for annotation in annotations:
+                fw.write(f"{annotation}\n")
+            fw.write("</annotations>\n")
+
+        _log.info(
+            f"Created preannotation file {preannot_file} with {len(annotations)} annotations"
+        )
 
     def prepare_for_annotation(self) -> None:
         """
         Prepare all necessary files for CVAT annotation.
+
+        This is the main method to call to prepare a dataset for CVAT annotation.
         """
-        self.create_project_properties()
-        self.overview = self.export_from_dataset()
-        self.create_preannotation_files()
+        _log.info(f"Preparing dataset from {self.source_dir} for CVAT annotation")
+        self._create_project_properties()
+        self.overview = self._export_from_dataset()
+        self._create_preannotation_files()
+        _log.info(f"CVAT annotation preparation complete in {self.target_dir}")
+
+
+def rgb_to_hex(r, g, b):
+    """
+    Converts RGB values to a HEX color code.
+
+    Args:
+        r (int): Red value (0-255)
+        g (int): Green value (0-255)
+        b (int): Blue value (0-255)
+
+    Returns:
+        str: HEX color code (e.g., "#RRGGBB")
+    """
+    if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
+        raise ValueError("RGB values must be in the range 0-255")
+
+    return f"#{r:02X}{g:02X}{b:02X}"

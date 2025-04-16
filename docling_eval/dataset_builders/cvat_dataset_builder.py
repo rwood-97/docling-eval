@@ -1,4 +1,3 @@
-import datetime
 import glob
 import json
 import logging
@@ -7,11 +6,11 @@ import sys
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, Union, cast
+from typing import Dict, Iterable, List, Optional, Tuple, cast
 
 import xmltodict  # type: ignore[import]
 from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBackend
-from docling.datamodel.base_models import BoundingBox, InputFormat
+from docling.datamodel.base_models import InputFormat
 from docling.datamodel.document import InputDocument
 from docling_core.types.doc import BoundingBox, CoordOrigin, Size
 from docling_core.types.doc.document import (
@@ -27,34 +26,24 @@ from docling_core.types.doc.document import (
 from docling_core.types.doc.labels import DocItemLabel
 from docling_core.types.doc.page import SegmentedPage, SegmentedPdfPage, TextCellUnit
 from docling_core.types.io import DocumentStream
-from docling_parse.pdf_parsers import pdf_parser_v2
 from PIL import Image
 from tqdm import tqdm
 
-from docling_eval.datamodels.dataset_record import DatasetRecord
-from docling_eval.datamodels.types import (
-    BenchMarkColumns,
-    ConverterTypes,
-    EvaluationModality,
-)
-from docling_eval.dataset_builders.dataset_builder import BaseEvaluationDatasetBuilder
-from docling_eval.legacy.cvat_annotation.utils import (
+from docling_eval.datamodels.cvat_types import (
     AnnotatedImage,
     AnnotationOverview,
     BenchMarkDirs,
 )
-from docling_eval.utils.cvat_utils import find_table_data
+from docling_eval.datamodels.dataset_record import DatasetRecord
+from docling_eval.datamodels.types import BenchMarkColumns, EvaluationModality
+from docling_eval.dataset_builders.dataset_builder import BaseEvaluationDatasetBuilder
 from docling_eval.utils.utils import (
     crop_bounding_box,
-    docling_version,
     extract_images,
     from_pil_to_base64uri,
     get_binary,
     get_binhash,
-    save_shard_to_disk,
-    write_datasets_info,
 )
-from docling_eval.visualisation.visualisations import save_inspection_html
 
 # Configure logging
 _log = logging.getLogger(__name__)
@@ -91,12 +80,9 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
     def __init__(
         self,
         name: str,
-        cvat_source_dir: Path,
+        dataset_source: Path,
         target: Path,
         split: str = "test",
-        begin_index: int = 0,
-        end_index: int = -1,
-        do_visualization: bool = True,
     ):
         """
         Initialize the CvatDatasetBuilder.
@@ -112,19 +98,16 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         """
         super().__init__(
             name=name,
-            dataset_source=cvat_source_dir,
+            dataset_source=dataset_source,
             target=target,
             dataset_local_path=None,
             split=split,
-            begin_index=begin_index,
-            end_index=end_index,
         )
+        self.must_retrieve = False
         self.benchmark_dirs = BenchMarkDirs()
         self.benchmark_dirs.set_up_directory_structure(
-            source=cvat_source_dir, target=target
+            source=dataset_source, target=dataset_source
         )
-        self.must_retrieve = True
-        self.do_visualization = do_visualization
 
     def unzip_annotation_files(self, output_dir: Path) -> List[Path]:
         """
@@ -172,7 +155,6 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         Returns:
             List of paths to annotation files
         """
-        xml_files = []
         zip_files = sorted(
             glob.glob(str(self.benchmark_dirs.annotations_zip_dir / "*.zip"))
         )
@@ -194,131 +176,25 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                 self.benchmark_dirs.annotations_xml_dir
             )
         else:
-            xml_files = sorted(
-                glob.glob(str(self.benchmark_dirs.annotations_xml_dir / "*.xml"))
-            )
+            xml_files = sorted(self.benchmark_dirs.annotations_xml_dir.glob("*.xml"))
 
         _log.info(f"Processing {len(xml_files)} XML annotation files")
         return xml_files
 
-    def retrieve_input_dataset(self) -> Path:
-        """
-        Process CVAT annotations and prepare for dataset creation.
-
-        This method verifies that the source directory contains the expected files
-        and initializes the directory structure.
-
-        Returns:
-            Path to the processed annotations
-        """
-        # Check that the source directory exists
-        if not self.dataset_source.exists():
-            raise FileNotFoundError(
-                f"CVAT source directory not found: {self.dataset_source}"
-            )
-
-        # Check for overview file
-        if not self.benchmark_dirs.overview_file.exists():
-            _log.warning(
-                f"Annotation overview file not found: {self.benchmark_dirs.overview_file}"
-            )
-
-        # Get annotation files
-        annot_files = self.get_annotation_files()
-
-        if not annot_files:
-            _log.warning(
-                "No annotation files found. Make sure to unzip CVAT annotation files into the source directory."
-            )
-        else:
-            _log.info(f"Found {len(annot_files)} annotation files ready for processing")
-
-        # Create necessary directories
-        os.makedirs(self.benchmark_dirs.dataset_test_dir, exist_ok=True)
-
-        self.retrieved = True
-        return self.dataset_source
-
     def save_to_disk(
-        self, chunk_size: int = 80, max_num_chunks: int = sys.maxsize
+        self,
+        chunk_size: int = 80,
+        max_num_chunks: int = sys.maxsize,
+        do_visualization: bool = False,
     ) -> None:
-        """
-        Save the dataset to disk in chunks.
 
-        This method processes all annotations and saves the resulting dataset records
-        to disk in the specified target directory.
+        if do_visualization:
+            html_output_dir = self.target / "visualizations"
+            os.makedirs(html_output_dir, exist_ok=True)
 
-        Args:
-            chunk_size: Number of records per chunk
-            max_num_chunks: Maximum number of chunks to save
-        """
-        if not self.retrieved and self.must_retrieve:
-            _log.info("Retrieving input dataset...")
-            self.retrieve_input_dataset()
-
-        _log.info(f"Creating {self.name} dataset in {self.target}...")
-
-        test_dir = self.target / self.split
-        test_dir.mkdir(parents=True, exist_ok=True)
-
-        # Get all records from annotations
-        records = list(self.iterate())
-
-        if not records:
-            _log.warning(
-                "No valid records found from annotations. Dataset will be empty."
-            )
-
-        # Calculate chunks
-        total_records = len(records)
-        total_chunks = (total_records + chunk_size - 1) // chunk_size
-        actual_chunks = min(total_chunks, max_num_chunks)
-
-        _log.info(f"Saving {total_records} records in {actual_chunks} chunks...")
-
-        # Process in chunks
-        for chunk_idx in range(actual_chunks):
-            start_idx = chunk_idx * chunk_size
-            end_idx = min((chunk_idx + 1) * chunk_size, total_records)
-
-            # Get records for this chunk
-            chunk_records = [
-                records[i].as_record_dict() for i in range(start_idx, end_idx)
-            ]
-
-            # Save chunk
-            save_shard_to_disk(
-                items=chunk_records, dataset_path=test_dir, shard_id=chunk_idx
-            )
-
-            _log.info(
-                f"Saved chunk {chunk_idx + 1}/{actual_chunks} with {len(chunk_records)} records"
-            )
-
-        # Write dataset info
-        write_datasets_info(
-            name=self.name,
-            output_dir=self.target,
-            num_train_rows=0,
-            num_test_rows=total_records,
+        super().save_to_disk(
+            chunk_size, max_num_chunks, do_visualization=do_visualization
         )
-
-        _log.info(f"Dataset saved successfully to {self.target}")
-
-        # Also write dataset info to visualization directory
-        html_output_dir = self.benchmark_dirs.html_comp_dir.parent
-        if self.do_visualization:
-            try:
-                with open(html_output_dir / f"{self.name}_info.txt", "w") as f:
-                    f.write(f"Dataset: {self.name}\n")
-                    f.write(f"Total records: {total_records}\n")
-                    f.write(
-                        f"Created on: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                    )
-                    f.write(f"Source: {self.dataset_source}\n")
-                    f.write(f"Target: {self.target}\n")
-            except Exception as e:
-                _log.warning(f"Failed to write dataset info: {e}")
 
     def find_box(
         self, boxes: List[Dict], point: Tuple[float, float]
@@ -608,7 +484,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         merges: List[Dict],
         already_added: List[int],
         true_doc: DoclingDocument,
-        parsed_page: Dict,
+        parsed_page: SegmentedPdfPage,
     ) -> Tuple[List[ProvenanceItem], str, List[int]]:
         """
         Get next provenance items for merged text.
@@ -662,7 +538,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         boxes: List[Dict],
         already_added: List[int],
         true_doc: DoclingDocument,
-        parsed_page: Dict,
+        parsed_page: SegmentedPdfPage,
     ) -> Tuple[DoclingDocument, List[int]]:
         """
         Add captions to a floating item.
@@ -722,7 +598,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         boxes: List[Dict],
         already_added: List[int],
         true_doc: DoclingDocument,
-        parsed_page: Dict,
+        parsed_page: SegmentedPdfPage,
     ) -> Tuple[DoclingDocument, List[int]]:
         """
         Add footnotes to a floating item.
@@ -788,7 +664,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         """
         # Parse the annotation
         (
-            _,
+            given_basename,
             keep,
             boxes,
             lines,
@@ -800,22 +676,20 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             group,
         ) = self.parse_annotation(annot)
 
-        assert _ == basename
+        assert given_basename == basename
 
         if not keep:
             _log.error(f"Incorrect annotation for {basename}: no reading order found")
             return None
 
         # Original Groundtruth and Prediction files
-        orig_file = desc.true_file
-        pred_file = desc.pred_file
+        orig_file = desc.document_file
 
-        if not (os.path.exists(orig_file) and os.path.exists(pred_file)):
+        if not (os.path.exists(orig_file)):
             _log.error(f"Missing original files for {basename}")
             return None
 
         orig_doc = DoclingDocument.load_from_json(filename=orig_file)
-        pred_doc = DoclingDocument.load_from_json(filename=pred_file)
 
         # Original PDF file
         pdf_file = desc.bin_file
@@ -829,18 +703,19 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             backend=DoclingParseV4DocumentBackend,
         )
 
-        doc_backend: DoclingParseV4DocumentBackend = in_doc._backend
+        doc_backend: DoclingParseV4DocumentBackend = in_doc._backend  # type: ignore
 
         # Parse each page
-        parsed_pages: Dict[int, SegmentedPage] = {}
+        parsed_pages: Dict[int, SegmentedPdfPage] = {}
         for i, page_no in enumerate(desc.page_nos):
             seg_page = doc_backend.load_page(page_no - 1).get_segmented_page()
+            assert seg_page is not None
             parsed_pages[page_no] = seg_page
 
         doc_backend.unload()
 
         # Create Ground Truth document
-        true_doc = DoclingDocument(name=f"{basename}")
+        new_doc = DoclingDocument(name=f"{basename}")
 
         # Copy page images from predicted document
         for i, page_no in enumerate(desc.page_nos):
@@ -855,21 +730,21 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             img_height = page_image.height
 
             # Check if predicted document has the page
-            if page_no not in pred_doc.pages or pred_doc.pages[page_no] is None:
+            if page_no not in orig_doc.pages or orig_doc.pages[page_no] is None:
                 _log.error(f"Missing page {page_no} in predicted document, skipping...")
                 continue
 
-            pred_page_item = pred_doc.pages[page_no]
-            pred_page_imageref = pred_page_item.image
+            orig_page_item = orig_doc.pages[page_no]
+            orig_page_image_ref = orig_page_item.image
 
-            if pred_page_imageref is None:
+            if orig_page_image_ref is None:
                 _log.error(f"Missing image reference for page {page_no}, skipping...")
                 continue
 
             # Create image reference and page item
             image_ref = ImageRef(
                 mimetype="image/png",
-                dpi=pred_page_imageref.dpi,
+                dpi=orig_page_image_ref.dpi,
                 size=Size(width=float(img_width), height=float(img_height)),
                 uri=from_pil_to_base64uri(page_image),
             )
@@ -880,7 +755,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                 image=image_ref,
             )
 
-            true_doc.pages[page_no] = page_item
+            new_doc.pages[page_no] = page_item
 
         # Process items based on reading order
         already_added: List[int] = []
@@ -898,13 +773,15 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             # FIXME: For simplicity, assume all boxes are on page 1
             page_no = 1
 
-            if page_no not in true_doc.pages or true_doc.pages[page_no] is None:
+            if page_no not in new_doc.pages or new_doc.pages[page_no] is None:
                 _log.error(f"Page {page_no} not found in document, skipping...")
                 continue
 
             # Get image reference for the page
-            true_page_imageref = self.get_page_imageref(page_no=page_no, doc=true_doc)
-            true_page_pilimage = true_page_imageref.pil_image
+            true_page_imageref = self.get_page_imageref(page_no=page_no, doc=new_doc)
+
+            assert true_page_imageref.pil_image is not None
+            true_page_pilimage: Image.Image = true_page_imageref.pil_image
 
             # Get label, provenance, and text for the box
             label, prov, text = self.get_label_prov_and_text(
@@ -912,8 +789,8 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                 page_no=page_no,
                 img_width=true_page_imageref.size.width,
                 img_height=true_page_imageref.size.height,
-                pdf_width=true_doc.pages[page_no].size.width,
-                pdf_height=true_doc.pages[page_no].size.height,
+                pdf_width=new_doc.pages[page_no].size.width,
+                pdf_height=new_doc.pages[page_no].size.height,
                 parsed_page=parsed_pages[page_no],
             )
 
@@ -925,7 +802,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                 boxes=boxes,
                 merges=merges,
                 already_added=already_added,
-                true_doc=true_doc,
+                true_doc=new_doc,
                 parsed_page=parsed_pages[page_no],
             )
 
@@ -939,32 +816,32 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                 DocItemLabel.TITLE,
                 DocItemLabel.FOOTNOTE,
             ]:
-                current_item = true_doc.add_text(label=label, prov=prov, text=text)
+                current_item = new_doc.add_text(label=label, prov=prov, text=text)
                 for next_prov in next_provs:
                     current_item.prov.append(next_prov)
 
             elif label == DocItemLabel.SECTION_HEADER:
-                true_doc.add_text(label=label, prov=prov, text=text)
+                new_doc.add_text(label=label, prov=prov, text=text)
 
             elif label == DocItemLabel.CAPTION:
-                true_doc.add_text(label=label, prov=prov, text=text)
+                new_doc.add_text(label=label, prov=prov, text=text)
 
             elif label in [
                 DocItemLabel.CHECKBOX_SELECTED,
                 DocItemLabel.CHECKBOX_UNSELECTED,
             ]:
-                true_doc.add_text(label=label, prov=prov, text=text)
+                new_doc.add_text(label=label, prov=prov, text=text)
 
             elif label == DocItemLabel.LIST_ITEM:
-                true_doc.add_list_item(prov=prov, text=text)
+                new_doc.add_list_item(prov=prov, text=text)
 
             elif label == DocItemLabel.FORMULA:
-                true_doc.add_text(label=label, prov=prov, text=text)
+                new_doc.add_text(label=label, prov=prov, text=text)
 
             elif label == DocItemLabel.CODE:
-                code_item = true_doc.add_code(text=text, prov=prov)
+                code_item = new_doc.add_code(text=text, prov=prov)
 
-                true_doc, already_added = self.add_captions_to_item(
+                new_doc, already_added = self.add_captions_to_item(
                     basename=basename,
                     to_captions=to_captions,
                     item=code_item,
@@ -972,17 +849,17 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                     boxid=boxid,
                     boxes=boxes,
                     already_added=already_added,
-                    true_doc=true_doc,
+                    true_doc=new_doc,
                     parsed_page=parsed_pages[page_no],
                 )
 
             elif label == DocItemLabel.FORM:
                 graph = GraphData(cells=[], links=[])
-                true_doc.add_form(graph=graph, prov=prov)
+                new_doc.add_form(graph=graph, prov=prov)
 
             elif label == DocItemLabel.KEY_VALUE_REGION:
                 graph = GraphData(cells=[], links=[])
-                true_doc.add_key_values(graph=graph, prov=prov)
+                new_doc.add_key_values(graph=graph, prov=prov)
 
             elif label in [DocItemLabel.TABLE, DocItemLabel.DOCUMENT_INDEX]:
                 # Try to find table data in original document
@@ -990,12 +867,12 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
 
                 if table_data.num_rows <= 0 or table_data.num_cols <= 0:
                     # Create an empty table structure if no data found
-                    table_data = TableData(num_rows=1, num_cols=1, table_cells=[])
+                    table_data = TableData(num_rows=0, num_cols=0, table_cells=[])
 
-                table_item = true_doc.add_table(label=label, data=table_data, prov=prov)
+                table_item = new_doc.add_table(label=label, data=table_data, prov=prov)
 
                 # Add captions and footnotes to table
-                true_doc, already_added = self.add_captions_to_item(
+                new_doc, already_added = self.add_captions_to_item(
                     basename=basename,
                     to_captions=to_captions,
                     item=table_item,
@@ -1003,11 +880,11 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                     boxid=boxid,
                     boxes=boxes,
                     already_added=already_added,
-                    true_doc=true_doc,
+                    true_doc=new_doc,
                     parsed_page=parsed_pages[page_no],
                 )
 
-                true_doc, already_added = self.add_footnotes_to_item(
+                new_doc, already_added = self.add_footnotes_to_item(
                     basename=basename,
                     to_footnotes=to_footnotes,
                     item=table_item,
@@ -1015,7 +892,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                     boxid=boxid,
                     boxes=boxes,
                     already_added=already_added,
-                    true_doc=true_doc,
+                    true_doc=new_doc,
                     parsed_page=parsed_pages[page_no],
                 )
 
@@ -1023,7 +900,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                 # Crop image from page based on bounding box
                 crop_image = crop_bounding_box(
                     page_image=true_page_pilimage,
-                    page=true_doc.pages[page_no],
+                    page=new_doc.pages[page_no],
                     bbox=prov.bbox,
                 )
 
@@ -1035,14 +912,14 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                     uri=from_pil_to_base64uri(crop_image),
                 )
 
-                if true_doc.pages[page_no].image is not None:
-                    imgref.dpi = true_doc.pages[page_no].image.dpi
+                if new_doc.pages[page_no].image is not None:
+                    imgref.dpi = new_doc.pages[page_no].image.dpi  # type: ignore
 
                 # Add picture to document
-                picture_item = true_doc.add_picture(prov=prov, image=imgref)
+                picture_item = new_doc.add_picture(prov=prov, image=imgref)
 
                 # Add captions and footnotes to picture
-                true_doc, already_added = self.add_captions_to_item(
+                new_doc, already_added = self.add_captions_to_item(
                     basename=basename,
                     to_captions=to_captions,
                     item=picture_item,
@@ -1050,11 +927,11 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                     boxid=boxid,
                     boxes=boxes,
                     already_added=already_added,
-                    true_doc=true_doc,
+                    true_doc=new_doc,
                     parsed_page=parsed_pages[page_no],
                 )
 
-                true_doc, already_added = self.add_footnotes_to_item(
+                new_doc, already_added = self.add_footnotes_to_item(
                     basename=basename,
                     to_footnotes=to_footnotes,
                     item=picture_item,
@@ -1062,11 +939,11 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                     boxid=boxid,
                     boxes=boxes,
                     already_added=already_added,
-                    true_doc=true_doc,
+                    true_doc=new_doc,
                     parsed_page=parsed_pages[page_no],
                 )
 
-        return true_doc
+        return new_doc
 
     def contains_reading_order(self, image_annot: Dict) -> bool:
         """
@@ -1139,7 +1016,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                         _log.fatal("Exception occured", e)
                     yield basename, overview.img_annotations[basename], true_doc
 
-    def create_dataset_from_annotations(self) -> List[DatasetRecord]:
+    def iterate(self) -> Iterable[DatasetRecord]:
         """
         Create dataset records from CVAT annotations.
 
@@ -1149,8 +1026,6 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         Returns:
             List of DatasetRecord objects
         """
-        if not self.retrieved and self.must_retrieve:
-            self.retrieve_input_dataset()
 
         # Load the overview file
         try:
@@ -1159,13 +1034,13 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             )
         except (FileNotFoundError, json.JSONDecodeError) as e:
             _log.error(f"Failed to load annotation overview file: {e}")
-            return []
+            raise
 
         # Get annotation files
         annot_files = self.get_annotation_files()
         if not annot_files:
-            _log.error("No annotation files found")
-            return []
+            _log.error("No annotation files found in CVAT dir")
+            raise
 
         # Calculate total items for effective indices
         total_items = len(overview.img_annotations)
@@ -1174,7 +1049,6 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         # Log statistics
         self.log_dataset_stats(total_items, end - begin)
 
-        records = []
         item_count = 0
 
         _log.info(f"Processing annotations from index {begin} to {end}")
@@ -1193,23 +1067,14 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
 
                 # Apply index filtering
                 item_count += 1
-                if item_count < begin or item_count >= end:
+                if item_count < begin:
                     continue
+                if item_count >= end:
+                    return
 
                 # Save the document as JSON
                 json_path = self.benchmark_dirs.json_anno_dir / f"{basename}.json"
                 true_doc.save_as_json(json_path)
-
-                # Create visualization if enabled
-                if self.do_visualization:
-                    viz_path = (
-                        self.benchmark_dirs.html_comp_dir / f"{basename}-clusters.html"
-                    )
-                    save_inspection_html(
-                        filename=viz_path,
-                        doc=true_doc,
-                        labels=TRUE_HTML_EXPORT_LABELS,
-                    )
 
                 # Extract images
                 true_doc, true_pictures, true_page_images = extract_images(
@@ -1246,31 +1111,37 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                     ],
                 )
 
-                records.append(record)
+                yield record
         except Exception as e:
             _log.error(f"Error processing annotations: {str(e)}")
 
-        _log.info(f"Created {len(records)} dataset records from annotations")
-        return records
 
-    def iterate(self) -> Iterable[DatasetRecord]:
-        """
-        Iterate through annotations and yield DatasetRecord objects.
+def find_table_data(doc: DoclingDocument, prov, iou_cutoff: float = 0.90):
+    """
+    Find table data in a document based on provenance.
 
-        This is the main method required by BaseEvaluationDatasetBuilder.
-        It delegates to create_dataset_from_annotations to process all annotations.
+    Args:
+        doc: Document to search in
+        prov: Provenance to match
+        iou_cutoff: IoU threshold for matching
 
-        Yields:
-            DatasetRecord objects
-        """
-        if not self.retrieved and self.must_retrieve:
-            raise RuntimeError(
-                "You must first retrieve the source dataset. Call retrieve_input_dataset()."
-            )
+    Returns:
+        TableData structure from the matching table or an empty structure
+    """
+    for item, _ in doc.iterate_items():
+        if isinstance(item, TableItem):
+            for item_prov in item.prov:
+                if item_prov.page_no != prov.page_no:
+                    continue
 
-        # Process all annotations to create dataset records
-        records = self.create_dataset_from_annotations()
+                # page_height = doc.pages[item_prov.page_no].size.height
+                iou = item_prov.bbox.intersection_over_union(prov.bbox)
 
-        # Yield records one by one
-        for record in records:
-            yield record
+                if iou > iou_cutoff:
+                    _log.info(f"Found matching table data with IoU: {iou:.2f}")
+                    return item.data
+
+    _log.warning("No matching table data found")
+
+    # Return empty table data
+    return TableData(num_rows=-1, num_cols=-1, table_cells=[])

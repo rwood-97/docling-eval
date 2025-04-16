@@ -338,7 +338,7 @@ def insert_images_from_pil(
     document: DoclingDocument,
     pictures: List[PIL.Image.Image],
     page_images: List[PIL.Image.Image],
-):
+) -> DoclingDocument:
 
     # Inject picture images
     for pic_no, picture in enumerate(document.pictures):
