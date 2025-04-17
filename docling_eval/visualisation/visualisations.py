@@ -1,17 +1,22 @@
 import copy
 import logging
 from pathlib import Path
-from typing import Set
+from typing import Optional, Set
 
 from docling.datamodel.base_models import BoundingBox, Cluster
 from docling.utils.visualization import draw_clusters
+from docling_core.transforms.visualizer.base import BaseVisualizer
+from docling_core.transforms.visualizer.reading_order_visualizer import ReadingOrderVisualizer
+from docling_core.transforms.visualizer.layout_visualizer import LayoutVisualizer
 from docling_core.types.doc.document import (
     ContentLayer,
     DocItem,
     DoclingDocument,
     ImageRefMode,
+    ImageRef,
 )
 from docling_core.types.doc.labels import DocItemLabel
+from typing_extensions import override
 from PIL import Image, ImageDraw, ImageFont
 
 from docling_eval.utils.utils import from_pil_to_base64
@@ -240,6 +245,21 @@ def draw_clusters_with_reading_order(
 
     return img
 
+class _PageOneVisualizer(BaseVisualizer):
+    @override
+    def get_visualization(
+        self,
+        *,
+        doc: DoclingDocument,
+        image: Image.Image,
+        **kwargs,
+    ) -> dict[Optional[int], Image.Image]:
+        return (
+            {1: image}
+            if 1 in doc.pages
+            else {}
+        )
+
 
 def save_comparison_html_with_clusters(
     filename: Path,
@@ -253,94 +273,6 @@ def save_comparison_html_with_clusters(
     if (1 not in true_doc.pages) or (1 not in pred_doc.pages):
         logging.error(f"1 not in true_doc.pages -> skipping {filename} ")
         return
-
-    def draw_doc_layout(doc: DoclingDocument, image: Image.Image):
-        r"""
-        Draw the document clusters and optionaly the reading order
-        """
-        clusters = []
-        for idx, (elem, _) in enumerate(
-            doc.iterate_items(
-                included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
-            )
-        ):
-            if not isinstance(elem, DocItem):
-                continue
-            if len(elem.prov) == 0:
-                continue  # Skip elements without provenances
-            prov = elem.prov[0]
-
-            if prov.page_no not in true_doc.pages or prov.page_no != 1:
-                logging.error(f"{prov.page_no} not in true_doc.pages -> skipping! ")
-                continue
-
-            tlo_bbox = prov.bbox.to_top_left_origin(
-                page_height=doc.pages[prov.page_no].size.height
-            )
-            cluster = Cluster(
-                id=idx,
-                label=elem.label,
-                bbox=BoundingBox.model_validate(tlo_bbox),
-                cells=[],
-            )
-            clusters.append(cluster)
-
-        scale_x = image.width / doc.pages[1].size.width
-        scale_y = image.height / doc.pages[1].size.height
-        draw_clusters(image, clusters, scale_x, scale_y)
-
-        return image
-
-    def draw_doc_reading_order(doc: DoclingDocument, image: Image.Image):
-        r"""
-        Draw the reading order
-        """
-        draw = ImageDraw.Draw(image)
-        x0, y0 = None, None
-
-        for elem, _ in doc.iterate_items(
-            included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE}
-        ):
-            if not isinstance(elem, DocItem):
-                continue
-            if len(elem.prov) == 0:
-                continue  # Skip elements without provenances
-            prov = elem.prov[0]
-
-            if prov.page_no not in true_doc.pages or prov.page_no != 1:
-                logging.error(f"{prov.page_no} not in true_doc.pages -> skipping! ")
-                continue
-
-            tlo_bbox = prov.bbox.to_top_left_origin(
-                page_height=doc.pages[prov.page_no].size.height
-            )
-            ro_bbox = tlo_bbox.normalized(doc.pages[prov.page_no].size)
-            ro_bbox.l = round(ro_bbox.l * image.width)
-            ro_bbox.r = round(ro_bbox.r * image.width)
-            ro_bbox.t = round(ro_bbox.t * image.height)
-            ro_bbox.b = round(ro_bbox.b * image.height)
-
-            if ro_bbox.b > ro_bbox.t:
-                ro_bbox.b, ro_bbox.t = ro_bbox.t, ro_bbox.b
-
-            if x0 is None and y0 is None:
-                x0 = (ro_bbox.l + ro_bbox.r) / 2.0
-                y0 = (ro_bbox.b + ro_bbox.t) / 2.0
-            else:
-                assert x0 is not None
-                assert y0 is not None
-
-                x1 = (ro_bbox.l + ro_bbox.r) / 2.0
-                y1 = (ro_bbox.b + ro_bbox.t) / 2.0
-
-                draw = draw_arrow(
-                    draw,
-                    (x0, y0, x1, y1),
-                    line_width=2,
-                    color="red",
-                )
-                x0, y0 = x1, y1
-        return image
 
     # HTML rendering
     true_doc_html = true_doc.export_to_html(
@@ -359,12 +291,23 @@ def save_comparison_html_with_clusters(
     true_doc_html = true_doc_html.replace("'", "&#39;")
     pred_doc_html = pred_doc_html.replace("'", "&#39;")
 
-    true_doc_img = draw_doc_layout(true_doc, copy.deepcopy(page_image))
-    pred_doc_img = draw_doc_layout(pred_doc, copy.deepcopy(page_image))
-
+    viz = LayoutVisualizer(
+        # temporarily needed while images are provided externally from DoclingDocument:
+        base_visualizer=_PageOneVisualizer()
+    )
     if draw_reading_order:
-        true_doc_img = draw_doc_reading_order(true_doc, true_doc_img)
-        pred_doc_img = draw_doc_reading_order(pred_doc, pred_doc_img)
+        viz = ReadingOrderVisualizer(base_visualizer=viz)
+
+    true_doc_img = viz.get_visualization(
+        doc=true_doc,
+        # temporarily needed while images are provided externally from DoclingDocument:
+        image=page_image.copy()
+    )[1]
+    pred_doc_img = viz.get_visualization(
+        doc=pred_doc,
+        # temporarily needed while images are provided externally from DoclingDocument:
+        image=page_image.copy()
+    )[1]
 
     true_doc_img_b64 = from_pil_to_base64(true_doc_img)
     pred_doc_img_b64 = from_pil_to_base64(pred_doc_img)

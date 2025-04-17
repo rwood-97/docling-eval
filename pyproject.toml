@@ -25,7 +25,7 @@ packages = [{include = "docling_eval"}]
 # actual dependencies:
 ######################
 python = "^3.10"
-docling-core = "^2.25.0"
+docling-core = { git = "https://github.com/docling-project/docling-core.git", extras = ["chunking"], rev = "6c145d18fc8de844db1679d6132fca18106229ff" }
 pydantic = "^2.0.0"
 lxml = "^5.3.0"
 datasets = "^3.2.0"
@@ -102,7 +102,7 @@ module = [
     "docling.*",
     "docling_parse.*",
     "docling_ibm_models.*",
-    "pypdfium2.*",    
+    "pypdfium2.*",
     "lxml.*",
     "distance.*",
     "datasets.*",
