@@ -257,7 +257,6 @@ def get_prediction_provider(
                     "To run SmolDocling faster, please install mlx-vlm:\n"
                     "pip install mlx-vlm"
                 )
-                raise
 
         pdf_format_option = PdfFormatOption(
             pipeline_cls=VlmPipeline, pipeline_options=pipeline_options
