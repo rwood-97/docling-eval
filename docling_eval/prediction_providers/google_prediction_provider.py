@@ -130,9 +130,67 @@ class GoogleDocAIPredictionProvider(BasePredictionProvider):
 
             table_data.table_cells.append(table_cell)
 
+    def get_types_by_page_start(self, json_data):
+        """
+        Gathers the 'type' values from 'textBlock' objects,
+        grouped by the 'pageStart' value in 'pageSpan' objects.
+
+        Args:
+            json_data: A Python dictionary representing the JSON data.  The input
+                       is assumed to have the structure provided in the user prompt,
+                       with nested 'blocks', 'textBlock', and 'pageSpan' fields.
+
+        Returns:
+            A dictionary where keys are 'pageStart' values and
+            values are lists of corresponding 'type' values.  Returns an empty
+            dictionary if no matching data is found.
+        """
+
+        types_by_page = {}
+
+        def traverse_data(data):
+            """
+            Recursively traverses the JSON-like data structure to extract
+            'type' and 'pageStart' values.
+
+            Args:
+                data: The current part of the JSON-like data being processed
+                      (can be a dict, list, or primitive type).
+            """
+            if isinstance(data, dict):
+                # Check for the specific structure we're interested in.  This is the
+                # most important part of the function.
+                if ("textBlock" in data and
+                        "type" in data["textBlock"] and
+                        "pageSpan" in data and
+                        "pageStart" in data["pageSpan"]):
+                    page_start = data["pageSpan"]["pageStart"]
+                    block_type = data["textBlock"]["type"]
+
+                    # Store the type, creating a new list if the pageStart is new.
+                    types_by_page.setdefault(page_start, []).append(block_type)
+
+                # Recursively process the values in the dictionary.  This is what
+                # allows us to handle nested structures.
+                for value in data.values():
+                    traverse_data(value)
+
+            elif isinstance(data, list):
+                # If the current data is a list, recursively process each item
+                for item in data:
+                    traverse_data(item)
+            #  No 'else' is needed:  if it's not a dict or list, we've reached a
+            #  primitive value (string, int, etc.), and we don't need to do
+            #  anything with it.
+
+        # Start the traversal from the root of the JSON data.
+        traverse_data(json_data)
+        return types_by_page
+
     def convert_google_output_to_docling(self, document, record: DatasetRecord):
         """Converts Google Document AI output to DoclingDocument format."""
         doc = DoclingDocument(name=record.doc_id)
+
 
         for page in document.get("pages", []):
             page_no = page.get("pageNumber", 1)
