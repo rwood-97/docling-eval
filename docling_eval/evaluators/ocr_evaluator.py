@@ -140,6 +140,10 @@ class OCREvaluator(BaseEvaluator):
 
     def _compute_cer_score(self, true_txt: str, pred_txt: str) -> float:
         """Compute Character Error Rate"""
+        if not true_txt:
+            return 1.0
+        if not pred_txt:
+            return 1.0
         result = self._cer_eval.compute(predictions=[pred_txt], references=[true_txt])
         return result
 

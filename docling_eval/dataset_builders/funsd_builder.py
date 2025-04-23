@@ -7,9 +7,18 @@ from typing import Dict, Iterable, List, Optional
 
 from datasets import DownloadManager
 from docling_core.types import DoclingDocument
-from docling_core.types.doc import BoundingBox, ImageRef, PageItem, ProvenanceItem, Size
+from docling_core.types.doc import (
+    BoundingBox,
+    CoordOrigin,
+    DocItemLabel,
+    ImageRef,
+    PageItem,
+    ProvenanceItem,
+    Size,
+)
 from docling_core.types.doc.document import GraphCell, GraphData, GraphLink
 from docling_core.types.doc.labels import GraphCellLabel, GraphLinkLabel
+from docling_core.types.io import DocumentStream
 from PIL import Image
 from tqdm import tqdm
 
@@ -193,7 +202,7 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
         bbox_instance = BoundingBox.enclosing_bbox(all_bboxes)
         return bbox_instance
 
-    def populate_key_value_item(
+    def _create_ground_truth_doc(
         self, doc: DoclingDocument, funsd_data: dict
     ) -> DoclingDocument:
         """
@@ -241,6 +250,24 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
                 label=GraphCellLabel.KEY,  # later to be updated by classify_cells
             )
             cell_by_id[cell_id] = cell
+
+            # Add text to the document for OCR
+            for word in item.get("words", []):
+                text = word.get("text", "")
+                bbox = word.get("box", [0, 0, 0, 0])
+                bbox_obj = BoundingBox.from_tuple(
+                    (
+                        float(bbox[0]),
+                        float(bbox[1]),
+                        float(bbox[0] + bbox[2]),
+                        float(bbox[1] + bbox[3]),
+                    ),
+                    CoordOrigin.TOPLEFT,
+                )
+                prov = ProvenanceItem(
+                    page_no=doc.pages[1].page_no, bbox=bbox_obj, charspan=(0, len(text))
+                )
+                doc.add_text(label=DocItemLabel.TEXT, text=text, prov=prov)
 
         # unique linking pairs
         linking_set = set()
@@ -358,7 +385,7 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
                 true_doc.pages[1] = page_item
 
                 # Populate document with key-value data
-                true_doc = self.populate_key_value_item(true_doc, funsd_data)
+                true_doc = self._create_ground_truth_doc(true_doc, funsd_data)
 
                 # Extract images
                 true_doc, true_pictures, true_page_images = extract_images(
@@ -366,15 +393,18 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
                     pictures_column=BenchMarkColumns.GROUNDTRUTH_PICTURES.value,
                     page_images_column=BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES.value,
                 )
+                image_stream = DocumentStream(
+                    name=img_path.stem, stream=io.BytesIO(img_bytes)
+                )
 
                 # Create dataset record
                 record = DatasetRecord(
                     doc_id=img_path.stem,
                     doc_hash=get_binhash(img_bytes),
                     ground_truth_doc=true_doc,
-                    original=None,
+                    original=image_stream,
                     mime_type="image/png",
-                    modalities=[EvaluationModality.KEY_VALUE],
+                    modalities=[EvaluationModality.KEY_VALUE, EvaluationModality.OCR],
                     ground_truth_pictures=true_pictures,
                     ground_truth_page_images=true_page_images,
                 )
