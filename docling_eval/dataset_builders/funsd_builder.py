@@ -221,6 +221,7 @@ class FUNSDDatasetBuilder(BaseEvaluationDatasetBuilder):
         form_items = funsd_data["form"]
 
         cell_by_id = {}
+        prov: Optional[ProvenanceItem] = None
         for item in form_items:
             # We omit the items that are not relevant for key-value pairs.
             if not item.get("linking", []) and item.get("label", "other") in [
