@@ -108,6 +108,7 @@ class MarkdownTextEvaluator(BaseEvaluator):
         self,
         ds_path: Path,
         split: str = "test",
+        pred_md_dict: Optional[Dict[str, str]] = None,
     ) -> DatasetMarkdownEvaluation:
         r"""
         Parameters
@@ -143,28 +144,37 @@ class MarkdownTextEvaluator(BaseEvaluator):
             ncols=120,
             total=len(ds_selection),
         ):
-            data_record = DatasetRecordWithPrediction.model_validate(data)
-            doc_id = data_record.doc_id
-            if data_record.status not in self._accepted_status:
-                _log.error(
-                    "Skipping record without successfull conversion status: %s", doc_id
-                )
-                rejected_samples[EvaluationRejectionType.INVALID_CONVERSION_STATUS] += 1
-                continue
+            # data_record = DatasetRecordWithPrediction.model_validate(data)
+            # doc_id = data_record.doc_id
+            # if data_record.status not in self._accepted_status:
+            #     _log.error(
+            #         "Skipping record without successfull conversion status: %s", doc_id
+            #     )
+            #     rejected_samples[EvaluationRejectionType.INVALID_CONVERSION_STATUS] += 1
+            #     continue
 
-            true_doc = data_record.ground_truth_doc
+            # true_doc = data_record.ground_truth_doc
+            # true_md = self._docling_document_to_md(true_doc)
+
+            ###########################################################################################
+            # TODO: Hack to evaluate on external markdown files
+            doc_id = data["document_id"]
+            true_doc_str = data["GroundTruthDocument"]
+            true_doc = DoclingDocument.model_validate_json(true_doc_str)
             true_md = self._docling_document_to_md(true_doc)
-            pred_md = self._get_pred_md(data_record)
+            if pred_md_dict:
+                pred_md = pred_md_dict.get(doc_id)
+            else:
+                pred_md = self._get_pred_md(data_record)
+            ###########################################################################################
 
             if pred_md is None:
                 _log.error("There is no markdown prediction for doc_id=%s", doc_id)
                 rejected_samples[EvaluationRejectionType.MISSING_PREDICTION] += 1
                 continue
 
-            bleu = 0.0
-            if true_md != "" and pred_md != "":
-                bleu = self._compute_bleu_score(true_md, pred_md)
-                ntlk_scores = self._compute_nltk_scores(true_md, pred_md)
+            bleu = self._compute_bleu_score(true_md, pred_md)
+            ntlk_scores = self._compute_nltk_scores(true_md, pred_md)
 
             # Collect metrics across pages
             ds_metrics["bleu"].append(bleu)
@@ -204,6 +214,9 @@ class MarkdownTextEvaluator(BaseEvaluator):
         r"""
         Compute BLEU score with the HF evaluate and the default Tokenizer_13
         """
+        if true_txt == "" or pred_txt == "":
+            return 0.0
+
         result = self._bleu_eval.compute(
             predictions=[pred_txt], references=[[true_txt]]
         )
@@ -216,6 +229,16 @@ class MarkdownTextEvaluator(BaseEvaluator):
         --------
         dict with keys: ["f_measure", "precision", "recall", "edit_dist"]
         """
+        if true_txt == "" or pred_txt == "":
+            metrics: dict[str, float] = {
+                "f1_score": 0.0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "edit_distance": 0.0,
+                "meteor": 0.0,
+            }
+            return metrics
+
         true_tokens = word_tokenize(true_txt)
         true_tokens_set = set(true_tokens)
         pred_tokens = word_tokenize(pred_txt)
