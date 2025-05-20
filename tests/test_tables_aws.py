@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 import pytest
+from dotenv import load_dotenv
 
 from docling_eval.cli.main import evaluate, visualize
 from docling_eval.datamodels.types import BenchMarkNames, EvaluationModality
@@ -23,7 +24,7 @@ logging.getLogger("matplotlib").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("filelock").setLevel(logging.WARNING)
 
-
+load_dotenv()
 @pytest.mark.skipif(
     IS_CI, reason="Skipping test in CI because the dataset is too heavy."
 )
@@ -72,7 +73,8 @@ def test_run_dpbench_builder():
 
     dataset = DPBenchDatasetBuilder(
         target=target_path / "gt_dataset",
-        end_index=15,
+        begin_index=186,
+        end_index=201,
     )
 
     dataset.retrieve_input_dataset()
