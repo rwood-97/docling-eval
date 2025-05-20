@@ -379,7 +379,84 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             merges,
             group,
         )
+    
+    def _validate_annotations_consistency(self,
+                                          boxes,
+                                          lines,
+                                          reading_order,
+                                          to_captions,
+                                          to_footnotes,
+                                          to_values,
+                                          merges,
+                                          group) -> bool:
+        """Validate annotations consistency."""
 
+        def _validate_to_captions():
+            """validate to captions.
+
+            - Make sure the first bbox is a FloatingItem and the subsequent
+            are of type caption.
+            - Make sure that the to_caption only starts at the beginning of
+            a group, if a group is present.
+            """
+            return True
+
+        def _validate_to_footnotes():
+            """validate to footnotes.
+
+            - Make sure the first bbox is a FloatingItem and the subsequent
+            are of type footnote.
+            - Make sure that the to_caption only starts at the beginning of
+            a group, if a group is present.
+            """
+            return True        
+
+        def _validate_captions():
+            """validate captions.
+
+            Make sure each caption either is the start of a to_caption or
+            has a merge node.
+            """
+            return True
+        
+        def _validate_list_items():
+            """validate list items.
+
+            Make sure every list-item has a group or merge point.
+            """
+            return True
+        
+        def _validate_reading_order():
+            """validate reading-order.
+
+            Make sure that every bbox has a reading-order point or is
+            entirely overlapped with a bbox that has a reading-order. 
+            """
+            return True
+            
+        def _validate_merges():
+            """validate merges.
+
+            Make sure that all bbox in a merge are of same type
+            """
+            return True        
+
+        def _validate_group():
+            """validate groups.
+
+            Make sure that all bbox in a group are of same type
+            """
+            return True        
+        
+
+        return (
+            _validate_to_captions() and
+            _validate_to_footnotes() and
+            _validate_reading_order() and
+            _validate_merges() and
+            _validate_group() and
+            __validate_list_items()
+        
     def create_prov(
         self,
         box: Dict,
@@ -895,6 +972,17 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             _log.error(f"Incorrect annotation for {basename}: no reading order found")
             return None
 
+        if self._validate_annotations_consistency(boxes=boxes,
+                                                  lines=lines,
+                                                  reading_order=reading_order,
+                                                  to_captions=to_captions,
+                                                  to_footnotes=to_footnotes,
+                                                  to_values=to_values,
+                                                  merges=merges,
+                                                  group=group):
+            _log.error(f"Inconsistent annotation for {basename}: skipping")
+            return None
+        
         # Original Groundtruth and Prediction files
         orig_file = desc.document_file
 
