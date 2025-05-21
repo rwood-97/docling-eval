@@ -388,7 +388,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                                           to_footnotes,
                                           to_values,
                                           merges,
-                                          group) -> bool:
+                                          groups) -> bool:
         """Validate annotations consistency."""
 
         def _validate_to_captions():
@@ -399,16 +399,68 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             - Make sure that the to_caption only starts at the beginning of
             a group, if a group is present.
             """
-            return True
+            for to_caption in to_captions:
 
+                boxids = to_caption["boxids"]
+                if len(boxids)!=2:
+                    _log.error(f"to_caption is longer than 2: {len(to_caption['boxids'])}")
+                    return False
+
+                box_source = boxes[boxids[0]]
+                box_target = boxes[boxids[1]]
+
+                label_source = DocItemLabel(box_source["@label"])
+                label_target = DocItemLabel(box_target["@label"])
+
+                if label_source not in [
+                        DocItemLabel.PICTURE,
+                        DocItemLabel.TABLE,
+                        DocItemLabel.CODE,
+                        DocItemLabel.FORM,
+                ]:
+                    _log.error(f"to_caption label-source: {label_source}")
+                    return False
+                
+                if label_target!=DocItemLabel.CAPTION:
+                    _log.error(f"to_caption label-target: {label_target}")
+                    return False
+                
+            return True
+        
         def _validate_to_footnotes():
             """validate to footnotes.
 
             - Make sure the first bbox is a FloatingItem and the subsequent
             are of type footnote.
-            - Make sure that the to_caption only starts at the beginning of
+            - Make sure that the to_footnote only starts at the beginning of
             a group, if a group is present.
             """
+            for to_footnote in to_footnotes:
+
+                boxids = to_footnote["boxids"]
+                if len(boxids)!=2:
+                    _log.error(f"to_footnote is longer than 2: {len(to_footnote['boxids'])}")
+                    return False
+
+                box_source = boxes[boxids[0]]
+                box_target = boxes[boxids[1]]
+
+                label_source = DocItemLabel(box_source["@label"])
+                label_target = DocItemLabel(box_target["@label"])
+
+                if label_source not in [
+                        DocItemLabel.PICTURE,
+                        DocItemLabel.TABLE,
+                        DocItemLabel.CODE,
+                        DocItemLabel.FORM,
+                ]:
+                    _log.error(f"to_footnote label-source: {label_source}")
+                    return False
+                
+                if label_target!=DocItemLabel.FOOTNOTE:
+                    _log.error(f"to_footnote label-target: {label_target}")
+                    return False
+            
             return True        
 
         def _validate_captions():
@@ -417,6 +469,31 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             Make sure each caption either is the start of a to_caption or
             has a merge node.
             """
+            caption_ids = []            
+            for to_caption in to_captions:
+                boxids = to_caption["boxids"]
+                if len(boxids)!=2:
+                    _log.error(f"to_caption is longer than 2: {len(to_caption['boxids'])}")
+                    return False
+
+                box_target = boxes[boxids[1]]
+                label_target = DocItemLabel(box_target["@label"])
+
+                if label_target==DocItemLabel.CAPTION:
+                    caption_ids.append(boxids[1])
+            
+            for i,box in enumerate(boxes):
+                label = DocItemLabel(box_source["@label"])
+
+                caption_is_linked = False
+                if label == DocItemLabel.CAPTION:
+                    if i not in caption_ids:
+                        caption_is_linked = True
+
+                if not caption_is_linked:
+                    _log.error(f"caption {box} is not linked to anything")
+                    return False
+                    
             return True
         
         def _validate_list_items():
@@ -424,6 +501,25 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
 
             Make sure every list-item has a group or merge point.
             """
+            for i,box in enumerate(boxes):
+                label = DocItemLabel(box_source["@label"])
+
+                listitem_is_grouped = True
+                if label == DocItemLabel.LIST_ITEM:
+                    for group in groups:
+                        if i in group["boxids"]:
+                            listitem_is_grouped = True
+
+                listitem_is_merged = True
+                if label == DocItemLabel.LIST_ITEM:
+                    for merge in merges:
+                        if i in merge["boxids"]:
+                            listitem_is_merged = True
+                            
+                if (not listitem_is_linked) or (not listitem_is_merged):
+                    _log.error(f"listitem {box} is not grouped or merged.")
+                    return False
+
             return True
         
         def _validate_reading_order():
@@ -447,6 +543,13 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             Make sure that all bbox in a group are of same type
             """
             return True        
+
+        def _validate_to_values_links():
+            """validate to_value links.
+
+            Make sure that all to_value links are between
+            """
+            return True        
         
 
         return (
@@ -456,7 +559,8 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             _validate_merges() and
             _validate_group() and
             __validate_list_items()
-        
+        )
+    
     def create_prov(
         self,
         box: Dict,
