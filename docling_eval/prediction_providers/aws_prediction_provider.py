@@ -23,7 +23,9 @@ from docling_core.types.doc.page import (
     TextCell,
 )
 from docling_core.types.io import DocumentStream
+from markdown_it.rules_inline import entity
 from skimage.draw import polygon
+from torch.utils.data.datapipes.dataframe.dataframe_wrapper import is_column
 
 from docling_eval.datamodels.dataset_record import (
     DatasetRecord,
@@ -156,6 +158,10 @@ class AWSTextractPredictionProvider(BasePredictionProvider):
             # Get cell bbox
             cell_bbox = self.extract_bbox_from_geometry(cell.get("Geometry", {}))
 
+            # Check if the cell is a column header
+            entity_types = cell.get("EntityTypes", [])
+            is_column_header = True if "COLUMN_HEADER" in entity_types else False
+
             # Create TableCell object
             table_cell = TableCell(
                 bbox=BoundingBox(
@@ -172,10 +178,9 @@ class AWSTextractPredictionProvider(BasePredictionProvider):
                 start_col_offset_idx=col_index,
                 end_col_offset_idx=col_index + col_span,
                 text=cell_text,
-                # AWS doesn't directly tell us which cells are headers, so we're using heuristics
-                # Setting first row as column header and first column as row header
-                column_header=(row_index == 0),
-                row_header=(col_index == 0),
+                column_header=is_column_header,
+                # AWS does not identify row headers
+                row_header=False,
                 row_section=False,
             )
 
