@@ -23,9 +23,6 @@ from docling_core.types.doc.page import (
     TextCell,
 )
 from docling_core.types.io import DocumentStream
-from markdown_it.rules_inline import entity
-from skimage.draw import polygon
-from torch.utils.data.datapipes.dataframe.dataframe_wrapper import is_column
 
 from docling_eval.datamodels.dataset_record import (
     DatasetRecord,
@@ -580,6 +577,8 @@ class AWSTextractPredictionProvider(BasePredictionProvider):
                 text_content += child_block["Text"] + separator
             elif child_block["BlockType"] == "LAYOUT_TEXT":
                 text_content += self._get_layout_element_text(child_block, blocks_map)
+            else:
+                _log.warning("Encountered unhandled BlockType!")
 
             # Remove the trailing separator
         text_content = text_content[: -len(separator)]
