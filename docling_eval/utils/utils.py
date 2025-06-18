@@ -106,7 +106,10 @@ def add_pages_to_true_doc(
 
     for page_no in range(0, in_doc.page_count):
         page = Page(page_no=page_no)
-        page._backend = in_doc._backend.load_page(page.page_no)  # type: ignore[attr-defined]
+        try:
+            page._backend = in_doc._backend.load_page(page.page_no)  # type: ignore[attr-defined]
+        except Exception as e:
+            logging.error(f"Error loading page {page_no}: {e}")
 
         if page._backend is not None and page._backend.is_valid():
             page.size = page._backend.get_size()
