@@ -10,6 +10,7 @@ from docling_core.types import DoclingDocument
 from docling_core.types.doc import (
     BoundingBox,
     CoordOrigin,
+    ContentLayer,
     DocItemLabel,
     ImageRef,
     PageItem,
@@ -283,7 +284,7 @@ class OmniDocBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
 
             elif label == "abandon":
                 true_doc.add_text(
-                    label=DocItemLabel.TEXT, text=text, orig=text, prov=prov
+                    label=DocItemLabel.TEXT, text=text, orig=text, prov=prov, content_layer=ContentLayer.FURNITURE
                 )
 
             elif label == "need_mask":
