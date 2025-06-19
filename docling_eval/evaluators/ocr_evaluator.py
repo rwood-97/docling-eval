@@ -287,7 +287,11 @@ class OCRVisualizer:
                     if parsed_pred_pages:
                         prediction_segmented_pages = parsed_pred_pages
 
-                base_image: Image.Image = page_images_data[0]
+                image_item = page_images_data[0]
+                if isinstance(image_item, dict):
+                    base_image: Image.Image = image_item["image"]
+                else:
+                    base_image: Image.Image = image_item
                 if base_image.mode != "RGB":
                     base_image = base_image.convert("RGB")
 
