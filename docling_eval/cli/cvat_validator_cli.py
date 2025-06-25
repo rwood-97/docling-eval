@@ -5,7 +5,7 @@ from typing import List, Tuple
 
 from ..cvat_tools.document import DocumentStructure
 from ..cvat_tools.models import CVATValidationReport, CVATValidationRunReport
-from ..cvat_tools.parser import find_samples_in_directory
+from ..cvat_tools.parser import find_samples_in_directory, get_all_images_from_cvat_xml
 from ..cvat_tools.validator import Validator
 
 
@@ -52,7 +52,7 @@ def main():
     parser.add_argument(
         "--image",
         type=str,
-        help="Image filename to process (if input is a directory)",
+        help="Image filename to process (if input is a directory or to filter specific image from XML)",
     )
     parser.add_argument(
         "--report-file",
@@ -77,10 +77,21 @@ def main():
                 return
     else:
         # Single file mode
-        if not args.image:
-            print("Error: --image argument required when processing a single XML file")
-            return
-        samples = [(args.image, input_path, args.image)]
+        if args.image:
+            # Process specific image from XML
+            samples = [(args.image, input_path, args.image)]
+        else:
+            # Process all images in XML
+            try:
+                image_names = get_all_images_from_cvat_xml(input_path)
+                if not image_names:
+                    print(f"Error: No images found in {input_path}")
+                    return
+                samples = [(name, input_path, name) for name in image_names]
+                print(f"Found {len(samples)} images in {input_path}")
+            except Exception as e:
+                print(f"Error reading XML file {input_path}: {str(e)}")
+                return
 
     report = process_samples(samples)
 

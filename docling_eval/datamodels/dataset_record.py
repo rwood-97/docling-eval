@@ -154,10 +154,13 @@ class DatasetRecord(
             data[gt_doc_alias] = json.loads(data[gt_doc_alias])
 
         gt_seg_pages_alias = cls.get_field_alias("ground_truth_segmented_pages")
-        if gt_seg_pages_alias in data and isinstance(data[gt_seg_pages_alias], str):
-            data[gt_seg_pages_alias] = seg_adapter.validate_json(
-                data[gt_seg_pages_alias]
-            )
+        if gt_seg_pages_alias in data and isinstance(
+            data[gt_seg_pages_alias], (str, bytes)
+        ):
+            seg_pages_data = data[gt_seg_pages_alias]
+            if isinstance(seg_pages_data, bytes):
+                seg_pages_data = seg_pages_data.decode("utf-8")
+            data[gt_seg_pages_alias] = seg_adapter.validate_json(seg_pages_data)
 
         gt_page_img_alias = cls.get_field_alias("ground_truth_page_images")
         if gt_page_img_alias in data:
@@ -311,10 +314,13 @@ class DatasetRecordWithPrediction(DatasetRecord):
             data[pred_doc_alias] = json.loads(data[pred_doc_alias])
 
         pred_seg_pages_alias = cls.get_field_alias("predicted_segmented_pages")
-        if pred_seg_pages_alias in data and isinstance(data[pred_seg_pages_alias], str):
-            data[pred_seg_pages_alias] = seg_adapter.validate_json(
-                data[pred_seg_pages_alias]
-            )
+        if pred_seg_pages_alias in data and isinstance(
+            data[pred_seg_pages_alias], (str, bytes)
+        ):
+            seg_pages_data = data[pred_seg_pages_alias]
+            if isinstance(seg_pages_data, bytes):
+                seg_pages_data = seg_pages_data.decode("utf-8")
+            data[pred_seg_pages_alias] = seg_adapter.validate_json(seg_pages_data)
 
         pred_page_img_alias = cls.get_field_alias("predicted_page_images")
         if pred_page_img_alias in data:

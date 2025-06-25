@@ -18,6 +18,25 @@ def cvat_box_to_bbox(xtl: float, ytl: float, xbr: float, ybr: float) -> Bounding
     return BoundingBox(l=xtl, t=ytl, r=xbr, b=ybr, coord_origin=CoordOrigin.TOPLEFT)
 
 
+def get_all_images_from_cvat_xml(xml_path: Path) -> List[str]:
+    """Get all image names from a CVAT XML file.
+
+    Args:
+        xml_path: Path to the CVAT XML file
+
+    Returns:
+        List of image names found in the XML file
+    """
+    tree = ET.parse(xml_path)
+    root = tree.getroot()
+
+    image_names = []
+    for img in root.findall(".//image"):
+        image_names.append(img.attrib.get("name", ""))
+
+    return image_names
+
+
 def parse_cvat_xml_for_image(
     xml_path: Path, image_filename: str
 ) -> Tuple[List[CVATElement], List[CVATAnnotationPath], CVATImageInfo]:
