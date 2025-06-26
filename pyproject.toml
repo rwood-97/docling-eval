@@ -76,6 +76,10 @@ cvat_tools = [
     "cvat-sdk>=2.40.0",
     'ocrmac>=1.0.0; sys_platform == "darwin" and platform_machine == "arm64"',
 ]
+cvat_tools = [
+    "cvat-sdk>=2.40.0",
+    "ocrmac>=1.0.0",
+]
 
 [dependency-groups]
 dev = [
