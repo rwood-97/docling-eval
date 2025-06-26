@@ -444,3 +444,4 @@ pip-selfcheck.json
 # docs/**/*.svg
 checkpoints/*
 outputs_evals/*
+output_eval/*
