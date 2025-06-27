@@ -1,6 +1,5 @@
 import glob
 import logging
-from collections import defaultdict
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -40,15 +39,6 @@ class MissingPredictionStrategy(Enum):
     IGNORE = "ignore"  # Skip the GT-Pred pair entirely
 
 
-class LabelFilteringStrategy(Enum):
-    """Strategy for determining which labels to evaluate."""
-
-    INTERSECTION = (
-        "intersection"  # Only evaluate labels present in both GT and predictions
-    )
-    UNION = "union"  # Evaluate all labels present in the label mapping
-
-
 class ClassLayoutEvaluation(BaseModel):
     r"""
     Class based layout evaluation
@@ -82,11 +72,6 @@ class ImageLayoutEvaluation(UnitEvaluation):
     segmentation_recall: float
     segmentation_f1: float
 
-    # Area-level metrics excluding PICTURE labels
-    segmentation_precision_no_pictures: Optional[float] = None
-    segmentation_recall_no_pictures: Optional[float] = None
-    segmentation_f1_no_pictures: Optional[float] = None
-
 
 class DatasetLayoutEvaluation(DatasetEvaluation):
     true_labels: Dict[str, int]
@@ -109,11 +94,6 @@ class DatasetLayoutEvaluation(DatasetEvaluation):
     segmentation_precision_stats: DatasetStatistics
     segmentation_recall_stats: DatasetStatistics
     segmentation_f1_stats: DatasetStatistics
-
-    # Statistics for metrics excluding PICTURE labels
-    segmentation_precision_no_pictures_stats: Optional[DatasetStatistics] = None
-    segmentation_recall_no_pictures_stats: Optional[DatasetStatistics] = None
-    segmentation_f1_no_pictures_stats: Optional[DatasetStatistics] = None
 
     def to_table(self) -> Tuple[List[List[str]], List[str]]:
         headers = ["label", "Class mAP[0.5:0.95]"]
@@ -141,7 +121,6 @@ class LayoutEvaluator(BaseEvaluator):
         intermediate_evaluations_path: Optional[Path] = None,
         prediction_sources: List[PredictionFormats] = [],
         missing_prediction_strategy: MissingPredictionStrategy = MissingPredictionStrategy.PENALIZE,
-        label_filtering_strategy: LabelFilteringStrategy = LabelFilteringStrategy.INTERSECTION,
     ):
         supported_prediction_formats: List[PredictionFormats] = [
             PredictionFormats.DOCLING_DOCUMENT,
@@ -161,7 +140,6 @@ class LayoutEvaluator(BaseEvaluator):
         self.label_names = {}
         self.label_mapping = label_mapping or {v: v for v in DocItemLabel}
         self.missing_prediction_strategy = missing_prediction_strategy
-        self.label_filtering_strategy = label_filtering_strategy
 
         for i, _ in enumerate(DEFAULT_EXPORT_LABELS):
             self.filter_labels.append(_)
@@ -205,27 +183,6 @@ class LayoutEvaluator(BaseEvaluator):
         logging.info(
             f"Using missing prediction strategy: {self.missing_prediction_strategy.value}"
         )
-        logging.info(
-            f"Using label filtering strategy: {self.label_filtering_strategy.value}"
-        )
-
-        # Determine which labels to use for evaluation based on strategy
-        if self.label_filtering_strategy == LabelFilteringStrategy.INTERSECTION:
-            filter_labels = intersection_labels
-        elif self.label_filtering_strategy == LabelFilteringStrategy.UNION:
-            # Use all labels from the mapping that have non-None values
-            filter_labels = [
-                DocItemLabel(mapped_label)
-                for mapped_label in set(self.label_mapping.values())
-                if mapped_label is not None
-            ]
-        else:
-            raise ValueError(
-                f"Unknown label filtering strategy: {self.label_filtering_strategy}"
-            )
-
-        filter_labels_str = ", ".join(sorted([label.value for label in filter_labels]))
-        logging.info(f"Filter labels for evaluation: {filter_labels_str}")
 
         doc_ids = []
         ground_truths = []
@@ -233,7 +190,6 @@ class LayoutEvaluator(BaseEvaluator):
         rejected_samples: Dict[EvaluationRejectionType, int] = {
             EvaluationRejectionType.INVALID_CONVERSION_STATUS: 0,
             EvaluationRejectionType.MISSING_PREDICTION: 0,
-            EvaluationRejectionType.MISMATHCED_DOCUMENT: 0,
         }
 
         for i, data in tqdm(
@@ -261,39 +217,8 @@ class LayoutEvaluator(BaseEvaluator):
             gts, preds = self._extract_layout_data(
                 true_doc=true_doc,
                 pred_doc=pred_doc,
-                filter_labels=filter_labels,
+                filter_labels=intersection_labels,
             )
-
-            # Track mismatched documents when using PENALIZE strategy and there are missing pages
-            true_pages = set()
-            for item, level in true_doc.iterate_items(
-                included_content_layers={c for c in ContentLayer},
-                traverse_pictures=True,
-            ):
-                if (
-                    isinstance(item, DocItem)
-                    and self.label_mapping[item.label] in filter_labels
-                ):
-                    for prov in item.prov:
-                        true_pages.add(prov.page_no)
-
-            pred_pages = set()
-            for item, level in pred_doc.iterate_items(
-                included_content_layers={c for c in ContentLayer},
-                traverse_pictures=True,
-            ):
-                if (
-                    isinstance(item, DocItem)
-                    and self.label_mapping[item.label] in filter_labels
-                ):
-                    for prov in item.prov:
-                        pred_pages.add(prov.page_no)
-
-            if (
-                self.missing_prediction_strategy == MissingPredictionStrategy.PENALIZE
-                and len(true_pages - pred_pages) > 0
-            ):
-                rejected_samples[EvaluationRejectionType.MISMATHCED_DOCUMENT] += 1
 
             # logging.info(f"gts: {gts}")
             # logging.info(f"preds: {preds}")
@@ -331,7 +256,7 @@ class LayoutEvaluator(BaseEvaluator):
         total_mAP = result["map"]
         if "map_per_class" in result:
             for label_idx, class_map in enumerate(result["map_per_class"]):
-                label = filter_labels[label_idx].value
+                label = intersection_labels[label_idx].value
                 evaluations_per_class.append(
                     ClassLayoutEvaluation(
                         name="Class AP[0.5:0.95]",
@@ -365,21 +290,6 @@ class LayoutEvaluator(BaseEvaluator):
                 mask_height=512,
             )
 
-            # Compute metrics excluding PICTURE labels
-            precision_no_pics, recall_no_pics, f1_no_pics = (
-                self._compute_area_level_metrics_excluding_pictures(
-                    gt_boxes=gt["boxes"],
-                    gt_labels=gt["labels"],
-                    pred_boxes=pred["boxes"],
-                    pred_labels=pred["labels"],
-                    filter_labels=filter_labels,
-                    page_width=100,
-                    page_height=100,
-                    mask_width=512,
-                    mask_height=512,
-                )
-            )
-
             # Reset the metric for the next image
             metric = MeanAveragePrecision(iou_type="bbox", class_metrics=True)
 
@@ -394,29 +304,25 @@ class LayoutEvaluator(BaseEvaluator):
             map_50 = tensor_to_float(result["map_50"])
             map_75 = tensor_to_float(result["map_75"])
 
-            result = self._compute_average_iou_with_labels_across_iou(
+            result = self._compute_average_iou_with_labels(
                 pred_boxes=pred["boxes"],
                 pred_labels=pred["labels"],
                 gt_boxes=gt["boxes"],
                 gt_labels=gt["labels"],
             )
-            average_iou_50 = tensor_to_float(result["average_iou_50"])
-            average_iou_75 = tensor_to_float(result["average_iou_75"])
-            average_iou_90 = tensor_to_float(result["average_iou_90"])
-            average_iou_95 = tensor_to_float(result["average_iou_95"])
+            average_iou_50 = tensor_to_float(result["average_iou"])
 
             # Set the stats
             map_values.append(map_value)
             map_50_values.append(map_50)
             map_75_values.append(map_75)
             weighted_map_50_values.append(average_iou_50)
-            weighted_map_75_values.append(average_iou_75)
-            weighted_map_90_values.append(average_iou_90)
-            weighted_map_95_values.append(average_iou_95)
+            weighted_map_75_values.append(average_iou_50)
+            weighted_map_90_values.append(average_iou_50)
+            weighted_map_95_values.append(average_iou_50)
 
             logging.info(
-                f"doc: {doc_id}\tprecision: {precision:.2f}, recall: {recall:.2f}, f1: {f1:.2f}, map_50: {map_50:.2f}, "
-                f"precision_no_pics: {precision_no_pics:.2f}, recall_no_pics: {recall_no_pics:.2f}, f1_no_pics: {f1_no_pics:.2f}"
+                f"doc: {doc_id}\tprecision: {precision:.2f}, recall: {recall:.2f}, f1: {f1:.2f}, map_50: {map_50:.2f}"
             )
 
             image_evaluation = ImageLayoutEvaluation(
@@ -426,15 +332,12 @@ class LayoutEvaluator(BaseEvaluator):
                 map_50=map_50,
                 map_75=map_75,
                 avg_weighted_label_matched_iou_50=average_iou_50,
-                avg_weighted_label_matched_iou_75=average_iou_75,
-                avg_weighted_label_matched_iou_90=average_iou_90,
-                avg_weighted_label_matched_iou_95=average_iou_95,
+                avg_weighted_label_matched_iou_75=average_iou_50,
+                avg_weighted_label_matched_iou_90=average_iou_50,
+                avg_weighted_label_matched_iou_95=average_iou_50,
                 segmentation_precision=precision,
                 segmentation_recall=recall,
                 segmentation_f1=f1,
-                segmentation_precision_no_pictures=precision_no_pics,
-                segmentation_recall_no_pictures=recall_no_pics,
-                segmentation_f1_no_pictures=f1_no_pics,
             )
             evaluations_per_image.append(image_evaluation)
             if self._intermediate_evaluations_path:
@@ -467,30 +370,9 @@ class LayoutEvaluator(BaseEvaluator):
             segmentation_f1_stats=compute_stats(
                 [_.segmentation_f1 for _ in evaluations_per_image]
             ),
-            segmentation_precision_no_pictures_stats=compute_stats(
-                [
-                    _.segmentation_precision_no_pictures
-                    for _ in evaluations_per_image
-                    if _.segmentation_precision_no_pictures is not None
-                ]
-            ),
-            segmentation_recall_no_pictures_stats=compute_stats(
-                [
-                    _.segmentation_recall_no_pictures
-                    for _ in evaluations_per_image
-                    if _.segmentation_recall_no_pictures is not None
-                ]
-            ),
-            segmentation_f1_no_pictures_stats=compute_stats(
-                [
-                    _.segmentation_f1_no_pictures
-                    for _ in evaluations_per_image
-                    if _.segmentation_f1_no_pictures is not None
-                ]
-            ),
             true_labels=true_labels,
             pred_labels=pred_labels,
-            intersecting_labels=[_.value for _ in filter_labels],
+            intersecting_labels=[_.value for _ in intersection_labels],
         )
         return dataset_layout_evaluation
 
@@ -597,29 +479,6 @@ class LayoutEvaluator(BaseEvaluator):
             "matched_gt": len(matched_gt),
         }
 
-    def _compute_average_iou_with_labels_across_iou(
-        self, pred_boxes, pred_labels, gt_boxes, gt_labels
-    ):
-        res_50 = self._compute_average_iou_with_labels(
-            pred_boxes, pred_labels, gt_boxes, gt_labels, iou_thresh=0.50
-        )
-        res_75 = self._compute_average_iou_with_labels(
-            pred_boxes, pred_labels, gt_boxes, gt_labels, iou_thresh=0.75
-        )
-        res_90 = self._compute_average_iou_with_labels(
-            pred_boxes, pred_labels, gt_boxes, gt_labels, iou_thresh=0.90
-        )
-        res_95 = self._compute_average_iou_with_labels(
-            pred_boxes, pred_labels, gt_boxes, gt_labels, iou_thresh=0.95
-        )
-
-        return {
-            "average_iou_50": res_50["average_iou"],
-            "average_iou_75": res_75["average_iou"],
-            "average_iou_90": res_90["average_iou"],
-            "average_iou_95": res_95["average_iou"],
-        }
-
     def _find_intersecting_labels(
         self,
         ds: Dataset,
@@ -648,28 +507,28 @@ class LayoutEvaluator(BaseEvaluator):
                 included_content_layers={c for c in ContentLayer},
                 traverse_pictures=True,
             ):
-                if isinstance(item, DocItem):
-                    mapped_label = self.label_mapping.get(item.label)
-                    if mapped_label is not None:
-                        for prov in item.prov:
-                            if mapped_label in true_labels:
-                                true_labels[mapped_label] += 1
-                            else:
-                                true_labels[mapped_label] = 1
+                if isinstance(item, DocItem):  # and item.label in filter_labels:
+                    for prov in item.prov:
+                        if item.label in [
+                            self.label_mapping[v] for v in true_labels if v is not None  # type: ignore
+                        ]:
+                            true_labels[item.label] += 1
+                        elif self.label_mapping[item.label]:
+                            true_labels[self.label_mapping[item.label]] = 1  # type: ignore
 
             if pred_doc:
                 for item, level in pred_doc.iterate_items(
                     included_content_layers={c for c in ContentLayer},
                     traverse_pictures=True,
                 ):
-                    if isinstance(item, DocItem):
-                        mapped_label = self.label_mapping.get(item.label)
-                        if mapped_label is not None:
-                            for prov in item.prov:
-                                if mapped_label in pred_labels:
-                                    pred_labels[mapped_label] += 1
-                                else:
-                                    pred_labels[mapped_label] = 1
+                    if isinstance(item, DocItem):  # and item.label in filter_labels:
+                        for prov in item.prov:
+                            if item.label in [
+                                self.label_mapping[v] for v in pred_labels if v is not None  # type: ignore
+                            ]:
+                                pred_labels[item.label] += 1
+                            elif self.label_mapping[item.label] is not None:
+                                pred_labels[self.label_mapping[item.label]] = 1  # type: ignore
 
         """
         logging.info(f"True labels:")
@@ -695,37 +554,6 @@ class LayoutEvaluator(BaseEvaluator):
 
         return true_labels, pred_labels, intersection_labels, union_labels
 
-    def _collect_items_by_page(
-        self,
-        doc: DoclingDocument,
-        filter_labels: List[DocItemLabel],
-    ) -> Dict[int, List[DocItem]]:
-        """
-        Collect DocItems by page number for the given document and filter labels.
-
-        Args:
-            doc: The DoclingDocument to process
-            filter_labels: List of labels to include in the collection
-
-        Returns:
-            Dictionary mapping page numbers to lists of DocItems
-        """
-        pages_to_objects: Dict[int, List[DocItem]] = defaultdict(list)
-
-        for item, level in doc.iterate_items(
-            included_content_layers={c for c in ContentLayer},
-            traverse_pictures=True,
-            with_groups=True,
-        ):
-            if (
-                isinstance(item, DocItem)
-                and self.label_mapping[item.label] in filter_labels
-            ):
-                for prov in item.prov:
-                    pages_to_objects[prov.page_no].append(item)
-
-        return pages_to_objects
-
     def _extract_layout_data(
         self,
         true_doc: DoclingDocument,
@@ -739,7 +567,7 @@ class LayoutEvaluator(BaseEvaluator):
         Filter to keep only bboxes from the given labels
         Convert each bbox to top-left-origin, normalize to page size and scale 100
 
-        This method ensures proper page-wise alignment between GT and predictions.
+        CRITICAL FIX: This method now ensures proper page-wise alignment between GT and predictions.
         Each returned GT tensor at index i corresponds exactly to the prediction tensor at index i.
 
         Returns
@@ -747,9 +575,35 @@ class LayoutEvaluator(BaseEvaluator):
         ground_truths: List of (page_no, tensor_dict) tuples
         predictions: List of (page_no, tensor_dict) tuples
         """
-        # Collect all DocItems by page for both GT and predictions
-        true_pages_to_objects = self._collect_items_by_page(true_doc, filter_labels)
-        pred_pages_to_objects = self._collect_items_by_page(pred_doc, filter_labels)
+        # First, collect all DocItems by page for both GT and predictions
+        true_pages_to_objects: Dict[int, List[DocItem]] = {}
+        pred_pages_to_objects: Dict[int, List[DocItem]] = {}
+
+        # Collect GT items by page
+        for item, level in true_doc.iterate_items(
+            included_content_layers={c for c in ContentLayer}, traverse_pictures=True
+        ):
+            if (
+                isinstance(item, DocItem)
+                and self.label_mapping[item.label] in filter_labels
+            ):
+                for prov in item.prov:
+                    if prov.page_no not in true_pages_to_objects:
+                        true_pages_to_objects[prov.page_no] = []
+                    true_pages_to_objects[prov.page_no].append(item)
+
+        # Collect prediction items by page
+        for item, level in pred_doc.iterate_items(
+            included_content_layers={c for c in ContentLayer}, traverse_pictures=True
+        ):
+            if (
+                isinstance(item, DocItem)
+                and self.label_mapping[item.label] in filter_labels
+            ):
+                for prov in item.prov:
+                    if prov.page_no not in pred_pages_to_objects:
+                        pred_pages_to_objects[prov.page_no] = []
+                    pred_pages_to_objects[prov.page_no].append(item)
 
         # Get all pages that have GT data (we evaluate based on GT pages)
         gt_pages = set(true_pages_to_objects.keys())
@@ -760,6 +614,7 @@ class LayoutEvaluator(BaseEvaluator):
         # Process pages in sorted order to ensure consistent alignment
         ground_truths: List[Tuple[int, Dict[str, torch.Tensor]]] = []
         predictions: List[Tuple[int, Dict[str, torch.Tensor]]] = []
+        skipped_pages = []
 
         for page_no in sorted(gt_pages):
             # Always process GT for this page
@@ -797,6 +652,7 @@ class LayoutEvaluator(BaseEvaluator):
                     self.missing_prediction_strategy == MissingPredictionStrategy.IGNORE
                 ):
                     # Skip this page entirely
+                    skipped_pages.append(page_no)
                     continue
                 else:
                     raise ValueError(
@@ -820,6 +676,10 @@ class LayoutEvaluator(BaseEvaluator):
                 gt_page == pred_page
             ), f"Page number mismatch at index {i}: GT page {gt_page} vs Pred page {pred_page}"
 
+        if skipped_pages:
+            _log.info(
+                f"Skipped {len(skipped_pages)} pages due to missing predictions: {skipped_pages}"
+            )
         _log.debug(f"Processed {len(ground_truths)} page pairs successfully")
 
         return ground_truths, predictions
@@ -956,65 +816,3 @@ class LayoutEvaluator(BaseEvaluator):
             f1 = 2 * (precision * recall) / (precision + recall)
 
         return precision, recall, f1
-
-    def _compute_area_level_metrics_excluding_pictures(
-        self,
-        gt_boxes: torch.Tensor,
-        gt_labels: torch.Tensor,
-        pred_boxes: torch.Tensor,
-        pred_labels: torch.Tensor,
-        filter_labels: List[DocItemLabel],
-        page_width: int,
-        page_height: int,
-        mask_width: int = 512,
-        mask_height: int = 512,
-    ) -> Tuple[float, float, float]:
-        """
-        Compute area-level precision, recall, and F1 score excluding PICTURE labels.
-        Handles overlapping boxes by using binary masks at the specified resolution.
-
-        Args:
-            gt_boxes: Ground truth boxes as tensor of shape (N, 4) with [x1, y1, x2, y2] format
-            gt_labels: Ground truth labels as tensor of shape (N,)
-            pred_boxes: Predicted boxes as tensor of shape (M, 4) with [x1, y1, x2, y2] format
-            pred_labels: Predicted labels as tensor of shape (M,)
-            filter_labels: List of DocItemLabel used for label indexing
-            page_width: Width of the original page
-            page_height: Height of the original page
-            mask_width: Width of the mask to use for computation (default: 512)
-            mask_height: Height of the mask to use for computation (default: 512)
-
-        Returns:
-            Tuple containing precision, recall, and F1 scores (excluding PICTURE labels)
-        """
-        # Find the index of PICTURE label if it exists in filter_labels
-        picture_label_idx = None
-        try:
-            picture_label_idx = filter_labels.index(DocItemLabel.PICTURE)
-        except ValueError:
-            # PICTURE label not in filter_labels, no filtering needed
-            pass
-
-        # Filter out PICTURE labels from ground truth
-        if picture_label_idx is not None and len(gt_labels) > 0:
-            non_picture_mask = gt_labels != picture_label_idx
-            filtered_gt_boxes = gt_boxes[non_picture_mask]
-        else:
-            filtered_gt_boxes = gt_boxes
-
-        # Filter out PICTURE labels from predictions
-        if picture_label_idx is not None and len(pred_labels) > 0:
-            non_picture_mask = pred_labels != picture_label_idx
-            filtered_pred_boxes = pred_boxes[non_picture_mask]
-        else:
-            filtered_pred_boxes = pred_boxes
-
-        # Use the existing method with filtered boxes
-        return self._compute_area_level_metrics_for_tensors(
-            gt_boxes=filtered_gt_boxes,
-            pred_boxes=filtered_pred_boxes,
-            page_width=page_width,
-            page_height=page_height,
-            mask_width=mask_width,
-            mask_height=mask_height,
-        )
