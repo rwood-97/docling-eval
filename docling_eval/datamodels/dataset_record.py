@@ -14,6 +14,7 @@ from docling_core.types.io import DocumentStream
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from docling_eval.datamodels.types import EvaluationModality, PredictionFormats
+from docling_eval.utils.utils import extract_images
 
 seg_adapter = TypeAdapter(Dict[int, SegmentedPage])
 
@@ -77,25 +78,14 @@ class DatasetRecord(
         pictures_field_prefix: str,
         pages_field_prefix: str,
     ):
-        pictures = []
-        page_images = []
-
-        # Save page images
-        for img_no, picture in enumerate(document.pictures):
-            if picture.image is not None:
-                # img = picture.image.pil_image
-                # pictures.append(to_pil(picture.image.uri))
-                pictures.append(picture.image.pil_image)
-                picture.image.uri = Path(f"{pictures_field_prefix}/{img_no}")
-
-        # Save page images
-        for page_no, page in document.pages.items():
-            if page.image is not None:
-                # img = page.image.pil_image
-                # img.show()
-                page_images.append(page.image.pil_image)
-                page.image.uri = Path(f"{pages_field_prefix}/{page_no}")
-
+        """
+        Extract images using the global utility implementation.
+        """
+        _, pictures, page_images = extract_images(
+            document=document,
+            pictures_column=pictures_field_prefix,
+            page_images_column=pages_field_prefix,
+        )
         return pictures, page_images
 
     def as_record_dict(self):
@@ -175,10 +165,17 @@ class DatasetRecord(
                     data[gt_pic_img_alias][ix] = Features_Image().decode_example(item)
 
         gt_binary = cls.get_field_alias("original")
-        if gt_binary in data and isinstance(data[gt_binary], bytes):
-            data[gt_binary] = DocumentStream(
-                name="file", stream=BytesIO(data[gt_binary])
-            )
+        if gt_binary in data:
+            if isinstance(data[gt_binary], bytes):
+                data[gt_binary] = DocumentStream(
+                    name="file", stream=BytesIO(data[gt_binary])
+                )
+            elif isinstance(data[gt_binary], PIL.Image.Image):
+                # Handle PIL Images by converting to bytes
+                img_buffer = BytesIO()
+                data[gt_binary].save(img_buffer, format="PNG")
+                img_buffer.seek(0)
+                data[gt_binary] = DocumentStream(name="image.png", stream=img_buffer)
 
         return data
 
@@ -196,7 +193,9 @@ class DatasetRecordWithPrediction(DatasetRecord):
     )
 
     original_prediction: Optional[str] = None
-    prediction_format: PredictionFormats  # some enum type
+    prediction_format: PredictionFormats = (
+        PredictionFormats.DOCLING_DOCUMENT
+    )  # default for old files
     prediction_timings: Optional[Dict] = Field(alias="prediction_timings", default=None)
 
     predicted_page_images: List[PIL.Image.Image] = Field(
