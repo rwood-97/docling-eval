@@ -1,3 +1,25 @@
+## [v0.6.0](https://github.com/docling-project/docling-eval/releases/tag/v0.6.0) - 2025-07-02
+
+### Feature
+
+* Layout evaluation fixes, mode control and cleanup ([#133](https://github.com/docling-project/docling-eval/issues/133)) ([`629a451`](https://github.com/docling-project/docling-eval/commit/629a451d7b75e274352a1f21710316e47fc7a80a))
+* Introduce utility to export layout predictions from HF parquet files into pycocotools format. ([#125](https://github.com/docling-project/docling-eval/issues/125)) ([`54f7c81`](https://github.com/docling-project/docling-eval/commit/54f7c81f8ad28b848372c4961a4f4b83763ffebe))
+* Add specific language support for XFUND dataset builder ([#122](https://github.com/docling-project/docling-eval/issues/122)) ([`4ca6a0e`](https://github.com/docling-project/docling-eval/commit/4ca6a0e2ddb63d30d204c30549ec4bc56abbb972))
+* Tooling for CVAT validation, to DoclingDocument transformation, new Evaluators ([#119](https://github.com/docling-project/docling-eval/issues/119)) ([`2ee1104`](https://github.com/docling-project/docling-eval/commit/2ee11049d7da313206f08e4e1a7adf20c4d27459))
+
+### Fix
+
+* Move ibm-cos to hyperscaler ([#135](https://github.com/docling-project/docling-eval/issues/135)) ([`9aff6c1`](https://github.com/docling-project/docling-eval/commit/9aff6c1a6a04f0b6d54ed9fd94207263452d35c5))
+* Update hyperscalers to support multiple image file types ([#118](https://github.com/docling-project/docling-eval/issues/118)) ([`a34f264`](https://github.com/docling-project/docling-eval/commit/a34f2649abd01671b5da9a44d546e010d73b0d60))
+* Misc fixes ([#131](https://github.com/docling-project/docling-eval/issues/131)) ([`518e1ba`](https://github.com/docling-project/docling-eval/commit/518e1ba342bee819d74f0bad266013074af052dd))
+* **CVAT to DoclingDoc:** Ensure that nested list handling works across page boundaries ([#129](https://github.com/docling-project/docling-eval/issues/129)) ([`1b58377`](https://github.com/docling-project/docling-eval/commit/1b583779e73892b2a36aa54829f69c85928c6dc2))
+* Important fixes for parquet serialization / deserialization, optimizations ([#128](https://github.com/docling-project/docling-eval/issues/128)) ([`53c22ef`](https://github.com/docling-project/docling-eval/commit/53c22efe749bcdfe8708b02ea56109de20ff124f))
+* Fixes for the dataset visualizers ([#127](https://github.com/docling-project/docling-eval/issues/127)) ([`a127ea9`](https://github.com/docling-project/docling-eval/commit/a127ea9424d711b29bf1399aa3caec68d3ebfee1))
+
+### Performance
+
+* Improve parquet writing with plain pyarrow ([#134](https://github.com/docling-project/docling-eval/issues/134)) ([`c08950b`](https://github.com/docling-project/docling-eval/commit/c08950b4969748aa5a689a8e2ab0c51b658582db))
+
 ## [v0.5.0](https://github.com/docling-project/docling-eval/releases/tag/v0.5.0) - 2025-06-11
 
 ### Feature
