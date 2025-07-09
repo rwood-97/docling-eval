@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail 
 
-source .venv/bin/activate
+timestamp=$(date +"%Y%m%d-%H%M%S")
+uuid=$(uuidgen | tr '[:upper:]' '[:lower:]' | cut -c1-8)
 
 # ------------------------------
 # Default values
@@ -14,8 +15,8 @@ table_dataset_path=""
 equation_dataset_path=""
 code_dataset_path=""
 
-output_dir="./outputs_evals/output_eval_rl_new_code"
-num_workers=64
+output_dir="./outputs_evals/output_eval_${timestamp}_${uuid}"
+num_workers=8
 
 # ------------------------------
 # Parse args
@@ -291,9 +292,3 @@ for task in code equation; do
         echo "⏭️  Skipping evaluation for ${task} (skip_${task}=true)"
     fi
 done
-
-# bsub -q normal -n 1 -R "span[hosts=1]" -M 200G -gpu "num=1:mode=exclusive_process" -oo ~/.lsbatch/evaluate_gd.stdout -eo ~/.lsbatch/evaluate_gd.stderr docling_eval/end_to_end/evaluate_smoldocling_end_to_end.sh --model_path /gpfs/ZuFS1/proj/deep-search/mao/repos/docling-eval/checkpoints/granitedocling_v06.5_stg_4_RETRAINED_checkpoint-18101 --layout_dataset_path /gpfs/ZuFS1/proj/deep-search/datasets/doclaynet-v2-docling-GT/gt_dataset --ocr_dataset_path /gpfs/ZuFS1/proj/deep-search/datasets/doclaynet-v2-docling-GT/gt_dataset --code_dataset_path /gpfs/ZuFS1/proj/deep-search/mao/datasets/synth_code_net_test_set_5k --equation_dataset_path /gpfs/ZuFS1/proj/deep-search/mao/datasets/im2latex230k_ood_test_set/test_hf_format --table_dataset_path /gpfs/ZuFS1/proj/deep-search/mao/datasets/FinTabNet_OTSL_v1.2_doclingdocuments/gt_dataset --output_dir /gpfs/ZuFS1/proj/deep-search/mao/repos/docling-eval/outputs_evals/output_eval_granite_docling
-
-
-#  bsub -q normal -n 1 -R "span[hosts=1]" -M 200G -gpu "num=1:mode=exclusive_process" -oo ~/.lsbatch/evaluate.stdout -eo ~/.lsbatch/evaluate.stderr docling_eval/end_to_end/evaluate_smoldocling_end_to_end.sh  --layout_dataset_path /gpfs/ZuFS1/proj/deep-search/datasets/doclaynet-v2-docling-GT/gt_dataset --ocr_dataset_path /gpfs/ZuFS1/proj/deep-search/datasets/doclaynet-v2-docling-GT/gt_dataset --code_dataset_path /gpfs/ZuFS1/proj/deep-search/mao/datasets/synth_code_net_test_set_5k --equation_dataset_path /gpfs/ZuFS1/proj/deep-search/mao/datasets/im2latex230k_ood_test_set/test_hf_format --table_dataset_path /gpfs/ZuFS1/proj/deep-search/mao/datasets/FinTabNet_OTSL_v1.2_doclingdocuments/gt_dataset
-
