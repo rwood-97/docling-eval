@@ -14,13 +14,8 @@ table_dataset_path=""
 equation_dataset_path=""
 code_dataset_path=""
 
-<<<<<<< HEAD
 output_dir="./outputs_evals/output_eval_rl_new_code"
 num_workers=64
-=======
-output_dir="./output_eval_no_rl"
-num_workers=16
->>>>>>> 5d66e06 (wip)
 
 # ------------------------------
 # Parse args

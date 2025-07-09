@@ -167,7 +167,7 @@ if [ "$skip_inference" = false ]; then
             if [ ! -L "${output_dir}/model_output/${task}" ]; then
                 echo "🚀 Performing inference for **${task^^}** on dataset ${data_paths[$task]}"
                 mkdir -p "${output_dir}/model_output/${task}"
-                uv run python3 docling_eval/end_to_end/batch_inference_vllm.py \
+                python3 docling_eval/end_to_end/batch_inference_vllm.py \
                     --model_path "$model_path" \
                     --dataset_path "${data_paths[$task]}" \
                     --split "${splits[$task]}" \
@@ -185,7 +185,7 @@ fi
 # if [ "$skip_equation" = false ]; then
 #     echo "🧮 Normalizing equations..."
 #     mkdir -p "${output_dir}/model_output/equation_normalized"
-#     uv run python3 docling_eval/end_to_end/normalize_equations.py  \
+#     python3 docling_eval/end_to_end/normalize_equations.py  \
 #         --input_dir "${output_dir}/model_output/equation" \
 #         --output_dir "${output_dir}/model_output/equation_normalized" \
 #         --num_workers "$num_workers"
@@ -246,7 +246,7 @@ for task in layout ocr table; do
         echo "📝 Evaluating **${task}** (modality: ${modality[$task]}) …"
 
         echo "  👉 Running create-eval …"
-        uv run docling-eval \
+        python3 docling-eval \
             create-eval \
             --benchmark ${benchmarks[$task]} \
             --gt-dir  ${dataset_paths[$task]}\
@@ -256,14 +256,14 @@ for task in layout ocr table; do
             --output-dir "${output_dirs[$task]}"
 
         echo "  👉 Running evaluate …"
-        uv run docling-eval evaluate \
+        python3 docling-eval evaluate \
             --modality "${modality[$task]}" \
             --benchmark "${benchmarks[$task]}" \
             --output-dir "${output_dirs[$task]}" \
             --split "${splits[$task]}"
 
         echo "  👉 Running visualize …"
-        uv run docling-eval visualize \
+        python3 docling-eval visualize \
             --modality "${modality[$task]}" \
             --benchmark "${benchmarks[$task]}" \
             --output-dir "${output_dirs[$task]}" \
@@ -282,7 +282,7 @@ for task in code equation; do
     if [ "${!skip_var}" = false ]; then
         echo "📝 Evaluating **${task}** …"
 
-        uv run python3 docling_eval/end_to_end/evaluate_code_equations.py \
+        python3 docling_eval/end_to_end/evaluate_code_equations.py \
             --file_source_path ${file_source_paths[$task]} \
             --gt_dir  ${dataset_paths[$task]} \
             --output_dir "${output_dirs[$task]}" \
