@@ -57,7 +57,7 @@ if [ -z "$output_dir" ]; then
     if [ -n "$model_path" ]; then
         # Extract basename from model path, stripping trailing slash
         model_name=$(basename "${model_path%/}")
-        output_dir="./outputs_evals/output_eval_${model_name}"
+        output_dir="./outputs_evals/output_eval_${model_name}_${timestamp}_${uuid}"
     else
         output_dir="./outputs_evals/output_eval_${timestamp}_${uuid}"
     fi
