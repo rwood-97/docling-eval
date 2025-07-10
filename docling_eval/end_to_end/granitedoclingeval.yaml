@@ -1,0 +1,95 @@
+jobName: granitedoclingeval-mao-n1c8g1m100 # name of the generated AppWrapper and PyTorchJob objects (required)
+queueName: default-queue      # local queue to submit to (default: default-queue)
+
+numPods: 1               # total pod count including master and worker pods (default: 1)
+numCpusPerPod: 8           # requested number of cpus per pod (default: 1)
+numGpusPerPod: 1              # requested number of gpus per pod (default: 0)
+totalMemoryPerPod: 100Gi        # requested amount of memory per pod (default: 1Gi)
+roceGdrResName: nvidia.com/roce_gdr
+serviceAccountName: "gdr"
+
+priority: default-priority    # default-priority (default), low-priority, or high-priority
+
+# container image for the pods (required)
+# containerImage: us.icr.io/cil15-shared-registry/docling_rl@sha256:0f8ce26d8f79fa44817524e17230c474dc9e84ca43f8f9134d736b59cb6f8d86
+# containerImage: us.icr.io/cil15-shared-registry/docling_rl@sha256:a0d700aaf653125717ee15b23e0aba378752411f81f86a54b449c01a4b56d64b
+containerImage: us.icr.io/cil15-shared-registry/docling_rl@sha256:899d1eb8133d3a6c3a28510b85bb041f4f9f37f352e7b547b867ed3876ebbfba
+# containerImage: us.icr.io/cil15-shared-registry/smoldocling@sha256:3a963f056dcb6298023e18b90d1c5f77b936f52ef4e2c0d7fb48181c3f1924ae
+
+hostIgnoreList:
+  - dmf-nnnqh-gdr-gpu-worker-3-dbt4z
+  - dmf-nnnqh-gpu-worker-3-tqtx7
+
+# numRoceGdr: 2 # <-- comment out if num pods is 1
+topologyFileConfigMap: topo-gdr-2vf-canary
+environmentVariables:
+  - name: NCCL_DEBUG
+    value: WARN
+  - name: NCCL_IB_HCA
+    value: mlx5_0,mlx5_3
+  - name: NCCL_IB_QPS_PER_CONNECTION
+    value: "8"
+  - name: NCCL_IB_SPLIT_DATA_ON_QPS
+    value: "0"
+  - name: NCCL_IB_PCI_RELAXED_ORDERING
+    value: "1"
+  - name: NCCL_IB_GID_INDEX
+    value: "3"
+  # - name: NCCL_SOCKET_IFNAME
+  #   value: net1-0,net1-1
+  - name: NCCL_SOCKET_IFNAME
+    value: lo  # or eth0, check via `ip a`
+  - name: NCCL_ALGO
+    value: Ring
+  - name: NCCL_IGNORE_CPU_AFFINITY
+    value: "1"
+  - name: NCCL_DEBUG_SUBSYS
+    value: INIT,GRAPH,ENV,TUNING
+  # - name: NCCL_IB_DISABLE
+  #   value: "0"
+  - name: NCCL_IB_DISABLE
+    value: "1"  # ← disable Infiniband
+  - name: NCCL_SOCKET_NTHREADS
+    value: "2"
+  - name: NCCL_CROSS_NIC
+    value: "0"
+  - name: TOKENIZERS_PARALLELISM
+    value: "false"
+  - name: COS_BUCKET
+    value: "/data"
+  - name: TRITON_HOME
+    value: /data/cache/trit-3-605/
+  - name: TRITON_DUMP_DIR
+    value: /data/cache/trit-3-605/
+  - name: TRITON_CACHE_DIR
+    value: /data/cache/trit-3-605/
+  - name: TRITON_OVERRIDE_DIR
+    value: /data/cache/trit-3-605/
+  - name: TORCH_RUN_FLAGS
+    value: --nnodes 1 --nproc_per_node=1
+  - name: NLTK_DATA
+    value: /data/mao/nltk_data/
+
+# multiNicNetworkName: multi-nic-network # <-- comment out if num pods is 1
+
+setupCommands:
+  - cd /data/mao/docling-eval/
+  - pip install -e .
+  - pip install --upgrade docling docling-core
+  - pip install azure-ai-documentintelligence azure-common azure-core google-cloud-documentai boto3
+  - bash docling_eval/end_to_end/evaluate_smoldocling_end_to_end_vela.sh  --model_path ./checkpoints/19062025_last_model/ --layout_dataset_path /datagpfs/eval/layout/doclaynet-v2-docling/ --ocr_dataset_path /datagpfs/eval/layout/doclaynet-v2-docling/ --code_dataset_path /datagpfs/eval/code/synth_code_net_test_5k/ --equation_dataset_path /datagpfs/eval/equation/im2latex230k_ood_test_set/ --table_dataset_path /datagpfs/eval/table/FinTabNet_OTSL_v1.2_doclingdocuments/
+  
+
+imagePullSecrets:
+  - name: all-icr-io
+
+volumes:
+  - name: ahn-home
+    claimName: ahn-home
+    mountPath: /data
+  - name: docling-datasets
+    claimName: docling-datasets
+    mountPath: /data1
+  - name: doclingdata
+    claimName: doclingdata
+    mountPath: /datagpfs

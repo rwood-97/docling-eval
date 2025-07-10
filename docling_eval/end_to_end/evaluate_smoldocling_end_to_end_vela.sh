@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -euo pipefail 
 
 timestamp=$(date +"%Y%m%d-%H%M%S")
 uuid=$(uuidgen | tr '[:upper:]' '[:lower:]' | cut -c1-8)
@@ -15,7 +14,7 @@ table_dataset_path=""
 equation_dataset_path=""
 code_dataset_path=""
 
-output_dir="./outputs_evals/output_eval_${timestamp}_${uuid}"
+output_dir=""
 num_workers=8
 
 # ------------------------------
@@ -38,6 +37,18 @@ while [[ $# -gt 0 ]]; do
         *) echo "❌ Unknown option $1"; exit 1 ;;
     esac
 done
+
+# if the ouput_dir is not passed and the model_path is passed then
+# the output_dir is set to the name of the model
+if [ -z "$output_dir" ]; then
+    if [ -n "$model_path" ]; then
+        # Extract basename from model path, stripping trailing slash
+        model_name=$(basename "${model_path%/}")
+        output_dir="./outputs_evals/output_eval_${model_name}"
+    else
+        output_dir="./outputs_evals/output_eval_${timestamp}_${uuid}"
+    fi
+fi
 
 printf '%s\n' "-----------------------------------------------"
 printf '| %-51s \n' "✅ Parsed args:"
@@ -246,7 +257,7 @@ for task in layout ocr table; do
         echo "📝 Evaluating **${task}** (modality: ${modality[$task]}) …"
 
         echo "  👉 Running create-eval …"
-        python3 docling-eval \
+        docling-eval \
             create-eval \
             --benchmark ${benchmarks[$task]} \
             --gt-dir  ${dataset_paths[$task]}\
@@ -256,14 +267,14 @@ for task in layout ocr table; do
             --output-dir "${output_dirs[$task]}"
 
         echo "  👉 Running evaluate …"
-        python3 docling-eval evaluate \
+        docling-eval evaluate \
             --modality "${modality[$task]}" \
             --benchmark "${benchmarks[$task]}" \
             --output-dir "${output_dirs[$task]}" \
             --split "${splits[$task]}"
 
         echo "  👉 Running visualize …"
-        python3 docling-eval visualize \
+        docling-eval visualize \
             --modality "${modality[$task]}" \
             --benchmark "${benchmarks[$task]}" \
             --output-dir "${output_dirs[$task]}" \

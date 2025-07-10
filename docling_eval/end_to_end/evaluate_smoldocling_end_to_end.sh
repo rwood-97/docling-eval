@@ -3,6 +3,9 @@ set -euo pipefail
 
 source .venv/bin/activate
 
+timestamp=$(date +"%Y%m%d-%H%M%S")
+uuid=$(uuidgen | tr '[:upper:]' '[:lower:]' | cut -c1-8)
+
 # ------------------------------
 # Default values
 # ------------------------------
@@ -14,7 +17,7 @@ table_dataset_path=""
 equation_dataset_path=""
 code_dataset_path=""
 
-output_dir="./outputs_evals/output_eval_rl_new_code"
+output_dir=""
 num_workers=64
 
 # ------------------------------
@@ -50,6 +53,15 @@ printf '|   👉 %-25s = %s \n' "output_dir" "$output_dir"
 printf '|   👉 %-25s = %s \n' "num_workers" "$num_workers"
 printf '%s\n' "-----------------------------------------------"
 
+if [ -z "$output_dir" ]; then
+    if [ -n "$model_path" ]; then
+        # Extract basename from model path, stripping trailing slash
+        model_name=$(basename "${model_path%/}")
+        output_dir="./outputs_evals/output_eval_${model_name}"
+    else
+        output_dir="./outputs_evals/output_eval_${timestamp}_${uuid}"
+    fi
+fi
 
 
 skip_layout=false
