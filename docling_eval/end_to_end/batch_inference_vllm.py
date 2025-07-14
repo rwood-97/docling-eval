@@ -103,6 +103,7 @@ def main():
         temperature=0.0,
         max_tokens=8192,
         skip_special_tokens=False,
+        stop_token_ids=[100338],  # change
     )
 
     messages = [
