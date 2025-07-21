@@ -35,7 +35,7 @@ def scan_image_files(image_input_folder: Path) -> Set[str]:
         ".tif",
         ".webp",
     }
-    image_files = set()
+    image_files: Set[str] = set()
 
     for ext in image_extensions:
         image_files.update(file.name for file in image_input_folder.rglob(f"*{ext}"))

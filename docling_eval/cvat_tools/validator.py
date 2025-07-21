@@ -26,7 +26,7 @@ class ValidLabelsRule(ValidationRule):
     """Validate that all element labels are valid DocItemLabels."""
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
-        errors = []
+        errors: list[CVATValidationError] = []
         for el in doc.elements:
             try:
                 _ = el.label  # This will raise ValueError if invalid
@@ -46,7 +46,7 @@ class ReadingOrderRule(ValidationRule):
     """Validate reading order requirements - FATAL level."""
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
-        errors = []
+        errors: list[CVATValidationError] = []
 
         # Find all first-level reading order paths
         level1_paths = [
@@ -87,7 +87,7 @@ class SecondLevelReadingOrderParentRule(ValidationRule):
     """Validate that second-level reading order paths have parent containers - WARNING level."""
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
-        errors = []
+        errors: list[CVATValidationError] = []
         for p in doc.paths:
             if p.label.startswith("reading_order") and p.level and p.level > 1:
                 container = doc.path_to_container.get(p.id)
@@ -124,7 +124,7 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
         return False
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
-        errors = []
+        errors: list[CVATValidationError] = []
         touched = set()
         for elist in doc.path_mappings.reading_order.values():
             touched.update(elist)
@@ -292,7 +292,7 @@ class MergeGroupPathsRule(ValidationRule):
     """Validate merge and group paths - ERROR level."""
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
-        errors = []
+        errors: list[CVATValidationError] = []
 
         # Validate merge paths
         errors.extend(
@@ -316,7 +316,7 @@ class MergeGroupPathsRule(ValidationRule):
         if not elements or not path_mappings:
             return []
 
-        errors = []
+        errors: list[CVATValidationError] = []
         id_to_element = {el.id: el for el in elements}
 
         for path_id, el_ids in path_mappings.items():
@@ -324,20 +324,9 @@ class MergeGroupPathsRule(ValidationRule):
                 continue
 
             # Check that all elements exist
-            first_el = id_to_element.get(el_ids[0])
-            if not first_el:
-                errors.append(
-                    CVATValidationError(
-                        error_type=f"{path_type}_path_missing_element",
-                        message=f"{path_type.capitalize()} path {path_id}: Element {el_ids[0]} not found",
-                        severity=ValidationSeverity.ERROR,
-                        path_id=path_id,
-                    )
-                )
-                continue
-
-            # Check same label and content_layer
-            for el_id in el_ids[1:]:
+            elements_in_group = []
+            missing = False
+            for el_id in el_ids:
                 el = id_to_element.get(el_id)
                 if not el:
                     errors.append(
@@ -348,16 +337,29 @@ class MergeGroupPathsRule(ValidationRule):
                             path_id=path_id,
                         )
                     )
-                    continue
-                if el.label != first_el.label:
-                    errors.append(
-                        CVATValidationError(
-                            error_type=f"{path_type}_path_different_labels",
-                            message=f"{path_type.capitalize()} path {path_id}: Elements have different labels: {first_el.label} vs {el.label}",
-                            severity=ValidationSeverity.ERROR,
-                            path_id=path_id,
-                        )
+                    missing = True
+            if missing:
+                continue
+
+            elements_in_group = [id_to_element[el_id] for el_id in el_ids]
+            labels = {el.label for el in elements_in_group}
+
+            # Allow only the special case for checkboxes
+            if labels == {"checkbox_selected", "checkbox_unselected"}:
+                pass  # legal
+            elif len(labels) > 1:
+                errors.append(
+                    CVATValidationError(
+                        error_type=f"{path_type}_path_different_labels",
+                        message=f"{path_type.capitalize()} path {path_id}: Elements have different labels: {sorted(labels)}",
+                        severity=ValidationSeverity.ERROR,
+                        path_id=path_id,
                     )
+                )
+
+            # Check same content_layer
+            first_el = elements_in_group[0]
+            for el in elements_in_group[1:]:
                 if el.content_layer != first_el.content_layer:
                     errors.append(
                         CVATValidationError(
@@ -375,7 +377,7 @@ class CaptionFootnotePathsRule(ValidationRule):
     """Validate caption and footnote paths - ERROR level."""
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
-        errors = []
+        errors: list[CVATValidationError] = []
         for error_msg in validate_caption_footnote_paths(
             doc.elements,
             doc.path_mappings.to_caption,
@@ -395,7 +397,7 @@ class ControlPointsHitElementsRule(ValidationRule):
     """Validate that all control points of paths hit some element - WARNING level."""
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
-        errors = []
+        errors: list[CVATValidationError] = []
 
         for path in doc.paths:
             for i, pt in enumerate(path.points):
@@ -422,7 +424,7 @@ class MissingAttributesRule(ValidationRule):
     """Validate required element attributes are present."""
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
-        errors = []
+        errors: list[CVATValidationError] = []
 
         for el in doc.elements:
             # Check content_layer
@@ -457,7 +459,7 @@ class UnrecognizedAttributesRule(ValidationRule):
     KNOWN_ATTRIBUTES = {"content_layer", "type", "level", "json"}  # Add more as needed
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
-        errors = []
+        errors: list[CVATValidationError] = []
 
         for el in doc.elements:
             for attr_name in el.attributes.keys():
@@ -522,7 +524,7 @@ class Validator:
         doc: DocumentStructure,
     ) -> CVATValidationReport:
         """Validate a single sample and return a validation report."""
-        errors = []
+        errors: List[CVATValidationError] = []
         for rule_class in self.rules:
             rule = rule_class()
             errors.extend(rule.validate(doc))

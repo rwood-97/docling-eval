@@ -104,6 +104,9 @@ dev = [
 [tool.uv]
 package = true
 
+[tool.uv.sources]
+docling-core = { git = "https://github.com/docling-project/docling-core.git", rev = "cau/fix-layout-viz-traverse-pictures" }
+
 [tool.setuptools.packages.find]
 include = ["docling_eval*"]
 
@@ -127,6 +130,7 @@ python_version = "3.10"
 [[tool.mypy.overrides]]
 module = [
     "docling_core.*",
+    "cvat_sdk.*",
     "docling.*",
     "docling_parse.*",
     "docling_ibm_models.*",

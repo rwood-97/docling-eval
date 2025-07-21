@@ -645,7 +645,9 @@ class LayoutEvaluator(BaseEvaluator):
             pred_doc = self._get_pred_doc(data_record)
 
             for item, level in true_doc.iterate_items(
-                included_content_layers={c for c in ContentLayer},
+                included_content_layers={
+                    c for c in ContentLayer if c != ContentLayer.BACKGROUND
+                },
                 traverse_pictures=True,
             ):
                 if isinstance(item, DocItem):
@@ -659,7 +661,9 @@ class LayoutEvaluator(BaseEvaluator):
 
             if pred_doc:
                 for item, level in pred_doc.iterate_items(
-                    included_content_layers={c for c in ContentLayer},
+                    included_content_layers={
+                        c for c in ContentLayer if c != ContentLayer.BACKGROUND
+                    },
                     traverse_pictures=True,
                 ):
                     if isinstance(item, DocItem):
@@ -713,7 +717,9 @@ class LayoutEvaluator(BaseEvaluator):
         pages_to_objects: Dict[int, List[DocItem]] = defaultdict(list)
 
         for item, level in doc.iterate_items(
-            included_content_layers={c for c in ContentLayer},
+            included_content_layers={
+                c for c in ContentLayer if c != ContentLayer.BACKGROUND
+            },
             traverse_pictures=True,
             with_groups=True,
         ):

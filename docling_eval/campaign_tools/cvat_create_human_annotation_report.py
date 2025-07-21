@@ -36,7 +36,7 @@ CSV Output Columns:
 import csv
 import logging
 from datetime import datetime
-from typing import Dict, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 import typer
 from cvat_sdk import make_client
@@ -82,11 +82,13 @@ class CVATHumanAnnotationDetector:
         self.client = make_client(host=server_url, credentials=(username, password))
 
         # Results storage
-        self.human_annotated_frames = []  # List of dicts with frame info
-        self.tasks_info = {}  # task_id -> task_info
+        self.human_annotated_frames: list[dict[str, object]] = (
+            []
+        )  # List of dicts with frame info
+        self.tasks_info: dict[int, dict[str, object]] = {}  # task_id -> task_info
 
         # Statistics
-        self.stats = {
+        self.stats: dict[str, Any] = {
             "total_tasks": 0,
             "total_jobs": 0,
             "total_frames": 0,
@@ -209,7 +211,7 @@ class CVATHumanAnnotationDetector:
             logger.debug(f"Retrieved annotations of type: {type(annotations).__name__}")
 
             # Find frames with annotations having the target label
-            human_frames = self.find_human_annotated_frames(annotations)
+            human_frames: Set[int] = self.find_human_annotated_frames(annotations)
 
             # Count total frames in job
             job_size = job.stop_frame - job.start_frame + 1
@@ -263,7 +265,7 @@ class CVATHumanAnnotationDetector:
         Returns:
             set: Set of frame IDs with human annotations
         """
-        human_frames = set()
+        human_frames: Set[int] = set()
         target_label_id = self.get_target_label_id()
 
         if target_label_id is None:
