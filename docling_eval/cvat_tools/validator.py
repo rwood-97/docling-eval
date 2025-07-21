@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Set, Type
 
 from .document import DocumentStructure
 from .models import (
@@ -54,6 +54,11 @@ class ReadingOrderRule(ValidationRule):
             for p in doc.paths
             if p.label.startswith("reading_order") and (p.level == 1 or p.level is None)
         ]
+
+        # Skip reading order validation for samples with very few elements
+        # (0 or 1 rectangle elements don't need reading order)
+        if len(doc.elements) <= 1:
+            return errors
 
         # Check missing first-level reading order
         if len(level1_paths) == 0:
@@ -124,6 +129,49 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
         for elist in doc.path_mappings.reading_order.values():
             touched.update(elist)
 
+        print(f"DEBUG: Total elements: {len(doc.elements)}")
+        print(f"DEBUG: Total touched elements: {len(touched)}")
+        print(f"DEBUG: Touched element IDs: {sorted(touched)}")
+
+        # Print containment tree structure
+        print("\nDEBUG: CONTAINMENT TREE STRUCTURE:")
+        for i, root in enumerate(doc.tree_roots):
+            print(f"DEBUG: Tree root {i}:")
+            self._print_tree_node(root, 0)
+
+        # Print all elements with their details
+        print("\nDEBUG: ALL ELEMENTS:")
+        for el in doc.elements:
+            node = doc.get_node_by_element_id(el.id)
+            parent_id = node.parent.element.id if node and node.parent else None
+            descendants = node.get_descendant_ids() if node else set()
+            print(
+                f"DEBUG: Element {el.id} ({el.label}) - type: {el.type}, parent: {parent_id}, descendants: {sorted(descendants)}"
+            )
+
+        # Pre-compute level 1 reading order touched elements for efficiency
+        level1_touched = set()
+        for path_id, element_ids in doc.path_mappings.reading_order.items():
+            path = doc.get_path_by_id(path_id)
+            if (
+                path
+                and path.label.startswith("reading_order")
+                and (path.level == 1 or path.level is None)
+            ):
+                level1_touched.update(element_ids)
+
+        print(f"DEBUG: Level 1 touched elements: {len(level1_touched)}")
+        print(f"DEBUG: Level 1 touched element IDs: {sorted(level1_touched)}")
+
+        # Pre-compute all descendant IDs for efficiency (avoid repeated tree traversal)
+        element_descendants = {}
+        for el in doc.elements:
+            node = doc.get_node_by_element_id(el.id)
+            if node:
+                element_descendants[el.id] = node.get_descendant_ids()
+
+        # Collect all elements that would fail the reading order validation
+        untouched_elements = []
         for el in doc.elements:
             if el.content_layer.upper() == "BACKGROUND":
                 continue
@@ -132,21 +180,112 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
             if self._is_element_inside_table(el, doc):
                 continue
 
-            node = doc.get_node_by_element_id(el.id)
-            if not node:
+            # Skip validation for picture elements that have descendants touched by level 1 reading order
+            if (
+                el.label == "picture"
+                and self._has_descendants_touched_by_level1_reading_order_fast(
+                    el.id, element_descendants, level1_touched
+                )
+            ):
+                print(
+                    f"DEBUG: Skipping picture element {el.id} (has descendants touched by level 1)"
+                )
                 continue
 
-            descendant_ids = node.get_descendant_ids()
+            descendant_ids = element_descendants.get(el.id, set())
             if not (descendant_ids & touched):
-                errors.append(
-                    CVATValidationError(
-                        error_type="element_not_touched_by_reading_order",
-                        message=f"Element {el.id} ({el.label}) not touched by any reading-order path.",
-                        severity=ValidationSeverity.ERROR,
-                        element_id=el.id,
+                untouched_elements.append(el)
+
+        print(
+            f"DEBUG: Untouched elements before CHART/INFOGRAPHIC logic: {len(untouched_elements)}"
+        )
+        print(f"DEBUG: Untouched element IDs: {[el.id for el in untouched_elements]}")
+
+        # Apply special condition for CHART/INFOGRAPHIC picture elements
+        if untouched_elements:
+            # Find CHART/INFOGRAPHIC pictures that have NO touched elements (completely untouched)
+            chart_infographic_untouched = set()
+            for el in doc.elements:
+                if (
+                    el.label == "picture"
+                    and el.type
+                    and el.type.upper() in ["CHART", "INFOGRAPHIC"]
+                ):
+                    print(
+                        f"DEBUG: Found CHART/INFOGRAPHIC picture element {el.id} with type '{el.type}'"
                     )
-                )
+                    picture_descendants = element_descendants.get(el.id, set())
+                    # Exclude the picture element itself from touched elements inside
+                    touched_inside = (picture_descendants & touched) - {el.id}
+                    print(
+                        f"DEBUG: Picture {el.id} descendants: {sorted(picture_descendants)}"
+                    )
+                    print(
+                        f"DEBUG: Picture {el.id} touched_inside: {sorted(touched_inside)}"
+                    )
+                    # Only add if the picture has NO touched elements (excluding the picture itself)
+                    if not touched_inside:
+                        chart_infographic_untouched.add(el.id)
+                        print(
+                            f"DEBUG: Added picture {el.id} to chart_infographic_untouched"
+                        )
+                    else:
+                        print(
+                            f"DEBUG: Picture {el.id} has touched descendants, NOT added to chart_infographic_untouched"
+                        )
+
+            print(
+                f"DEBUG: chart_infographic_untouched: {sorted(chart_infographic_untouched)}"
+            )
+
+            # Report errors for elements not in completely untouched CHART/INFOGRAPHIC pictures
+            for el in untouched_elements:
+                # Check if element is in a completely untouched CHART/INFOGRAPHIC picture
+                in_untouched_chart_infographic = False
+                for picture_el in doc.elements:
+                    if (
+                        picture_el.label == "picture"
+                        and picture_el.type
+                        and picture_el.type.upper() in ["CHART", "INFOGRAPHIC"]
+                        and picture_el.id in chart_infographic_untouched
+                        and el.id in element_descendants.get(picture_el.id, set())
+                    ):
+                        in_untouched_chart_infographic = True
+                        print(
+                            f"DEBUG: Element {el.id} is inside untouched CHART/INFOGRAPHIC picture {picture_el.id}"
+                        )
+                        break
+
+                if not in_untouched_chart_infographic:
+                    print(f"DEBUG: Adding error for element {el.id} ({el.label})")
+                    errors.append(
+                        CVATValidationError(
+                            error_type="element_not_touched_by_reading_order",
+                            message=f"Element {el.id} ({el.label}) not touched by any reading-order path.",
+                            severity=ValidationSeverity.ERROR,
+                            element_id=el.id,
+                        )
+                    )
+
         return errors
+
+    def _has_descendants_touched_by_level1_reading_order_fast(
+        self,
+        element_id: int,
+        element_descendants: Dict[int, Set[int]],
+        level1_touched: Set[int],
+    ) -> bool:
+        """Fast check if a picture element has descendants touched by level 1 reading order."""
+        descendant_ids = element_descendants.get(element_id, set())
+        return bool(descendant_ids & level1_touched)
+
+    def _print_tree_node(self, node, depth: int):
+        """Helper method to print tree structure recursively."""
+        indent = "  " * depth
+        el = node.element
+        print(f"{indent}Element {el.id} ({el.label}) - type: {el.type}")
+        for child in node.children:
+            self._print_tree_node(child, depth + 1)
 
 
 class MergeGroupPathsRule(ValidationRule):
@@ -371,8 +510,8 @@ class Validator:
             GroupConsecutiveReadingOrderRule,
             # WARNING
             ValidLabelsRule,
-            SecondLevelReadingOrderParentRule,
-            ControlPointsHitElementsRule,
+            # SecondLevelReadingOrderParentRule,  # Temporarily excluded
+            # ControlPointsHitElementsRule,  # Temporarily excluded
             MissingAttributesRule,
             UnrecognizedAttributesRule,
         ]

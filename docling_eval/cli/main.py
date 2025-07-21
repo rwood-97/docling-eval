@@ -285,6 +285,9 @@ def get_prediction_provider(
         pipeline_options.generate_parsed_pages = True
         pipeline_options.accelerator_options = accelerator_options
 
+        pipeline_options.layout_options.create_orphan_clusters = False
+        pipeline_options.layout_options.keep_empty_clusters = True
+
         if artifacts_path is not None:
             pipeline_options.artifacts_path = artifacts_path
 

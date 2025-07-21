@@ -739,7 +739,11 @@ class CVATToDoclingConverter:
         """Create appropriate DocItem based on element label."""
         content_layer = ContentLayer(element.content_layer.lower())
 
+        mappings = {"fillable_field": "empty_value"}
+
         try:
+            if label in mappings.keys():
+                label = mappings[label]
             doc_label = DocItemLabel(label)
         except ValueError:
             _logger.warning(f"Unknown label: {label}, using TEXT")
