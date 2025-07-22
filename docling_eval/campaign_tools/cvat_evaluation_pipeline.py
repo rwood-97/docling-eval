@@ -19,6 +19,7 @@ from typing import List, Optional
 
 from docling_eval.cli.main import evaluate
 from docling_eval.cvat_tools.cvat_to_docling import convert_cvat_to_docling
+from docling_eval.cvat_tools.parser import MissingImageInCVATXML
 from docling_eval.datamodels.types import (
     BenchMarkNames,
     EvaluationModality,
@@ -113,12 +114,21 @@ class CVATEvaluationPipeline:
                     # Save as JSON
                     doc.save_as_json(json_path)
                     json_files.append(json_path)
-                    _log.info(f"✓ Saved DoclingDocument JSON to: {json_path}")
+                    _log.info(f"\u2713 Saved DoclingDocument JSON to: {json_path}")
                 else:
-                    _log.warning(f"⚠ Failed to convert {image_path.name}")
+                    _log.warning(f"\u26a0 Failed to convert {image_path.name}")
 
+            except MissingImageInCVATXML:
+                _log.warning(
+                    f"Image {image_path.name} not found in {cvat_xml_path.name}. "
+                    "This is expected for partial annotation batches. Skipping."
+                )
+                continue
+            except ValueError as ve:
+                _log.error(f"\u2717 Error processing {image_path.name}: {ve}")
+                continue
             except Exception as e:
-                _log.error(f"✗ Error processing {image_path.name}: {e}")
+                _log.error(f"\u2717 Error processing {image_path.name}: {e}")
                 continue
 
         _log.info(f"Converted {len(json_files)} files to JSON format")

@@ -1,3 +1,4 @@
+import logging
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -5,12 +6,15 @@ from typing import List, Tuple
 
 from docling_core.types.doc.base import BoundingBox, CoordOrigin
 from docling_core.types.doc.document import ContentLayer
+from docling_core.types.doc.labels import DocItemLabel
 
 from docling_eval.cvat_tools.models import (
     CVATAnnotationPath,
     CVATElement,
     CVATImageInfo,
 )
+
+logger = logging.getLogger("docling_eval.cvat_tools.")
 
 
 def cvat_box_to_bbox(xtl: float, ytl: float, xbr: float, ybr: float) -> BoundingBox:
@@ -37,6 +41,12 @@ def get_all_images_from_cvat_xml(xml_path: Path) -> List[str]:
     return image_names
 
 
+class MissingImageInCVATXML(Exception):
+    """Raised when an image is not found in the CVAT XML annotation file."""
+
+    pass
+
+
 def parse_cvat_xml_for_image(
     xml_path: Path, image_filename: str
 ) -> Tuple[List[CVATElement], List[CVATAnnotationPath], CVATImageInfo]:
@@ -60,7 +70,9 @@ def parse_cvat_xml_for_image(
     elif len(matching_images) == 1:
         image_el = matching_images[0]
     else:
-        raise ValueError(f"No <image> element for {image_filename} in {xml_path}")
+        raise MissingImageInCVATXML(
+            f"No <image> element for {image_filename} in {xml_path}"
+        )
 
     # Parse image info
     image_info = CVATImageInfo(
@@ -69,29 +81,35 @@ def parse_cvat_xml_for_image(
         name=image_el.attrib["name"],
     )
 
+    mappings = {"fillable_field": "empty_value"}
     # Parse elements
     elements: List[CVATElement] = []
     box_id = 0
     for box in image_el.findall("box"):
         try:
-            label = box.attrib["label"]
+            label_str = box.attrib["label"].lower()
+            if label_str in mappings:
+                label_str = mappings[label_str]
+            try:
+                label = DocItemLabel(label_str)
+            except ValueError:
+                # Skip invalid labels
+                logger.warning(f"Invalid label: {label_str}! Skipping element.")
+                continue
             xtl = float(box.attrib["xtl"])
             ytl = float(box.attrib["ytl"])
             xbr = float(box.attrib["xbr"])
             ybr = float(box.attrib["ybr"])
             bbox = cvat_box_to_bbox(xtl, ytl, xbr, ybr)
-
             # Parse attributes
             attributes = {}
             content_layer = ContentLayer.BODY  # Default
             type_ = None
             level = None
-
             for attr in box.findall("attribute"):
                 name = attr.attrib["name"]
                 value = attr.text.strip() if attr.text else None
                 attributes[name] = value
-
                 if name == "content_layer" and value is not None:
                     content_layer = ContentLayer(value.lower())
                 elif name == "type":
@@ -101,7 +119,6 @@ def parse_cvat_xml_for_image(
                         level = int(value)
                     except (ValueError, TypeError):
                         level = None
-
             elements.append(
                 CVATElement(
                     id=box_id,
@@ -114,7 +131,6 @@ def parse_cvat_xml_for_image(
                 )
             )
             box_id += 1
-
         except (ValueError, KeyError) as e:
             # Skip invalid elements
             continue

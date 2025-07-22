@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Type
@@ -11,6 +12,8 @@ from .models import (
 )
 from .path_mappings import validate_caption_footnote_paths
 from .utils import DEFAULT_PROXIMITY_THRESHOLD, find_elements_containing_point
+
+logger = logging.getLogger("docling_eval.cvat_tools.validator")
 
 
 class ValidationRule(ABC):
@@ -129,24 +132,24 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
         for elist in doc.path_mappings.reading_order.values():
             touched.update(elist)
 
-        print(f"DEBUG: Total elements: {len(doc.elements)}")
-        print(f"DEBUG: Total touched elements: {len(touched)}")
-        print(f"DEBUG: Touched element IDs: {sorted(touched)}")
+        logger.debug(f"Total elements: {len(doc.elements)}")
+        logger.debug(f"Total touched elements: {len(touched)}")
+        logger.debug(f"Touched element IDs: {sorted(touched)}")
 
         # Print containment tree structure
-        print("\nDEBUG: CONTAINMENT TREE STRUCTURE:")
+        logger.debug("\nCONTAINMENT TREE STRUCTURE:")
         for i, root in enumerate(doc.tree_roots):
-            print(f"DEBUG: Tree root {i}:")
+            logger.debug(f"Tree root {i}:")
             self._print_tree_node(root, 0)
 
         # Print all elements with their details
-        print("\nDEBUG: ALL ELEMENTS:")
+        logger.debug("\nALL ELEMENTS:")
         for el in doc.elements:
             node = doc.get_node_by_element_id(el.id)
             parent_id = node.parent.element.id if node and node.parent else None
             descendants = node.get_descendant_ids() if node else set()
-            print(
-                f"DEBUG: Element {el.id} ({el.label}) - type: {el.type}, parent: {parent_id}, descendants: {sorted(descendants)}"
+            logger.debug(
+                f"Element {el.id} ({el.label}) - type: {el.type}, parent: {parent_id}, descendants: {sorted(descendants)}"
             )
 
         # Pre-compute level 1 reading order touched elements for efficiency
@@ -160,8 +163,8 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
             ):
                 level1_touched.update(element_ids)
 
-        print(f"DEBUG: Level 1 touched elements: {len(level1_touched)}")
-        print(f"DEBUG: Level 1 touched element IDs: {sorted(level1_touched)}")
+        logger.debug(f"Level 1 touched elements: {len(level1_touched)}")
+        logger.debug(f"Level 1 touched element IDs: {sorted(level1_touched)}")
 
         # Pre-compute all descendant IDs for efficiency (avoid repeated tree traversal)
         element_descendants = {}
@@ -187,8 +190,8 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
                     el.id, element_descendants, level1_touched
                 )
             ):
-                print(
-                    f"DEBUG: Skipping picture element {el.id} (has descendants touched by level 1)"
+                logger.debug(
+                    f"Skipping picture element {el.id} (has descendants touched by level 1)"
                 )
                 continue
 
@@ -196,10 +199,10 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
             if not (descendant_ids & touched):
                 untouched_elements.append(el)
 
-        print(
-            f"DEBUG: Untouched elements before CHART/INFOGRAPHIC logic: {len(untouched_elements)}"
+        logger.debug(
+            f"Untouched elements before CHART/INFOGRAPHIC logic: {len(untouched_elements)}"
         )
-        print(f"DEBUG: Untouched element IDs: {[el.id for el in untouched_elements]}")
+        logger.debug(f"Untouched element IDs: {[el.id for el in untouched_elements]}")
 
         # Apply special condition for CHART/INFOGRAPHIC picture elements
         if untouched_elements:
@@ -211,31 +214,31 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
                     and el.type
                     and el.type.upper() in ["CHART", "INFOGRAPHIC"]
                 ):
-                    print(
-                        f"DEBUG: Found CHART/INFOGRAPHIC picture element {el.id} with type '{el.type}'"
+                    logger.debug(
+                        f"Found CHART/INFOGRAPHIC picture element {el.id} with type '{el.type}'"
                     )
                     picture_descendants = element_descendants.get(el.id, set())
                     # Exclude the picture element itself from touched elements inside
                     touched_inside = (picture_descendants & touched) - {el.id}
-                    print(
-                        f"DEBUG: Picture {el.id} descendants: {sorted(picture_descendants)}"
+                    logger.debug(
+                        f"Picture {el.id} descendants: {sorted(picture_descendants)}"
                     )
-                    print(
-                        f"DEBUG: Picture {el.id} touched_inside: {sorted(touched_inside)}"
+                    logger.debug(
+                        f"Picture {el.id} touched_inside: {sorted(touched_inside)}"
                     )
                     # Only add if the picture has NO touched elements (excluding the picture itself)
                     if not touched_inside:
                         chart_infographic_untouched.add(el.id)
-                        print(
-                            f"DEBUG: Added picture {el.id} to chart_infographic_untouched"
+                        logger.debug(
+                            f"Added picture {el.id} to chart_infographic_untouched"
                         )
                     else:
-                        print(
-                            f"DEBUG: Picture {el.id} has touched descendants, NOT added to chart_infographic_untouched"
+                        logger.debug(
+                            f"Picture {el.id} has touched descendants, NOT added to chart_infographic_untouched"
                         )
 
-            print(
-                f"DEBUG: chart_infographic_untouched: {sorted(chart_infographic_untouched)}"
+            logger.debug(
+                f"chart_infographic_untouched: {sorted(chart_infographic_untouched)}"
             )
 
             # Report errors for elements not in completely untouched CHART/INFOGRAPHIC pictures
@@ -251,13 +254,13 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
                         and el.id in element_descendants.get(picture_el.id, set())
                     ):
                         in_untouched_chart_infographic = True
-                        print(
-                            f"DEBUG: Element {el.id} is inside untouched CHART/INFOGRAPHIC picture {picture_el.id}"
+                        logger.debug(
+                            f"Element {el.id} is inside untouched CHART/INFOGRAPHIC picture {picture_el.id}"
                         )
                         break
 
                 if not in_untouched_chart_infographic:
-                    print(f"DEBUG: Adding error for element {el.id} ({el.label})")
+                    logger.debug(f"Adding error for element {el.id} ({el.label})")
                     errors.append(
                         CVATValidationError(
                             error_type="element_not_touched_by_reading_order",

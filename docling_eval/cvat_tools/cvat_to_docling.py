@@ -730,7 +730,7 @@ class CVATToDoclingConverter:
 
     def _create_item_by_label(
         self,
-        label: str,
+        doc_label: DocItemLabel,
         text: str,
         prov: ProvenanceItem,
         element: CVATElement,
@@ -738,16 +738,6 @@ class CVATToDoclingConverter:
     ) -> Optional[DocItem]:
         """Create appropriate DocItem based on element label."""
         content_layer = ContentLayer(element.content_layer.lower())
-
-        mappings = {"fillable_field": "empty_value"}
-
-        try:
-            if label in mappings.keys():
-                label = mappings[label]
-            doc_label = DocItemLabel(label)
-        except ValueError:
-            _logger.warning(f"Unknown label: {label}, using TEXT")
-            doc_label = DocItemLabel.TEXT
 
         if doc_label == DocItemLabel.TITLE:
             return self.doc.add_title(
