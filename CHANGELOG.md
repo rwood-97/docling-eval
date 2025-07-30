@@ -1,3 +1,15 @@
+## [v0.7.0](https://github.com/docling-project/docling-eval/releases/tag/v0.7.0) - 2025-07-30
+
+### Feature
+
+* Add CLI arguments to control the docling layout model ([#136](https://github.com/docling-project/docling-eval/issues/136)) ([`3e134ae`](https://github.com/docling-project/docling-eval/commit/3e134ae1b08f82e9e6ecb9690b73a9420a528fb1))
+* Campaign tools ([#139](https://github.com/docling-project/docling-eval/issues/139)) ([`af2c222`](https://github.com/docling-project/docling-eval/commit/af2c222af0bdf93230fa4e619dc45e388d48e7a5))
+* Add KeyValueEvaluator ([#140](https://github.com/docling-project/docling-eval/issues/140)) ([`bc60093`](https://github.com/docling-project/docling-eval/commit/bc600938fc3452d0bffdd835bca420538c9f2fea))
+
+### Fix
+
+* Prevent crash from invalid bbox coordinates in HTML export ([#142](https://github.com/docling-project/docling-eval/issues/142)) ([`c31b107`](https://github.com/docling-project/docling-eval/commit/c31b107298f625721ab98aaac54f56d8c3f87a68))
+
 ## [v0.6.0](https://github.com/docling-project/docling-eval/releases/tag/v0.6.0) - 2025-07-02
 
 ### Feature
