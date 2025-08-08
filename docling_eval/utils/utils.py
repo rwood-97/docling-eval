@@ -7,7 +7,7 @@ from collections import defaultdict
 from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import pandas as pd
 import PIL.Image
@@ -15,6 +15,7 @@ from bs4 import BeautifulSoup  # type: ignore
 from datasets import Dataset, Features, load_dataset
 from datasets.iterable_dataset import IterableDataset
 from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBackend
+from docling.backend.pypdfium2_backend import PyPdfiumDocumentBackend
 from docling.datamodel.base_models import InputFormat, Page
 from docling.datamodel.document import InputDocument
 from docling_core.types.doc.base import BoundingBox, CoordOrigin, Size
@@ -78,12 +79,14 @@ def write_datasets_info(
         json.dump(dataset_infos, fw, indent=2)
 
 
-def get_input_document(file: Path | BytesIO) -> InputDocument:
+def get_input_document(
+    file: Path | BytesIO, backend_t: Type[Any] = DoclingParseV4DocumentBackend
+) -> InputDocument:
     return InputDocument(
         path_or_stream=file,
         format=InputFormat.PDF,  # type: ignore[arg-type]
         filename=file.name if isinstance(file, Path) else "foo",
-        backend=DoclingParseV4DocumentBackend,
+        backend=backend_t,
     )
 
 
@@ -97,7 +100,7 @@ def from_pil_to_base64uri(img: Image.Image) -> AnyUrl:
 def add_pages_to_true_doc(
     pdf_path: Path | BytesIO, true_doc: DoclingDocument, image_scale: float = 1.0
 ):
-    in_doc = get_input_document(pdf_path)
+    in_doc = get_input_document(pdf_path, backend_t=PyPdfiumDocumentBackend)
     assert in_doc.valid, "Input doc must be valid."
     # assert in_doc.page_count == 1, "doc must have one page."
 
@@ -106,7 +109,11 @@ def add_pages_to_true_doc(
 
     for page_no in range(0, in_doc.page_count):
         page = Page(page_no=page_no)
-        page._backend = in_doc._backend.load_page(page.page_no)  # type: ignore[attr-defined]
+        try:
+            page._backend = in_doc._backend.load_page(page.page_no)  # type: ignore[attr-defined]
+        except RuntimeError as e:
+            logging.warning(f"Failed to load page {page.page_no}: {e}")
+            page._backend = None
 
         if page._backend is not None and page._backend.is_valid():
             page.size = page._backend.get_size()
@@ -316,27 +323,80 @@ def extract_images(
     document: DoclingDocument,
     pictures_column: str,
     page_images_column: str,
-):
-    pictures: list[PIL.Image.Image] = []
-    page_images: list[PIL.Image.Image] = []
+) -> Tuple[DoclingDocument, List[PIL.Image.Image], List[PIL.Image.Image]]:
+    """
+    Extract images from document using array indices for URIs.
 
-    # Save page images
+    Uses array indices in URIs since they reference parquet list columns.
+    Page images are ordered by page number to maintain semantic consistency.
+
+    Args:
+        document: The DoclingDocument to extract images from
+        pictures_column: Column/prefix name for picture images
+        page_images_column: Column/prefix name for page images
+
+    Returns:
+        Tuple of (document, pictures, page_images)
+    """
+    pictures: List[PIL.Image.Image] = []
+    page_images: List[PIL.Image.Image] = []
+
+    # Extract picture images (using sequential numbering for pictures)
     for img_no, picture in enumerate(document.pictures):
         if picture.image is not None and picture.image.pil_image is not None:
-            img_ind = len(pictures)
-
             pictures.append(picture.image.pil_image)
-            picture.image.uri = Path(f"{pictures_column}/{img_ind}")
+            picture.image.uri = Path(f"{pictures_column}/{img_no}")
 
-    # Save page images
-    for page_no, page in document.pages.items():
+    # Extract page images - build list in page order, but use array indices in URIs
+    # Sort pages by page number to ensure consistent ordering
+    sorted_pages = sorted(document.pages.items(), key=lambda x: x[0])
+
+    for array_index, (page_no, page) in enumerate(sorted_pages):
         if page.image is not None and page.image.pil_image is not None:
-            img_ind = len(page_images)
-
             page_images.append(page.image.pil_image)
-            page.image.uri = Path(f"{page_images_column}/{img_ind}")
+            # Use array index in URI since it references the parquet list index
+            page.image.uri = Path(f"{page_images_column}/{array_index}")
 
     return document, pictures, page_images
+
+
+def _detect_page_indexing_scheme(document: DoclingDocument) -> bool:
+    """
+    Detect whether page image URIs use legacy page numbers (1-based) or correct array indices (0-based).
+
+    Returns:
+        True if URIs use legacy page numbers (1, 2, 3, ...),
+        False if they use correct array indices (0, 1, 2, ...)
+    """
+    uri_indices = []
+    page_numbers = []
+
+    for page_no, page in document.pages.items():
+        if page.image is not None:
+            uri = str(page.image.uri)
+            if uri.startswith(
+                BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES
+            ) or uri.startswith(BenchMarkColumns.PREDICTION_PAGE_IMAGES):
+                img_parts = uri.split("/")
+                uri_index = int(img_parts[-1])
+                uri_indices.append(uri_index)
+                page_numbers.append(page_no)
+
+    if not uri_indices:
+        # No page images found, default to correct array indices
+        return False
+
+    # Check if indices start from 0 (correct array indices) or 1 (legacy page numbers)
+    min_uri_index = min(uri_indices)
+    min_page_number = min(page_numbers)
+
+    if min_uri_index == 0:
+        return False  # Correct array indices (0-based)
+    elif min_uri_index == min_page_number and min_page_number >= 1:
+        return True  # Legacy page numbers (1-based)
+    else:
+        # Fallback: if indices match page numbers, assume legacy
+        return sorted(uri_indices) == sorted(page_numbers)
 
 
 def insert_images_from_pil(
@@ -360,6 +420,9 @@ def insert_images_from_pil(
                 picture.image.uri = from_pil_to_base64uri(pictures[img_ind])
 
     # Inject page images
+    # First, detect the indexing scheme used in URIs
+    uses_legacy_page_numbers = _detect_page_indexing_scheme(document)
+
     for page_no, page in document.pages.items():
         if page.image is not None:
             uri = str(page.image.uri)
@@ -367,9 +430,18 @@ def insert_images_from_pil(
                 BenchMarkColumns.GROUNDTRUTH_PAGE_IMAGES
             ) or uri.startswith(BenchMarkColumns.PREDICTION_PAGE_IMAGES):
                 img_parts = str(page.image.uri).split("/")
-                img_ind = int(img_parts[-1])
+                uri_index = int(img_parts[-1])
 
-                assert img_ind < len(page_images)
+                if uses_legacy_page_numbers:
+                    # Legacy: URI contains page numbers, convert to 0-based array index
+                    img_ind = page_no - 1
+                else:
+                    # Correct: URI contains 0-based array indices, use directly
+                    img_ind = uri_index
+
+                assert img_ind < len(
+                    page_images
+                ), f"Page image index {img_ind} out of bounds for {len(page_images)} images"
 
                 page.image._pil = page_images[img_ind]
                 page.image.uri = from_pil_to_base64uri(page_images[img_ind])
@@ -424,32 +496,76 @@ def insert_images(
     return document
 
 
+def _pil_to_bytes(img: PIL.Image.Image) -> bytes:
+    """Convert PIL image to PNG bytes efficiently."""
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return buffered.getvalue()
+
+
 def save_shard_to_disk(
     items: List[Any],
     dataset_path: Path,
+    schema: Any,
     thread_id: int = 0,
     shard_id: int = 0,
-    features: Optional[Features] = None,
-    shard_format: str = "parquet",
 ) -> None:
-    """Save shard to disk."""
+    """Save shard to disk as parquet."""
     if not items:
         return
 
-    # Use features if provided to avoid schema inference
-    batch = Dataset.from_list(items, features=features)
+    # Write directly to parquet using pyarrow to avoid Dataset.from_list() overhead
+    _save_to_parquet_direct(items, dataset_path, thread_id, shard_id, schema)
 
-    output_file = dataset_path / f"shard_{thread_id:06}_{shard_id:06}.{shard_format}"
-    if shard_format == "json":
-        batch.to_json(output_file)
-    elif shard_format == "parquet":
-        batch.to_parquet(output_file)
-    else:
-        raise ValueError(f"Unsupported shard_format: {shard_format}")
-
-    logging.info(f"Saved shard {shard_id} to {output_file} with {len(items)} documents")
+    logging.info(
+        f"Saved shard {shard_id} to {dataset_path / f'shard_{thread_id:06}_{shard_id:06}.parquet'} with {len(items)} documents"
+    )
 
     shard_id += 1
+
+
+def _save_to_parquet_direct(
+    items: List[Any], dataset_path: Path, thread_id: int, shard_id: int, schema: Any
+) -> None:
+    """Save directly to parquet using pyarrow to avoid Dataset.from_list() overhead."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    # Import here to avoid circular import
+    from docling_eval.datamodels.dataset_record import DatasetRecordWithPrediction
+
+    # Convert data to pyarrow table format
+    records = []
+    for item in items:
+        record = dict(item)
+
+        # Convert PIL images to bytes for direct Arrow storage
+        for field_name in [
+            DatasetRecordWithPrediction.get_field_alias("ground_truth_pictures"),
+            DatasetRecordWithPrediction.get_field_alias("ground_truth_page_images"),
+            DatasetRecordWithPrediction.get_field_alias("predicted_pictures"),
+            DatasetRecordWithPrediction.get_field_alias("predicted_page_images"),
+        ]:
+            if field_name in record:
+                images = record[field_name]
+                if (
+                    images
+                    and len(images) > 0
+                    and isinstance(images[0], PIL.Image.Image)
+                ):
+                    # Convert to the same format as HuggingFace datasets expects
+                    record[field_name] = [
+                        {"bytes": _pil_to_bytes(img), "path": None} for img in images
+                    ]
+
+        records.append(record)
+
+    # Create pyarrow table with mandatory explicit schema
+    table = pa.Table.from_pylist(records, schema=schema)
+
+    # Write to parquet
+    output_file = dataset_path / f"shard_{thread_id:06}_{shard_id:06}.parquet"
+    pq.write_table(table, output_file)
 
 
 def dataset_exists(
@@ -581,14 +697,26 @@ def classify_cells(graph: GraphData) -> None:
 
 
 def sort_cell_ids(doc: DoclingDocument) -> None:
+    if not doc.key_value_items:
+        return
     mapping = {}
     for i, item in enumerate(doc.key_value_items[0].graph.cells):
         mapping[item.cell_id] = i
     for i, item in enumerate(doc.key_value_items[0].graph.cells):
         item.cell_id = mapping[item.cell_id]
     for i, link in enumerate(doc.key_value_items[0].graph.links):
-        link.source_cell_id = mapping[link.source_cell_id]
-        link.target_cell_id = mapping[link.target_cell_id]
+        if link.source_cell_id in mapping:
+            link.source_cell_id = mapping[link.source_cell_id]
+        else:
+            logging.warning(
+                f"Link {i} source_cell_id {link.source_cell_id} not found in mapping."
+            )
+        if link.target_cell_id in mapping:
+            link.target_cell_id = mapping[link.target_cell_id]
+        else:
+            logging.warning(
+                f"Link {i} target_cell_id {link.target_cell_id} not found in mapping."
+            )
 
 
 def get_package_version(package_name):

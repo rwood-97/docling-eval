@@ -1,4 +1,5 @@
 import json
+from enum import Enum
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -14,8 +15,64 @@ from docling_core.types.io import DocumentStream
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 from docling_eval.datamodels.types import EvaluationModality, PredictionFormats
+from docling_eval.utils.utils import extract_images
 
 seg_adapter = TypeAdapter(Dict[int, SegmentedPage])
+
+
+class FieldType(Enum):
+    STRING = "string"
+    BINARY = "binary"
+    IMAGE_LIST = "image_list"
+    STRING_LIST = "string_list"
+
+
+class SchemaGenerator:
+    """Generates both HuggingFace Features and PyArrow schemas from a field definition."""
+
+    @staticmethod
+    def _get_features_type(field_type: FieldType):
+        mapping = {
+            FieldType.STRING: Value("string"),
+            FieldType.BINARY: Value("binary"),
+            FieldType.IMAGE_LIST: Sequence(Features_Image()),
+            FieldType.STRING_LIST: Sequence(Value("string")),
+        }
+        return mapping[field_type]
+
+    @staticmethod
+    def _get_pyarrow_type(field_type: FieldType):
+        import pyarrow as pa
+
+        image_type = pa.struct([("bytes", pa.binary()), ("path", pa.string())])
+
+        mapping = {
+            FieldType.STRING: pa.string(),
+            FieldType.BINARY: pa.binary(),
+            FieldType.IMAGE_LIST: pa.list_(image_type),
+            FieldType.STRING_LIST: pa.list_(pa.string()),
+        }
+        return mapping[field_type]
+
+    @classmethod
+    def generate_features(cls, field_definitions: Dict[str, FieldType]) -> Features:
+        return Features(
+            {
+                field_name: cls._get_features_type(field_type)
+                for field_name, field_type in field_definitions.items()
+            }
+        )
+
+    @classmethod
+    def generate_pyarrow_schema(cls, field_definitions: Dict[str, FieldType]):
+        import pyarrow as pa
+
+        return pa.schema(
+            [
+                (field_name, cls._get_pyarrow_type(field_type))
+                for field_name, field_type in field_definitions.items()
+            ]
+        )
 
 
 class DatasetRecord(
@@ -51,25 +108,29 @@ class DatasetRecord(
         return cls.model_fields[field_name].alias or field_name
 
     @classmethod
+    def _get_field_definitions(cls) -> Dict[str, FieldType]:
+        """Define the schema for this class. Override in subclasses to extend."""
+        return {
+            cls.get_field_alias("doc_id"): FieldType.STRING,
+            cls.get_field_alias("doc_path"): FieldType.STRING,
+            cls.get_field_alias("doc_hash"): FieldType.STRING,
+            cls.get_field_alias("ground_truth_doc"): FieldType.STRING,
+            cls.get_field_alias("ground_truth_segmented_pages"): FieldType.STRING,
+            cls.get_field_alias("ground_truth_pictures"): FieldType.IMAGE_LIST,
+            cls.get_field_alias("ground_truth_page_images"): FieldType.IMAGE_LIST,
+            cls.get_field_alias("original"): FieldType.BINARY,
+            cls.get_field_alias("mime_type"): FieldType.STRING,
+            cls.get_field_alias("modalities"): FieldType.STRING_LIST,
+        }
+
+    @classmethod
     def features(cls):
-        return Features(
-            {
-                cls.get_field_alias("doc_id"): Value("string"),
-                cls.get_field_alias("doc_path"): Value("string"),
-                cls.get_field_alias("doc_hash"): Value("string"),
-                cls.get_field_alias("ground_truth_doc"): Value("string"),
-                cls.get_field_alias("ground_truth_segmented_pages"): Value("string"),
-                cls.get_field_alias("ground_truth_pictures"): Sequence(
-                    Features_Image()
-                ),
-                cls.get_field_alias("ground_truth_page_images"): Sequence(
-                    Features_Image()
-                ),
-                cls.get_field_alias("original"): Value("binary"),
-                cls.get_field_alias("mime_type"): Value("string"),
-                cls.get_field_alias("modalities"): Sequence(Value("string")),
-            }
-        )
+        return SchemaGenerator.generate_features(cls._get_field_definitions())
+
+    @classmethod
+    def pyarrow_schema(cls):
+        """Generate PyArrow schema that matches the HuggingFace datasets image format."""
+        return SchemaGenerator.generate_pyarrow_schema(cls._get_field_definitions())
 
     def _extract_images(
         self,
@@ -77,25 +138,14 @@ class DatasetRecord(
         pictures_field_prefix: str,
         pages_field_prefix: str,
     ):
-        pictures = []
-        page_images = []
-
-        # Save page images
-        for img_no, picture in enumerate(document.pictures):
-            if picture.image is not None:
-                # img = picture.image.pil_image
-                # pictures.append(to_pil(picture.image.uri))
-                pictures.append(picture.image.pil_image)
-                picture.image.uri = Path(f"{pictures_field_prefix}/{img_no}")
-
-        # Save page images
-        for page_no, page in document.pages.items():
-            if page.image is not None:
-                # img = page.image.pil_image
-                # img.show()
-                page_images.append(page.image.pil_image)
-                page.image.uri = Path(f"{pages_field_prefix}/{page_no}")
-
+        """
+        Extract images using the global utility implementation.
+        """
+        _, pictures, page_images = extract_images(
+            document=document,
+            pictures_column=pictures_field_prefix,
+            page_images_column=pages_field_prefix,
+        )
         return pictures, page_images
 
     def as_record_dict(self):
@@ -154,10 +204,13 @@ class DatasetRecord(
             data[gt_doc_alias] = json.loads(data[gt_doc_alias])
 
         gt_seg_pages_alias = cls.get_field_alias("ground_truth_segmented_pages")
-        if gt_seg_pages_alias in data and isinstance(data[gt_seg_pages_alias], str):
-            data[gt_seg_pages_alias] = seg_adapter.validate_json(
-                data[gt_seg_pages_alias]
-            )
+        if gt_seg_pages_alias in data and isinstance(
+            data[gt_seg_pages_alias], (str, bytes)
+        ):
+            seg_pages_data = data[gt_seg_pages_alias]
+            if isinstance(seg_pages_data, bytes):
+                seg_pages_data = seg_pages_data.decode("utf-8")
+            data[gt_seg_pages_alias] = seg_adapter.validate_json(seg_pages_data)
 
         gt_page_img_alias = cls.get_field_alias("ground_truth_page_images")
         if gt_page_img_alias in data:
@@ -172,10 +225,17 @@ class DatasetRecord(
                     data[gt_pic_img_alias][ix] = Features_Image().decode_example(item)
 
         gt_binary = cls.get_field_alias("original")
-        if gt_binary in data and isinstance(data[gt_binary], bytes):
-            data[gt_binary] = DocumentStream(
-                name="file", stream=BytesIO(data[gt_binary])
-            )
+        if gt_binary in data:
+            if isinstance(data[gt_binary], bytes):
+                data[gt_binary] = DocumentStream(
+                    name="file", stream=BytesIO(data[gt_binary])
+                )
+            elif isinstance(data[gt_binary], PIL.Image.Image):
+                # Handle PIL Images by converting to bytes
+                img_buffer = BytesIO()
+                data[gt_binary].save(img_buffer, format="PNG")
+                img_buffer.seek(0)
+                data[gt_binary] = DocumentStream(name="image.png", stream=img_buffer)
 
         return data
 
@@ -193,7 +253,9 @@ class DatasetRecordWithPrediction(DatasetRecord):
     )
 
     original_prediction: Optional[str] = None
-    prediction_format: PredictionFormats  # some enum type
+    prediction_format: PredictionFormats = (
+        PredictionFormats.DOCLING_DOCUMENT
+    )  # default for old files
     prediction_timings: Optional[Dict] = Field(alias="prediction_timings", default=None)
 
     predicted_page_images: List[PIL.Image.Image] = Field(
@@ -206,36 +268,30 @@ class DatasetRecordWithPrediction(DatasetRecord):
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
 
     @classmethod
+    def _get_field_definitions(cls) -> Dict[str, FieldType]:
+        """Extend the parent schema with prediction-specific fields."""
+        base_definitions = super()._get_field_definitions()
+        prediction_definitions = {
+            cls.get_field_alias("predictor_info"): FieldType.STRING,
+            cls.get_field_alias("status"): FieldType.STRING,
+            cls.get_field_alias("predicted_doc"): FieldType.STRING,
+            cls.get_field_alias("predicted_segmented_pages"): FieldType.STRING,
+            cls.get_field_alias("predicted_pictures"): FieldType.IMAGE_LIST,
+            cls.get_field_alias("predicted_page_images"): FieldType.IMAGE_LIST,
+            cls.get_field_alias("prediction_format"): FieldType.STRING,
+            cls.get_field_alias("prediction_timings"): FieldType.STRING,
+            cls.get_field_alias("original_prediction"): FieldType.STRING,
+        }
+        return {**base_definitions, **prediction_definitions}
+
+    @classmethod
     def features(cls):
-        return Features(
-            {
-                cls.get_field_alias("doc_id"): Value("string"),
-                cls.get_field_alias("doc_path"): Value("string"),
-                cls.get_field_alias("doc_hash"): Value("string"),
-                cls.get_field_alias("ground_truth_doc"): Value("string"),
-                cls.get_field_alias("ground_truth_segmented_pages"): Value("string"),
-                cls.get_field_alias("ground_truth_pictures"): Sequence(
-                    Features_Image()
-                ),
-                cls.get_field_alias("ground_truth_page_images"): Sequence(
-                    Features_Image()
-                ),
-                cls.get_field_alias("original"): Value("binary"),
-                cls.get_field_alias("mime_type"): Value("string"),
-                cls.get_field_alias("modalities"): Sequence(Value("string")),
-                cls.get_field_alias("predictor_info"): Value("string"),
-                cls.get_field_alias("status"): Value("string"),
-                cls.get_field_alias("predicted_doc"): Value("string"),
-                cls.get_field_alias("predicted_segmented_pages"): Value("string"),
-                cls.get_field_alias("predicted_pictures"): Sequence(Features_Image()),
-                cls.get_field_alias("predicted_page_images"): Sequence(
-                    Features_Image()
-                ),
-                cls.get_field_alias("prediction_format"): Value("string"),
-                cls.get_field_alias("prediction_timings"): Value("string"),
-                cls.get_field_alias("original_prediction"): Value("string"),
-            }
-        )
+        return SchemaGenerator.generate_features(cls._get_field_definitions())
+
+    @classmethod
+    def pyarrow_schema(cls):
+        """Generate PyArrow schema that matches the HuggingFace datasets image format."""
+        return SchemaGenerator.generate_pyarrow_schema(cls._get_field_definitions())
 
     def as_record_dict(self):
         record = super().as_record_dict()
@@ -311,10 +367,13 @@ class DatasetRecordWithPrediction(DatasetRecord):
             data[pred_doc_alias] = json.loads(data[pred_doc_alias])
 
         pred_seg_pages_alias = cls.get_field_alias("predicted_segmented_pages")
-        if pred_seg_pages_alias in data and isinstance(data[pred_seg_pages_alias], str):
-            data[pred_seg_pages_alias] = seg_adapter.validate_json(
-                data[pred_seg_pages_alias]
-            )
+        if pred_seg_pages_alias in data and isinstance(
+            data[pred_seg_pages_alias], (str, bytes)
+        ):
+            seg_pages_data = data[pred_seg_pages_alias]
+            if isinstance(seg_pages_data, bytes):
+                seg_pages_data = seg_pages_data.decode("utf-8")
+            data[pred_seg_pages_alias] = seg_adapter.validate_json(seg_pages_data)
 
         pred_page_img_alias = cls.get_field_alias("predicted_page_images")
         if pred_page_img_alias in data:
