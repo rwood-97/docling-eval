@@ -1,3 +1,7 @@
+## [v0.8.0](https://github.com/docling-project/docling-eval/releases/tag/v0.8.0) - 2025-09-03
+
+
+
 ## [v0.7.0](https://github.com/docling-project/docling-eval/releases/tag/v0.7.0) - 2025-07-30
 
 ### Feature
