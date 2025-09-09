@@ -25,7 +25,7 @@ classifiers = [
 ]
 requires-python = '>=3.10,<4.0'
 dependencies = [
-    'docling[vlm] (>=2.42.0,<3.0.0)',
+    "docling[vlm]>=2.42.0,<3.0.0",
     "docling-core>=2.43.1",
     'pydantic (>=2.0.0,<3.0.0)',
     'lxml (>=5.3.0,<6.0.0)',
@@ -48,12 +48,14 @@ dependencies = [
     'pypdf2 (>=3.0.1,<4.0.0)',
     "xmltodict (>=0.14.2,<0.15.0)",
     'edit-distance (>=1.0.6,<2.0.0)',
-    'mlx-vlm<0.2; sys_platform == "darwin" and platform_machine == "arm64"',
+    'mlx-vlm<0.4; sys_platform == "darwin" and platform_machine == "arm64"',
     "pyarrow>=20.0.0",
     "typer>=0.16.0",
     "scipy>=1.15.3",
     "scipy-stubs>=1.15.3.0",
     "editdistance>=0.8.1",
+    "reportlab>=4.4.3",
+    "mlx-vlm>=0.1.27",
 ]
 
 [project.urls]
@@ -106,6 +108,9 @@ dev = [
 [tool.uv]
 package = true
 
+[tool.uv.sources]
+docling = { git = "https://github.com/docling-project/docling.git", rev = "dev/add-granite-docling-extension" }
+
 [tool.setuptools.packages.find]
 include = ["docling_eval*"]
 
@@ -151,6 +156,7 @@ module = [
     "ocrmac.*",
     "editdistance.*",
     "xlsxwriter.*",
+    "reportlab.*",
 ]
 ignore_missing_imports = true
 
