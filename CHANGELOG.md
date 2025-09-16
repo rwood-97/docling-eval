@@ -1,3 +1,9 @@
+## [v0.8.1](https://github.com/docling-project/docling-eval/releases/tag/v0.8.1) - 2025-09-16
+
+### Fix
+
+* Ocr visualization and add ocr recognition metrics ([#144](https://github.com/docling-project/docling-eval/issues/144)) ([`d63a439`](https://github.com/docling-project/docling-eval/commit/d63a439441ff8c3f8c51f0d442e2c352f8bbc8dc))
+
 ## [v0.8.0](https://github.com/docling-project/docling-eval/releases/tag/v0.8.0) - 2025-09-03
 
 
