@@ -5,7 +5,6 @@ from typing import Any, Dict, List, Optional
 from docling_core.types.doc.page import SegmentedPage
 
 from docling_eval.evaluators.ocr.evaluation_models import (
-    AggregatedBenchmarkMetrics,
     OcrBenchmarkEntry,
     OcrMetricsSummary,
     Word,
@@ -14,6 +13,7 @@ from docling_eval.evaluators.ocr.performance_calculator import _OcrPerformanceCa
 from docling_eval.evaluators.ocr.processing_utils import (
     _CalculationConstants,
     _IgnoreZoneFilter,
+    _IgnoreZoneFilterHWR,
     extract_word_from_text_cell,
 )
 
@@ -26,6 +26,7 @@ class _OcrBenchmark:
         ignore_zone_filter_type: str = "default",
         add_space_for_merged_prediction_words: bool = True,
         add_space_for_merged_gt_words: bool = True,
+        aggregation_mode: str = "union",  # "mean" or "union"
     ) -> None:
         self.model_identifier: str = model_identifier
         self.add_space_for_merged_prediction_words: bool = (
@@ -39,8 +40,13 @@ class _OcrBenchmark:
         ] = {}
         self.image_to_ignore_zones_map: Dict[str, List[Word]] = {}
         self.calculator_type: str = performance_calculator_type
+        self.aggregation_mode: str = aggregation_mode
 
-        self.ignore_zone_filter: _IgnoreZoneFilter = _IgnoreZoneFilter()
+        self.ignore_zone_filter: "_IgnoreZoneFilter | _IgnoreZoneFilterHWR"
+        if ignore_zone_filter_type.lower() == "hwr":
+            self.ignore_zone_filter = _IgnoreZoneFilterHWR()
+        else:
+            self.ignore_zone_filter = _IgnoreZoneFilter()
 
     def process_single_page_pair(
         self,
@@ -126,6 +132,70 @@ class _OcrBenchmark:
                     if key not in summed_metrics:
                         summed_metrics[key] = ""
 
+        num_images = len(self.image_metrics_results)
+        # Recognition aggregation
+        if self.aggregation_mode == "union":
+            total_weighted_tp_words: float = summed_metrics.get(
+                "tp_words_weighted", 0.0
+            )
+            total_fp: float = summed_metrics.get(
+                "number_of_false_positive_detections", 0.0
+            )
+            total_fn: float = summed_metrics.get(
+                "number_of_false_negative_detections", 0.0
+            )
+            total_union_words: float = total_weighted_tp_words + total_fp + total_fn
+            total_perfect_sensitive: float = summed_metrics.get(
+                "perfect_matches_sensitive_weighted", 0.0
+            )
+            total_perfect_insensitive: float = summed_metrics.get(
+                "perfect_matches_insensitive_weighted", 0.0
+            )
+            avg_word_acc_sensitive = total_perfect_sensitive / max(
+                _CalculationConstants.EPS, total_union_words
+            )
+            avg_word_acc_insensitive = total_perfect_insensitive / max(
+                _CalculationConstants.EPS, total_union_words
+            )
+            # Character (union)
+            sum_ed_sensitive_tp: float = summed_metrics.get("sum_ed_sensitive_tp", 0.0)
+            sum_ed_insensitive_tp: float = summed_metrics.get(
+                "sum_ed_insensitive_tp", 0.0
+            )
+            sum_max_len_tp: float = summed_metrics.get("sum_max_len_tp", 0.0)
+            sum_text_len_fp: float = summed_metrics.get("text_len_fp", 0.0)
+            sum_text_len_fn: float = summed_metrics.get("text_len_fn", 0.0)
+            total_chars_union: float = (
+                sum_max_len_tp + sum_text_len_fp + sum_text_len_fn
+            )
+            avg_ed_union_sensitive: float = (
+                sum_ed_sensitive_tp + sum_text_len_fp + sum_text_len_fn
+            ) / max(_CalculationConstants.EPS, total_chars_union)
+            avg_ed_union_insensitive: float = (
+                sum_ed_insensitive_tp + sum_text_len_fp + sum_text_len_fn
+            ) / max(_CalculationConstants.EPS, total_chars_union)
+            avg_char_acc_sensitive = 1 - avg_ed_union_sensitive
+            avg_char_acc_insensitive = 1 - avg_ed_union_insensitive
+            # Convert to percentage later
+            avg_word_acc_sensitive *= 100.0
+            avg_word_acc_insensitive *= 100.0
+            avg_char_acc_sensitive *= 100.0
+            avg_char_acc_insensitive *= 100.0
+        else:
+            # Per-image mean of already-percentage metrics
+            avg_word_acc_sensitive = (
+                summed_metrics.get("word_accuracy_sensitive", 0.0) / num_images
+            )
+            avg_word_acc_insensitive = (
+                summed_metrics.get("word_accuracy_insensitive", 0.0) / num_images
+            )
+            avg_char_acc_sensitive = (
+                summed_metrics.get("character_accuracy_sensitive", 0.0) / num_images
+            )
+            avg_char_acc_insensitive = (
+                summed_metrics.get("character_accuracy_insensitive", 0.0) / num_images
+            )
+
         total_true_positives: float = summed_metrics.get(
             "number_of_true_positive_matches", _CalculationConstants.EPS
         )
@@ -147,28 +217,35 @@ class _OcrBenchmark:
             _CalculationConstants.EPS,
         )
 
+        avg_char_acc_sensitive = (
+            summed_metrics.get("character_accuracy_sensitive", 0.0) / num_images
+        )
+        avg_char_acc_insensitive = (
+            summed_metrics.get("character_accuracy_insensitive", 0.0) / num_images
+        )
+
         aggregated_metrics_data = {
             "f1": 100 * overall_f1_score,
             "recall": 100 * overall_recall,
             "precision": 100 * overall_precision,
+            "word_accuracy_sensitive": avg_word_acc_sensitive,
+            "word_accuracy_insensitive": avg_word_acc_insensitive,
+            "character_accuracy_sensitive": avg_char_acc_sensitive,
+            "character_accuracy_insensitive": avg_char_acc_insensitive,
         }
 
-        aggregated_metrics = AggregatedBenchmarkMetrics.model_validate(
-            aggregated_metrics_data
-        )
-        output_results = aggregated_metrics.model_dump(by_alias=True)
-
-        for key, val in output_results.items():
+        for key, val in aggregated_metrics_data.items():
             try:
                 formatted_value: float = float(f"{{:.{float_precision}f}}".format(val))
-                output_results[key] = formatted_value
+                aggregated_metrics_data[key] = formatted_value
             except (ValueError, TypeError):
                 pass
-        return output_results
+
+        return aggregated_metrics_data
 
     def get_formatted_metrics_summary(
         self,
-        float_precision: int = 1,
+        float_precision: int = 2,
     ) -> List[Dict[str, Any]]:
         summary_list: List[Dict[str, Any]] = []
 
