@@ -1,3 +1,10 @@
+## [v0.9.0](https://github.com/docling-project/docling-eval/releases/tag/v0.9.0) - 2025-10-01
+
+### Feature
+
+* Exposed forced-ocr-option ([#157](https://github.com/docling-project/docling-eval/issues/157)) ([`ac21644`](https://github.com/docling-project/docling-eval/commit/ac21644d75e43c0814d3e0c4261d293b7825527f))
+* Implementation of table structure conversion from CVAT to DoclingDocument ([`208cd14`](https://github.com/docling-project/docling-eval/commit/208cd14bdd41ca9403ec82a33d68b7526890c668))
+
 ## [v0.8.1](https://github.com/docling-project/docling-eval/releases/tag/v0.8.1) - 2025-09-16
 
 ### Fix
