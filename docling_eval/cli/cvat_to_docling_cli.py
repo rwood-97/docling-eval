@@ -341,6 +341,12 @@ def main():
         help="XML file pattern (task_{xx}_set_A, task_{xx}_set_B, task_{xx}_preannotate)",
     )
     parser.add_argument(
+        "--tasks-root",
+        type=str,
+        default=None,
+        help="Optional path whose 'cvat_tasks' directory contains the annotation XMLs",
+    )
+    parser.add_argument(
         "--image",
         type=str,
         help="Image filename to process (optional, if input is a directory)",
@@ -396,8 +402,23 @@ def main():
             print("Error: folder-mode requires --input_path to be a directory")
             return
 
+        tasks_root: Optional[Path] = None
+        if args.tasks_root is not None:
+            tasks_root = Path(args.tasks_root)
+            if not tasks_root.exists():
+                print(f"Error: tasks-root {tasks_root} does not exist")
+                return
+            if not tasks_root.is_dir():
+                print(f"Error: tasks-root {tasks_root} is not a directory")
+                return
+            tasks_root = tasks_root.resolve()
+
         try:
-            folder_structure = parse_cvat_folder(input_path, args.xml_pattern)
+            folder_structure = parse_cvat_folder(
+                input_path,
+                args.xml_pattern,
+                tasks_root=tasks_root,
+            )
         except Exception as exc:  # pragma: no cover - CLI feedback
             print(f"Error: failed to parse CVAT folder - {exc}")
             return

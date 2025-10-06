@@ -17,6 +17,8 @@ The utility requires the following inputs:
 1. **CVAT Dataset Root**: The `cvat_dataset_preannotated` directory containing `cvat_overview.json`, `cvat_tasks/`, and accompanying assets
 2. **Output Directory**: Directory where all pipeline outputs will be saved
 
+The pipeline expects the standard DocLayNet task naming convention, where ground-truth annotations live under files named `task_{xx}_set_A.xml` and predictions under `task_{xx}_set_B.xml`.
+
 ## Usage
 
 ### Command Line Interface
@@ -32,8 +34,7 @@ python cvat_evaluation_pipeline.py <cvat_dataset_preannotated> <output_dir> [OPT
 
 ### Optional Arguments
 
-- `--set-a-pattern TEXT`: Pattern that selects ground-truth task XMLs (default: `task_{xx}_set_A`)
-- `--set-b-pattern TEXT`: Pattern that selects prediction task XMLs (default: `task_{xx}_set_B`)
+- `--tasks-root PATH`: Alternate directory whose `cvat_tasks/` contains the annotation XMLs
 - `--step {gt,pred,eval,full}`: Pipeline step to run (default: full)
 - `--modalities {layout,document_structure}`: Evaluation modalities to run (default: both)
 - `--strict`: Strict mode - require all images to have annotations in XML files (default: allow partial annotation batches)
@@ -107,6 +108,19 @@ python cvat_evaluation_pipeline.py \
     /path/to/output \
     --strict
 ```
+
+### Overlaying Alternate Task Directories
+
+When annotation XMLs live in a parallel structure (for example, predictions exported separately), point the pipeline to the primary `cvat_dataset_preannotated` root for assets and pass the override:
+
+```bash
+python cvat_evaluation_pipeline.py \
+    /path/to/cvat_dataset_preannotated \
+    /path/to/output \
+    --tasks-root /path/to/alternate_annotations
+```
+
+The override accepts either a directory that already *is* `cvat_tasks/` or a parent folder containing it.
 
 In strict mode:
 - The pipeline will fail with an error if any image lacks annotations
