@@ -15,7 +15,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, List, Optional
 
 from docling_eval.campaign_tools.combine_cvat_evaluations import (
     combine_cvat_evaluations,
@@ -26,13 +26,12 @@ from docling_eval.campaign_tools.merge_cvat_annotations import (
     extract_image_tags,
 )
 from docling_eval.cli.main import evaluate
-from docling_eval.cvat_tools.cvat_to_docling import convert_cvat_to_docling
-from docling_eval.cvat_tools.folder_models import CVATFolderStructure, CVATPageInfo
+from docling_eval.cvat_tools.cvat_to_docling import convert_cvat_folder_to_docling
+from docling_eval.cvat_tools.folder_models import CVATFolderStructure
 from docling_eval.cvat_tools.folder_parser import (
     find_xml_files_by_pattern,
     parse_cvat_folder,
 )
-from docling_eval.cvat_tools.parser import MissingImageInCVATXML
 from docling_eval.datamodels.types import (
     BenchMarkNames,
     EvaluationModality,
@@ -48,6 +47,10 @@ logging.basicConfig(
 _log = logging.getLogger(__name__)
 
 
+GROUND_TRUTH_PATTERN: str = "task_{xx}_set_A"
+PREDICTION_PATTERN: str = "task_{xx}_set_B"
+
+
 class CVATEvaluationPipeline:
     """Pipeline for CVAT annotation evaluation."""
 
@@ -57,8 +60,7 @@ class CVATEvaluationPipeline:
         output_dir: Path,
         *,
         strict: bool = False,
-        set_a_pattern: str = "task_{xx}_set_A",
-        set_b_pattern: str = "task_{xx}_set_B",
+        tasks_root: Optional[Path] = None,
     ):
         """
         Initialize the pipeline.
@@ -67,14 +69,12 @@ class CVATEvaluationPipeline:
             cvat_root: Root directory of the ``cvat_dataset_preannotated`` export
             output_dir: Base directory for all pipeline outputs
             strict: If True, treat conversion failures as fatal (default: False)
-            set_a_pattern: Glob-style pattern identifying ground-truth task XMLs
-            set_b_pattern: Glob-style pattern identifying prediction task XMLs
+            tasks_root: Optional override directory containing ``cvat_tasks`` XMLs
         """
         self.cvat_root = Path(cvat_root)
         self.output_dir = Path(output_dir)
         self.strict = strict
-        self.set_a_pattern = set_a_pattern
-        self.set_b_pattern = set_b_pattern
+        self.tasks_root = Path(tasks_root).resolve() if tasks_root else None
         self._folder_cache: Dict[str, CVATFolderStructure] = {}
 
         # Create subdirectories
@@ -94,112 +94,91 @@ class CVATEvaluationPipeline:
         if xml_pattern in self._folder_cache:
             return self._folder_cache[xml_pattern]
 
-        folder_structure = parse_cvat_folder(self.cvat_root, xml_pattern)
+        folder_structure = parse_cvat_folder(
+            self.cvat_root,
+            xml_pattern,
+            tasks_root=self.tasks_root,
+        )
         self._folder_cache[xml_pattern] = folder_structure
         return folder_structure
 
-    def _iterate_pages(
-        self,
-        folder_structure: CVATFolderStructure,
-    ) -> Iterable[CVATPageInfo]:
-        """Yield every page recorded in ``folder_structure``."""
-
-        for document in folder_structure.documents.values():
-            for page_info in document.pages:
-                yield page_info
-
     def _convert_cvat_set_to_json(
         self,
-        xml_pattern: str,
         output_json_dir: Path,
+        xml_pattern: str,
     ) -> List[Path]:
-        """Convert all pages matching ``xml_pattern`` into Docling JSON files."""
-
-        output_json_dir.mkdir(parents=True, exist_ok=True)
+        """Convert all documents covered by ``xml_pattern`` into Docling JSON files."""
 
         folder_structure = self._load_folder_structure(xml_pattern)
-        pages: List[CVATPageInfo] = sorted(
-            self._iterate_pages(folder_structure),
-            key=lambda page: (page.doc_hash, page.page_number, page.image_filename),
+
+        if output_json_dir.exists():
+            for stale_json in output_json_dir.glob("*.json"):
+                stale_json.unlink()
+        output_json_dir.mkdir(parents=True, exist_ok=True)
+
+        _log.info(
+            "Converting %d document(s) matching %s",
+            len(folder_structure.documents),
+            xml_pattern,
         )
 
-        if not pages:
-            raise ValueError(
-                f"No annotated pages found using pattern '{xml_pattern}' in {self.cvat_root}"
-            )
-
-        if self.strict:
-            _log.info(
-                "Running in STRICT mode: conversion failures will abort the pipeline"
-            )
-        else:
-            _log.info(
-                "Running in NORMAL mode: conversion failures will be logged and skipped"
-            )
+        results = convert_cvat_folder_to_docling(
+            folder_path=self.cvat_root,
+            xml_pattern=xml_pattern,
+            output_dir=output_json_dir,
+            save_formats=["json"],
+            folder_structure=folder_structure,
+            log_validation=self.strict,
+        )
 
         json_files: List[Path] = []
-        failed_pages: List[str] = []
+        failed_docs: List[str] = []
 
-        for page in pages:
-            image_path = page.image_path
-            xml_path = page.xml_path
+        for doc_hash, result in results.items():
+            cvat_doc = folder_structure.documents[doc_hash]
+            json_path = output_json_dir / f"{cvat_doc.doc_name}.json"
 
-            _log.info(
-                "Converting %s from task XML %s",
-                image_path.name,
-                xml_path.name,
-            )
-
-            try:
-                document = convert_cvat_to_docling(xml_path, image_path)
-            except MissingImageInCVATXML:
-                message = f"Image {image_path.name} not present in {xml_path.name}."
-                if self.strict:
-                    raise ValueError(message) from None
-                _log.error(message)
-                failed_pages.append(image_path.name)
-                continue
-            except Exception as exc:  # pragma: no cover - defensive logging
-                if self.strict:
-                    raise
-                _log.error("Conversion failed for %s: %s", image_path.name, exc)
-                failed_pages.append(image_path.name)
+            if result.document is None or not json_path.exists():
+                failed_docs.append(cvat_doc.doc_name)
+                if json_path.exists():
+                    json_path.unlink()
                 continue
 
-            if document is None:
-                message = f"Conversion returned None for {image_path.name}"
-                if self.strict:
-                    raise ValueError(message)
-                _log.warning(message)
-                failed_pages.append(image_path.name)
-                continue
-
-            json_path = output_json_dir / f"{image_path.stem}.json"
-            document.save_as_json(json_path)
             json_files.append(json_path)
-            _log.info("✓ Saved Docling JSON to %s", json_path)
 
-        if failed_pages:
+        if failed_docs:
             _log.warning(
-                "Skipped %d page(s) due to conversion issues: %s",
-                len(failed_pages),
-                ", ".join(sorted(failed_pages)[:5])
-                + ("..." if len(failed_pages) > 5 else ""),
+                "Skipped %d document(s) due to conversion issues: %s",
+                len(failed_docs),
+                ", ".join(sorted(failed_docs)[:5])
+                + ("..." if len(failed_docs) > 5 else ""),
             )
 
-        if self.strict and failed_pages:
-            raise ValueError("Strict mode enabled: conversion errors were encountered.")
+        if self.strict and failed_docs:
+            raise ValueError(
+                "Strict mode enabled: conversion errors were encountered while converting documents."
+            )
 
-        _log.info("Converted %d/%d page(s) to JSON format", len(json_files), len(pages))
+        json_files.sort()
+        _log.info(
+            "Converted %d/%d document(s) to JSON format",
+            len(json_files),
+            len(folder_structure.documents),
+        )
         return json_files
 
-    def _merge_task_xmls(self, xml_pattern: str, destination: Path) -> Path:
+    def _merge_task_xmls(
+        self,
+        xml_pattern: str,
+        destination: Path,
+    ) -> Path:
         """Merge all CVAT task XMLs for ``xml_pattern`` into a single file."""
 
-        xml_files = find_xml_files_by_pattern(self.cvat_root, xml_pattern)
+        folder_structure = self._load_folder_structure(xml_pattern)
+        xml_files = find_xml_files_by_pattern(folder_structure.tasks_dir, xml_pattern)
         if not xml_files:
             raise ValueError(
-                f"No XML files matching pattern '{xml_pattern}' found in {self.cvat_root / 'cvat_tasks'}"
+                f"No XML files matching pattern '{xml_pattern}' found in {folder_structure.tasks_dir}"
             )
 
         _log.info(
@@ -225,7 +204,8 @@ class CVATEvaluationPipeline:
 
         # Convert CVAT XML to JSON
         gt_json_files = self._convert_cvat_set_to_json(
-            self.set_a_pattern, self.gt_json_dir
+            self.gt_json_dir,
+            GROUND_TRUTH_PATTERN,
         )
 
         if not gt_json_files:
@@ -257,7 +237,8 @@ class CVATEvaluationPipeline:
 
         # Convert prediction CVAT XML to JSON
         pred_json_files = self._convert_cvat_set_to_json(
-            self.set_b_pattern, self.pred_json_dir
+            self.pred_json_dir,
+            PREDICTION_PATTERN,
         )
 
         if not pred_json_files:
@@ -305,8 +286,14 @@ class CVATEvaluationPipeline:
         gt_merged = merged_dir / "combined_set_A.xml"
         pred_merged = merged_dir / "combined_set_B.xml"
 
-        gt_xml = self._merge_task_xmls(self.set_a_pattern, gt_merged)
-        pred_xml = self._merge_task_xmls(self.set_b_pattern, pred_merged)
+        gt_xml = self._merge_task_xmls(
+            GROUND_TRUTH_PATTERN,
+            gt_merged,
+        )
+        pred_xml = self._merge_task_xmls(
+            PREDICTION_PATTERN,
+            pred_merged,
+        )
 
         result = evaluate_tables(
             set_a=gt_xml,
@@ -476,17 +463,10 @@ def main():
     )
 
     parser.add_argument(
-        "--set-a-pattern",
-        type=str,
-        default="task_{xx}_set_A",
-        help="Pattern used to locate ground-truth task XMLs (default: task_{xx}_set_A)",
-    )
-
-    parser.add_argument(
-        "--set-b-pattern",
-        type=str,
-        default="task_{xx}_set_B",
-        help="Pattern used to locate prediction task XMLs (default: task_{xx}_set_B)",
+        "--tasks-root",
+        type=Path,
+        default=None,
+        help="Optional path whose 'cvat_tasks' directory should override the default annotations",
     )
 
     parser.add_argument(
@@ -542,12 +522,21 @@ def main():
         )
         sys.exit(1)
 
+    tasks_root = args.tasks_root
+    if tasks_root is not None:
+        if not tasks_root.exists():
+            _log.error(f"tasks-root does not exist: {tasks_root}")
+            sys.exit(1)
+        if not tasks_root.is_dir():
+            _log.error(f"tasks-root is not a directory: {tasks_root}")
+            sys.exit(1)
+        tasks_root = tasks_root.resolve()
+
     pipeline = CVATEvaluationPipeline(
         cvat_root=args.cvat_root,
         output_dir=args.output_dir,
         strict=args.strict,
-        set_a_pattern=args.set_a_pattern,
-        set_b_pattern=args.set_b_pattern,
+        tasks_root=tasks_root,
     )
 
     if args.step == "gt":
