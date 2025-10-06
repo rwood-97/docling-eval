@@ -7,13 +7,13 @@ caption/footnote relationships.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 from docling_core.types.doc import RichTableCell, TableCell
-from docling_core.types.doc.base import BoundingBox, CoordOrigin
+from docling_core.types.doc.base import BoundingBox, CoordOrigin, ImageRefMode
 from docling_core.types.doc.document import (
     ContentLayer,
     DocItem,
@@ -46,7 +46,14 @@ from docling_core.types.doc.page import (
 from PIL import Image as PILImage
 
 from docling_eval.cvat_tools.document import DocumentStructure
-from docling_eval.cvat_tools.models import CVATElement, TableStructLabel
+from docling_eval.cvat_tools.folder_models import CVATDocument, CVATFolderStructure
+from docling_eval.cvat_tools.folder_parser import parse_cvat_folder
+from docling_eval.cvat_tools.models import (
+    CVATElement,
+    CVATValidationReport,
+    TableStructLabel,
+    ValidationSeverity,
+)
 from docling_eval.cvat_tools.parser import MissingImageInCVATXML
 from docling_eval.cvat_tools.tree import (
     TreeNode,
@@ -1759,6 +1766,217 @@ def create_segmented_page_from_ocr(image):
     )
 
     return seg_page
+
+
+@dataclass
+class CVATConversionResult:
+    """Outcome of converting a CVAT document."""
+
+    document: Optional[DoclingDocument]
+    validation_report: Optional[CVATValidationReport]
+    per_page_reports: Dict[str, CVATValidationReport] = field(default_factory=dict)
+    error: Optional[str] = None
+
+
+def convert_cvat_folder_to_docling(
+    folder_path: Path,
+    xml_pattern: str = "task_{xx}_set_A",
+    output_dir: Optional[Path] = None,
+    save_formats: Optional[List[str]] = None,
+    folder_structure: Optional[CVATFolderStructure] = None,
+    log_validation: bool = False,
+) -> Dict[str, CVATConversionResult]:
+    """Convert an entire CVAT folder into DoclingDocument objects grouped by document."""
+
+    if save_formats is None:
+        save_formats = ["json"]
+
+    if output_dir is None:
+        output_dir = folder_path / "json_predictions"
+
+    if folder_structure is None:
+        folder_structure = parse_cvat_folder(folder_path, xml_pattern)
+    converter = CVATFolderConverter(folder_structure, log_validation=log_validation)
+    results = converter.convert_all_documents()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for doc_hash, result in results.items():
+        doc = result.document
+        if doc is None:
+            continue
+
+        cvat_doc = folder_structure.documents[doc_hash]
+        base_filename = cvat_doc.doc_name
+
+        for format_type in save_formats:
+            if format_type == "json":
+                output_path = output_dir / f"{base_filename}.json"
+                doc.save_as_json(output_path)
+            elif format_type == "html":
+                output_path = output_dir / f"{base_filename}.html"
+                doc.save_as_html(output_path, image_mode=ImageRefMode.EMBEDDED)
+            elif format_type == "md":
+                output_path = output_dir / f"{base_filename}.md"
+                doc.save_as_markdown(output_path, image_mode=ImageRefMode.EMBEDDED)
+            elif format_type == "txt":
+                output_path = output_dir / f"{base_filename}.txt"
+                with open(output_path, "w", encoding="utf-8") as fp:
+                    fp.write(doc.export_to_element_tree())
+            elif format_type == "viz":
+                viz_imgs = doc.get_visualization()
+                for page_no, img in viz_imgs.items():
+                    if page_no is not None:
+                        img.save(output_dir / f"{base_filename}_docling_p{page_no}.png")
+
+    return results
+
+
+class CVATFolderConverter:
+    """Convert CVAT folder structures into DoclingDocument instances."""
+
+    def __init__(
+        self, folder_structure: CVATFolderStructure, log_validation: bool = False
+    ):
+        self.folder_structure = folder_structure
+        self.log_validation = log_validation
+
+    def convert_document(self, doc_hash: str) -> CVATConversionResult:
+        """Convert a single document identified by its hash."""
+
+        if doc_hash not in self.folder_structure.documents:
+            _logger.error("Document %s not found in folder structure", doc_hash)
+            return CVATConversionResult(
+                document=None,
+                validation_report=None,
+                error="Document missing from folder structure",
+            )
+
+        cvat_doc = self.folder_structure.documents[doc_hash]
+
+        try:
+            validator = Validator()
+            per_page_reports: Dict[str, CVATValidationReport] = {}
+            fatal_messages: List[str] = []
+
+            for page_info in cvat_doc.pages:
+                page_structure = DocumentStructure.from_cvat_xml(
+                    page_info.xml_path, page_info.image_filename
+                )
+                page_report = validator.validate_sample(
+                    page_info.image_filename, page_structure
+                )
+                per_page_reports[page_info.image_filename] = page_report
+
+                if page_report.has_fatal_errors():
+                    page_fatals = [
+                        f"{err.error_type}: {err.message}"
+                        for err in page_report.errors
+                        if err.severity == ValidationSeverity.FATAL
+                    ]
+                    fatal_messages.append(
+                        f"{page_info.image_filename}: "
+                        + ("; ".join(page_fatals) if page_fatals else "Fatal errors")
+                    )
+
+                if self.log_validation:
+                    _logger.info(
+                        "Validation report for %s (page %s):\n%s",
+                        cvat_doc.doc_name,
+                        page_info.image_filename,
+                        page_report.model_dump_json(indent=2),
+                    )
+
+            if fatal_messages:
+                _logger.error(
+                    "Fatal validation errors on document %s. Skipping conversion.",
+                    cvat_doc.doc_name,
+                )
+                error_message = " | ".join(fatal_messages)
+                return CVATConversionResult(
+                    document=None,
+                    validation_report=None,
+                    per_page_reports=per_page_reports,
+                    error=error_message,
+                )
+
+            doc_structure = DocumentStructure.from_cvat_folder_structure(
+                self.folder_structure, doc_hash
+            )
+
+            segmented_pages: Dict[int, SegmentedPage] = {}
+            page_images: Dict[int, PILImage.Image] = {}
+
+            if cvat_doc.mime_type == "application/pdf":
+                from docling.backend.docling_parse_v4_backend import (
+                    DoclingParseV4DocumentBackend,
+                )
+                from docling.datamodel.base_models import InputFormat
+                from docling.datamodel.document import InputDocument
+
+                in_doc = InputDocument(
+                    path_or_stream=cvat_doc.bin_file,
+                    format=InputFormat.PDF,
+                    backend=DoclingParseV4DocumentBackend,
+                )
+                doc_backend: DoclingParseV4DocumentBackend = in_doc._backend  # type: ignore
+
+                num_pages = doc_backend.page_count()
+                for page_no in range(1, num_pages + 1):
+                    page = doc_backend.load_page(page_no - 1)
+                    seg_page = page.get_segmented_page()
+                    page_image = page.get_page_image()
+
+                    if seg_page is not None:
+                        segmented_pages[page_no] = seg_page
+                    if page_image is not None:
+                        page_images[page_no] = page_image
+
+                    page.unload()
+
+                doc_backend.unload()
+
+            else:
+                for page_info in cvat_doc.pages:
+                    image = PILImage.open(page_info.image_path)
+                    seg_page = create_segmented_page_from_ocr(image)
+                    segmented_pages[page_info.page_number] = seg_page
+                    page_images[page_info.page_number] = image
+
+            converter = CVATToDoclingConverter(
+                doc_structure,
+                segmented_pages,
+                page_images,
+                cvat_doc.doc_name,
+            )
+
+            docling_doc = converter.convert()
+            return CVATConversionResult(
+                document=docling_doc,
+                validation_report=None,
+                per_page_reports=per_page_reports,
+                error=None,
+            )
+
+        except Exception as exc:  # pragma: no cover - logged error propagation
+            _logger.error("Error converting document %s: %s", doc_hash, exc)
+            return CVATConversionResult(
+                document=None,
+                validation_report=None,
+                per_page_reports=(
+                    per_page_reports if "per_page_reports" in locals() else {}
+                ),
+                error=str(exc),
+            )
+
+    def convert_all_documents(self) -> Dict[str, CVATConversionResult]:
+        """Convert every document present in the folder structure."""
+
+        results: Dict[str, CVATConversionResult] = {}
+        for doc_hash in self.folder_structure.documents:
+            results[doc_hash] = self.convert_document(doc_hash)
+
+        return results
 
 
 def convert_cvat_to_docling(
