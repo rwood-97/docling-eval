@@ -186,20 +186,19 @@ def build_global_reading_order(
     Returns:
         List of element IDs in reading order.
     """
-    # Find level-1 reading order path
-    level1_path = next(
-        (
-            p
-            for p in paths
-            if p.label.startswith("reading_order") and (p.level == 1 or p.level is None)
-        ),
-        None,
-    )
-    if not level1_path:
+    # Gather all level-1 reading order paths; a multi-page document can legitimately
+    # have more than one (one per page).
+    level1_paths = [
+        p
+        for p in paths
+        if p.label.startswith("reading_order") and (p.level == 1 or p.level is None)
+    ]
+    if not level1_paths:
         return []
 
     visited = set()
     result = []
+    processed_paths: set[int] = set()
 
     def insert_with_ancestors(eid: int, path_container_id: Optional[int]) -> None:
         node = find_node_by_element_id(tree_roots, eid)
@@ -225,6 +224,9 @@ def build_global_reading_order(
             visited.add(eid)
 
     def insert_path(path_id: int) -> None:
+        if path_id in processed_paths:
+            return
+        processed_paths.add(path_id)
         path_container = path_to_container.get(path_id)
         path_container_id = path_container.element.id if path_container else None
 
@@ -266,5 +268,9 @@ def build_global_reading_order(
                     ):
                         insert_with_ancestors(child_id, path_container_id)
 
-    insert_path(level1_path.id)
+    # Process each level-1 reading order path in order of appearance (IDs are stable
+    # because we rebuilt them sequentially while merging pages).
+    for level1_path in sorted(level1_paths, key=lambda p: p.id):
+        insert_path(level1_path.id)
+
     return result
