@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from datasets import load_dataset
 from docling_core.types.doc import DocItemLabel
@@ -69,6 +69,66 @@ class CvatPreannotationBuilder:
         )
         self.overview = AnnotationOverview()
         self.use_predictions = use_predictions
+
+    def _relative_to_target(self, path: Union[Path, str]) -> Path:
+        """Return a path relative to the target directory when possible."""
+
+        if path is None:
+            return Path("")
+
+        path_obj = Path(path)
+        if not str(path_obj):
+            return path_obj
+
+        base = self.benchmark_dirs.target_dir
+
+        if path_obj.is_absolute():
+            try:
+                return path_obj.relative_to(base)
+            except ValueError:
+                base_name = base.name
+                if base_name in path_obj.parts:
+                    idx = path_obj.parts.index(base_name)
+                    rel_parts = path_obj.parts[idx + 1 :]
+                    if rel_parts:
+                        return Path(*rel_parts)
+                    return Path("")
+        return path_obj
+
+    def _store_image_annotation(
+        self, filename: str, annotated_image: AnnotatedImage
+    ) -> None:
+        """Store an image annotation using paths relative to the target directory."""
+
+        annotated_image.document_file = self._relative_to_target(
+            annotated_image.document_file
+        )
+        annotated_image.bin_file = self._relative_to_target(annotated_image.bin_file)
+        annotated_image.bucket_dir = self._relative_to_target(
+            annotated_image.bucket_dir
+        )
+        annotated_image.img_file = self._relative_to_target(annotated_image.img_file)
+        annotated_image.page_img_files = [
+            self._relative_to_target(page_file)
+            for page_file in annotated_image.page_img_files
+        ]
+
+        self.overview.img_annotations[filename] = annotated_image
+
+    def _absolute_from_target(self, path: Union[Path, str]) -> Path:
+        """Return an absolute path rooted at the target directory when needed."""
+
+        if path is None:
+            return Path("")
+
+        path_obj = Path(path)
+        if not str(path_obj):
+            return path_obj
+
+        if path_obj.is_absolute():
+            return path_obj
+
+        return self.benchmark_dirs.target_dir / path_obj
 
     def _export_from_dataset(self) -> AnnotationOverview:
         """
@@ -181,8 +241,8 @@ class CvatPreannotationBuilder:
                 overview.doc_annotations.append(
                     AnnotatedDoc(
                         mime_type=mime_type,
-                        document_file=json_file,  # The one and only JSON file
-                        bin_file=bin_file,
+                        document_file=self._relative_to_target(json_file),
+                        bin_file=self._relative_to_target(bin_file),
                         doc_hash=doc_hash,
                         doc_name=doc_name,
                     )
@@ -376,7 +436,8 @@ class CvatPreannotationBuilder:
             # try:
             if True:
                 # Load document from the saved JSON file
-                doc = DoclingDocument.load_from_json(doc_overview.document_file)
+                doc_path = self._absolute_from_target(doc_overview.document_file)
+                doc = DoclingDocument.load_from_json(doc_path)
 
                 if sliding_window == 1 or doc_overview.mime_type != "application/pdf":
                     img_id = self._process_each_page_in_the_document(
@@ -645,7 +706,7 @@ class CvatPreannotationBuilder:
             bucket_annotations[bucket_id].append(annotated_image.to_cvat())
 
             # Add to overview using filename as key
-            self.overview.img_annotations[filename] = annotated_image
+            self._store_image_annotation(filename, annotated_image)
 
         return img_id
 
@@ -704,9 +765,6 @@ class CvatPreannotationBuilder:
                     annotated_image.img_w = page_image.width
                     annotated_image.img_h = page_image.height
                     annotated_image.page_nos = [page_no]
-
-                    # Add to overview using filename as key
-                    self.overview.img_annotations[filename] = annotated_image
                 else:
                     _log.warning(
                         f"Missing pillow image for page {page_no}, skipping..."
@@ -723,6 +781,7 @@ class CvatPreannotationBuilder:
 
             annotated_image.bbox_annotations = page_bboxes
             bucket_annotations[bucket_id].append(annotated_image.to_cvat())
+            self._store_image_annotation(filename, annotated_image)
 
         return img_id
 

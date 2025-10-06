@@ -6,7 +6,7 @@ import sys
 import zipfile
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple, cast
+from typing import Dict, Iterable, List, Optional, Tuple, Union, cast
 
 import xmltodict  # type: ignore[import]
 from docling.backend.docling_parse_v4_backend import DoclingParseV4DocumentBackend
@@ -112,6 +112,21 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         self.benchmark_dirs.set_up_directory_structure(
             source=dataset_source, target=dataset_source
         )
+
+    def _resolve_dataset_path(self, path: Union[Path, str]) -> Path:
+        """Resolve paths relative to the dataset root when necessary."""
+
+        if path is None:
+            return Path("")
+
+        path_obj = Path(path)
+        if not str(path_obj):
+            return path_obj
+
+        if path_obj.is_absolute():
+            return path_obj
+
+        return self.benchmark_dirs.target_dir / path_obj
 
     def unzip_annotation_files(self, output_dir: Path) -> List[Path]:
         """
@@ -893,9 +908,9 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             return None
 
         # Original Groundtruth and Prediction files
-        orig_file = desc.document_file
+        orig_file = self._resolve_dataset_path(desc.document_file)
 
-        if not (os.path.exists(orig_file)):
+        if not orig_file.exists():
             _log.error(f"Missing original files for {basename}: {orig_file}")
             exit(-1)
             return None
@@ -903,8 +918,8 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
         orig_doc = DoclingDocument.load_from_json(filename=orig_file)
 
         # Original PDF file
-        pdf_file = desc.bin_file
-        if not os.path.exists(pdf_file):
+        pdf_file = self._resolve_dataset_path(desc.bin_file)
+        if not pdf_file.exists():
             _log.error(f"Missing PDF file for {basename}: {pdf_file}")
             return None
 
@@ -935,7 +950,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
             pdf_height = parsed_pages[page_no].dimension.height
 
             # Image file
-            img_file = desc.page_img_files[i]
+            img_file = self._resolve_dataset_path(desc.page_img_files[i])
             page_image = Image.open(str(img_file))
             img_width = page_image.width
             img_height = page_image.height
@@ -1407,7 +1422,7 @@ class CvatDatasetBuilder(BaseEvaluationDatasetBuilder):
                 _log.info(f"page-numbers: {true_doc.pages.keys()}")
 
                 # Get PDF as binary data
-                pdf_file = Path(desc.bin_file)
+                pdf_file = self._resolve_dataset_path(desc.bin_file)
                 if not pdf_file.exists():
                     _log.warning(f"PDF file {pdf_file} not found, skipping")
                     continue
