@@ -48,6 +48,11 @@ from PIL import Image as PILImage
 from docling_eval.cvat_tools.document import DocumentStructure
 from docling_eval.cvat_tools.folder_models import CVATDocument, CVATFolderStructure
 from docling_eval.cvat_tools.folder_parser import parse_cvat_folder
+from docling_eval.cvat_tools.geometry import (
+    bbox_contains,
+    bbox_intersection,
+    dedupe_items_by_bbox,
+)
 from docling_eval.cvat_tools.models import (
     CVATElement,
     CVATValidationReport,
@@ -61,7 +66,11 @@ from docling_eval.cvat_tools.tree import (
     build_global_reading_order,
     find_node_by_element_id,
 )
-from docling_eval.cvat_tools.validator import Validator
+from docling_eval.cvat_tools.validator import (
+    Validator,
+    validate_cvat_document,
+    validate_cvat_sample,
+)
 from docling_eval.utils.utils import classify_cells, sort_cell_ids
 
 _logger = logging.getLogger(__name__)
@@ -86,19 +95,6 @@ DEFAULT_CONTAINMENT_THRESH: float = 0.50
 DEFAULT_SEM_MATCH_IOU: float = 0.30
 
 
-def inter_area(a: BoundingBox, b: BoundingBox) -> float:
-    return a.intersection_area_with(b)
-
-
-def inside_with_tolerance(
-    child: BoundingBox, parent: BoundingBox, thresh: float
-) -> bool:
-    a = child.area()
-    if a <= 0.0:
-        return False
-    return (inter_area(child, parent) / a) >= thresh
-
-
 @dataclass(frozen=True)
 class Cell:
     start_row: int
@@ -114,75 +110,12 @@ class Cell:
     fillable_cell: bool = False
 
 
-# === CVAT ELEMENTS BBOX CHECKS ===
-# Compute IOU between two bboxes
-def compute_iou(a: "BoundingBox", b: "BoundingBox") -> float:
-    """Intersection over Union with another box."""
-    inter_w = max(0.0, min(a.r, b.r) - max(a.l, b.l))
-    inter_h = max(0.0, min(a.b, b.b) - max(a.t, b.t))
-    inter = inter_w * inter_h
-    if inter == 0.0:
-        return 0.0
-    union = a.area() + b.area() - inter
-    return inter / union if union > 0.0 else 0.0
-
-
-# Deduplicate list of CANVA elements based on their bbox IOU
-def _dedupe_by_bboxes(
-    elements: list[CVATElement],
-    iou_threshold: float = 0.9,
-) -> List[CVATElement]:
-    """
-    Return a cleaned list of elements where no two boxes have IoU >= iou_threshold.
-    If duplicates exist, keep just one.
-    """
-    if not elements:
-        return []
-
-    kept: List[CVATElement] = []
-    for elem in elements:
-        # keep only if it's not too similar to any already kept box
-        if all(compute_iou(elem.bbox, k.bbox) < iou_threshold for k in kept):
-            kept.append(elem)
-    return kept
-
-
 def is_bbox_within(
     bbox_a: BoundingBox, bbox_b: BoundingBox, threshold: float = 0.5
 ) -> bool:
-    """
-    Returns True if at least `threshold` proportion of B is inside A.
-    """
+    """Return ``True`` when ``bbox_b`` lies within ``bbox_a`` above ``threshold``."""
 
-    # Intersection coordinates
-    inter_left = max(bbox_a.l, bbox_b.l)
-    inter_top = max(bbox_a.t, bbox_b.t)
-    inter_right = min(bbox_a.r, bbox_b.r)
-    inter_bottom = min(bbox_a.b, bbox_b.b)
-
-    # Compute intersection area
-    inter_width = max(0.0, inter_right - inter_left)
-    inter_height = max(0.0, inter_bottom - inter_top)
-    inter_area = inter_width * inter_height
-
-    # Compute ratio of B’s area inside A
-    b_area = bbox_b.area()
-    if b_area == 0:
-        return False  # degenerate box
-
-    inside_ratio = inter_area / b_area
-    return inside_ratio >= threshold
-
-
-# COMPUTE UNIQUE TABLE CELLS
-def intersect_bboxes(a: BoundingBox, b: BoundingBox) -> Optional[BoundingBox]:
-    l1 = max(a.l, b.l)
-    t1 = max(a.t, b.t)
-    r1 = min(a.r, b.r)
-    b1 = min(a.b, b.b)
-    if r1 <= l1 or b1 <= t1:
-        return None
-    return BoundingBox(l=l1, t=t1, r=r1, b=b1, coord_origin=a.coord_origin)
+    return bbox_contains(bbox_b, bbox_a, threshold=threshold)
 
 
 def compute_cells(
@@ -216,7 +149,7 @@ def compute_cells(
         idxs = []
         best_i, best_len = None, 0.0
         for i, elem in enumerate(lines):
-            inter = intersect_bboxes(m, elem.bbox)
+            inter = bbox_intersection(m, elem.bbox)
             if not inter:
                 continue
             if axis == "row":
@@ -300,7 +233,7 @@ def compute_cells(
         for ci, col in enumerate(columns):
             if (ri, ci) in covered:
                 continue
-            inter = intersect_bboxes(row.bbox, col.bbox)
+            inter = bbox_intersection(row.bbox, col.bbox)
             if not inter:
                 # In degenerate cases (big gaps), there might be no intersection; skip.
                 continue
@@ -1331,54 +1264,54 @@ class CVATToDoclingConverter:
             )  # use row sections to compensate for missing rows
             # pool_rows.extend(pool_col_headers)  # use column headers to compensate for missing rows
 
-            rows = _dedupe_by_bboxes(
+            rows = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_rows
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            cols = _dedupe_by_bboxes(
+            cols = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_cols
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            merges = _dedupe_by_bboxes(
+            merges = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_merges
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
 
-            col_headers = _dedupe_by_bboxes(
+            col_headers = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_col_headers
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            row_headers = _dedupe_by_bboxes(
+            row_headers = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_row_headers
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            row_sections = _dedupe_by_bboxes(
+            row_sections = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_row_sections
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            fillable_cells = _dedupe_by_bboxes(
+            fillable_cells = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_fillable_cells
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
 
@@ -1856,17 +1789,13 @@ class CVATFolderConverter:
 
         try:
             validator = Validator()
+            validated_pages = validate_cvat_document(cvat_doc, validator=validator)
             per_page_reports: Dict[str, CVATValidationReport] = {}
             fatal_messages: List[str] = []
 
-            for page_info in cvat_doc.pages:
-                page_structure = DocumentStructure.from_cvat_xml(
-                    page_info.xml_path, page_info.image_filename
-                )
-                page_report = validator.validate_sample(
-                    page_info.image_filename, page_structure
-                )
-                per_page_reports[page_info.image_filename] = page_report
+            for page_name, validated in validated_pages.items():
+                page_report = validated.report
+                per_page_reports[page_name] = page_report
 
                 if page_report.has_fatal_errors():
                     page_fatals = [
@@ -1875,7 +1804,7 @@ class CVATFolderConverter:
                         if err.severity == ValidationSeverity.FATAL
                     ]
                     fatal_messages.append(
-                        f"{page_info.image_filename}: "
+                        f"{page_name}: "
                         + ("; ".join(page_fatals) if page_fatals else "Fatal errors")
                     )
 
@@ -1883,7 +1812,7 @@ class CVATFolderConverter:
                     _logger.info(
                         "Validation report for %s (page %s):\n%s",
                         cvat_doc.doc_name,
-                        page_info.image_filename,
+                        page_name,
                         page_report.model_dump_json(indent=2),
                     )
 
@@ -2002,11 +1931,9 @@ def convert_cvat_to_docling(
         DoclingDocument or None if conversion fails
     """
     try:
-        # Create DocumentStructure
-        doc_structure = DocumentStructure.from_cvat_xml(xml_path, input_path.name)
-
-        validator = Validator()
-        validation_report = validator.validate_sample(input_path.name, doc_structure)
+        validated_sample = validate_cvat_sample(xml_path, input_path.name)
+        doc_structure = validated_sample.structure
+        validation_report = validated_sample.report
 
         print(validation_report.model_dump_json(indent=2))
 

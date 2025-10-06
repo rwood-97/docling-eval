@@ -49,8 +49,40 @@ class MissingImageInCVATXML(Exception):
 
 
 def find_samples_in_directory(root_dir: Path) -> List[Tuple[str, Path, str]]:
-    """Find all image files and their corresponding annotations.xml in the root directory."""
-    samples = []
+    """Discover CVAT samples in ``root_dir``.
+
+    This first looks for structured CVAT exports containing ``cvat_overview.json`` and
+    collects their page/image information. When no such exports are found, it
+    falls back to scanning for ``annotations.xml`` files accompanied by images.
+    """
+
+    structured_samples: List[Tuple[str, Path, str]] = []
+    processed: set[Path] = set()
+
+    for overview_path in root_dir.rglob("cvat_overview.json"):
+        folder_path = overview_path.parent
+        folder_key = folder_path.resolve()
+        if folder_key in processed:
+            continue
+        processed.add(folder_key)
+
+        try:
+            from .folder_parser import parse_cvat_folder
+
+            folder_structure = parse_cvat_folder(folder_path)
+        except Exception:
+            continue
+
+        for document in folder_structure.documents.values():
+            for page in document.pages:
+                structured_samples.append(
+                    (page.image_filename, page.xml_path, page.image_filename)
+                )
+
+    if structured_samples:
+        return structured_samples
+
+    samples: List[Tuple[str, Path, str]] = []
     for dirpath, _, filenames in os.walk(root_dir):
         images = [
             f

@@ -4,7 +4,7 @@ This module provides the DocumentStructure class which encapsulates all core dat
 (elements, paths, containment tree, and path mappings) and their construction.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -18,7 +18,12 @@ from .path_mappings import (
     associate_paths_to_containers,
     map_path_points_to_elements,
 )
-from .tree import TreeNode, build_containment_tree, find_node_by_element_id
+from .tree import (
+    TreeNode,
+    build_containment_tree,
+    find_node_by_element_id,
+    index_tree_by_element_id,
+)
 from .utils import DEFAULT_PROXIMITY_THRESHOLD
 
 
@@ -37,6 +42,12 @@ class DocumentStructure:
     path_mappings: PathMappings
     path_to_container: Dict[int, TreeNode]
     image_info: CVATImageInfo
+    _node_index: Dict[int, TreeNode] = field(
+        init=False, repr=False, default_factory=dict
+    )
+
+    def __post_init__(self) -> None:
+        self._node_index = index_tree_by_element_id(self.tree_roots)
 
     @classmethod
     def from_cvat_xml(
@@ -210,4 +221,11 @@ class DocumentStructure:
 
     def get_node_by_element_id(self, element_id: int) -> Optional[TreeNode]:
         """Get a tree node by its element ID."""
-        return find_node_by_element_id(self.tree_roots, element_id)
+        node = self._node_index.get(element_id)
+        if node is not None:
+            return node
+
+        node = find_node_by_element_id(self.tree_roots, element_id)
+        if node is not None:
+            self._node_index[element_id] = node
+        return node

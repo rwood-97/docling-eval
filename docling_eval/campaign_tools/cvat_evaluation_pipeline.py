@@ -15,18 +15,24 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from docling_eval.campaign_tools.combine_cvat_evaluations import (
     combine_cvat_evaluations,
 )
 from docling_eval.campaign_tools.evaluate_cvat_tables import evaluate_tables
+from docling_eval.campaign_tools.merge_cvat_annotations import (
+    create_merged_annotation_xml,
+    extract_image_tags,
+)
 from docling_eval.cli.main import evaluate
 from docling_eval.cvat_tools.cvat_to_docling import convert_cvat_to_docling
-from docling_eval.cvat_tools.parser import (
-    MissingImageInCVATXML,
-    get_all_images_from_cvat_xml,
+from docling_eval.cvat_tools.folder_models import CVATFolderStructure, CVATPageInfo
+from docling_eval.cvat_tools.folder_parser import (
+    find_xml_files_by_pattern,
+    parse_cvat_folder,
 )
+from docling_eval.cvat_tools.parser import MissingImageInCVATXML
 from docling_eval.datamodels.types import (
     BenchMarkNames,
     EvaluationModality,
@@ -45,18 +51,31 @@ _log = logging.getLogger(__name__)
 class CVATEvaluationPipeline:
     """Pipeline for CVAT annotation evaluation."""
 
-    def __init__(self, images_dir: Path, output_dir: Path, strict: bool = False):
+    def __init__(
+        self,
+        cvat_root: Path,
+        output_dir: Path,
+        *,
+        strict: bool = False,
+        set_a_pattern: str = "task_{xx}_set_A",
+        set_b_pattern: str = "task_{xx}_set_B",
+    ):
         """
         Initialize the pipeline.
 
         Args:
-            images_dir: Directory containing PNG image files
+            cvat_root: Root directory of the ``cvat_dataset_preannotated`` export
             output_dir: Base directory for all pipeline outputs
-            strict: If True, require all images to have annotations (default: False)
+            strict: If True, treat conversion failures as fatal (default: False)
+            set_a_pattern: Glob-style pattern identifying ground-truth task XMLs
+            set_b_pattern: Glob-style pattern identifying prediction task XMLs
         """
-        self.images_dir = Path(images_dir)
+        self.cvat_root = Path(cvat_root)
         self.output_dir = Path(output_dir)
         self.strict = strict
+        self.set_a_pattern = set_a_pattern
+        self.set_b_pattern = set_b_pattern
+        self._folder_cache: Dict[str, CVATFolderStructure] = {}
 
         # Create subdirectories
         self.gt_json_dir = self.output_dir / "ground_truth_json"
@@ -64,153 +83,150 @@ class CVATEvaluationPipeline:
         self.gt_dataset_dir = self.output_dir / "gt_dataset"
         self.eval_dataset_dir = self.output_dir / "eval_dataset"
         self.evaluation_results_dir = self.output_dir / "evaluation_results"
+        self._intermediate_dir = self.output_dir / "intermediate"
 
         # Ensure output directory exists
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-    def _find_image_files(self) -> List[Path]:
-        """Find all PNG image files recursively in the images directory."""
-        image_extensions = ["*.png", "*.PNG"]
-        image_files = []
+    def _load_folder_structure(self, xml_pattern: str) -> CVATFolderStructure:
+        """Load and cache the CVAT folder structure for the provided pattern."""
 
-        for ext in image_extensions:
-            image_files.extend(sorted(self.images_dir.rglob(ext)))
+        if xml_pattern in self._folder_cache:
+            return self._folder_cache[xml_pattern]
 
-        if not image_files:
-            raise ValueError(f"No PNG files found recursively in {self.images_dir}")
+        folder_structure = parse_cvat_folder(self.cvat_root, xml_pattern)
+        self._folder_cache[xml_pattern] = folder_structure
+        return folder_structure
 
-        _log.info(f"Found {len(image_files)} image files (searched recursively)")
-        return image_files
+    def _iterate_pages(
+        self,
+        folder_structure: CVATFolderStructure,
+    ) -> Iterable[CVATPageInfo]:
+        """Yield every page recorded in ``folder_structure``."""
 
-    def _convert_cvat_to_json(
-        self, cvat_xml_path: Path, output_json_dir: Path, prefix: str = ""
+        for document in folder_structure.documents.values():
+            for page_info in document.pages:
+                yield page_info
+
+    def _convert_cvat_set_to_json(
+        self,
+        xml_pattern: str,
+        output_json_dir: Path,
     ) -> List[Path]:
-        """
-        Convert CVAT XML annotations to DoclingDocument JSON format.
+        """Convert all pages matching ``xml_pattern`` into Docling JSON files."""
 
-        Args:
-            cvat_xml_path: Path to CVAT XML annotation file
-            output_json_dir: Directory to save JSON outputs
-            prefix: Optional prefix for output filenames
-
-        Returns:
-            List of created JSON file paths
-        """
         output_json_dir.mkdir(parents=True, exist_ok=True)
-        json_files = []
+
+        folder_structure = self._load_folder_structure(xml_pattern)
+        pages: List[CVATPageInfo] = sorted(
+            self._iterate_pages(folder_structure),
+            key=lambda page: (page.doc_hash, page.page_number, page.image_filename),
+        )
+
+        if not pages:
+            raise ValueError(
+                f"No annotated pages found using pattern '{xml_pattern}' in {self.cvat_root}"
+            )
 
         if self.strict:
-            _log.info("Running in STRICT mode: all images must have annotations")
-        else:
-            _log.info("Running in NORMAL mode: partial annotation batches allowed")
-
-        # Get all images available in the directory
-        image_files = self._find_image_files()
-
-        # Get all images that have annotations in the CVAT XML
-        try:
-            annotated_images = set(get_all_images_from_cvat_xml(cvat_xml_path))
-        except Exception as e:
-            _log.error(f"Failed to read CVAT XML {cvat_xml_path}: {e}")
-            return []
-
-        # Filter to only process images that have annotations (unless in strict mode)
-        if self.strict:
-            # In strict mode, require all images to have annotations
-            missing_images = [
-                img.name for img in image_files if img.name not in annotated_images
-            ]
-            if missing_images:
-                _log.error(
-                    f"Strict mode: Found {len(missing_images)} images without annotations in {cvat_xml_path.name}"
-                )
-                _log.error(
-                    f"Missing annotations for: {', '.join(missing_images[:10])}"
-                    + ("..." if len(missing_images) > 10 else "")
-                )
-                raise ValueError(
-                    f"Strict mode enabled: {len(missing_images)} images lack annotations in {cvat_xml_path.name}"
-                )
-            images_to_process = image_files
             _log.info(
-                f"Strict mode: All {len(image_files)} image files have annotations in {cvat_xml_path.name}"
+                "Running in STRICT mode: conversion failures will abort the pipeline"
             )
         else:
-            # Normal mode: allow partial annotation batches
-            images_to_process = [
-                img for img in image_files if img.name in annotated_images
-            ]
-            skipped_count = len(image_files) - len(images_to_process)
-
             _log.info(
-                f"Found {len(image_files)} image files, {len(images_to_process)} have annotations in {cvat_xml_path.name}"
+                "Running in NORMAL mode: conversion failures will be logged and skipped"
             )
-            if skipped_count > 0:
-                _log.info(
-                    f"Skipping {skipped_count} images without annotations (expected for partial annotation batches)"
-                )
 
-        for image_path in images_to_process:
+        json_files: List[Path] = []
+        failed_pages: List[str] = []
+
+        for page in pages:
+            image_path = page.image_path
+            xml_path = page.xml_path
+
             _log.info(
-                f"Converting {image_path.name} with annotations from {cvat_xml_path.name}"
+                "Converting %s from task XML %s",
+                image_path.name,
+                xml_path.name,
             )
 
             try:
-                # Convert CVAT to DoclingDocument
-                doc = convert_cvat_to_docling(cvat_xml_path, image_path)
-
-                if doc is not None:
-                    # Create output filename
-                    base_name = image_path.stem
-                    if prefix:
-                        output_name = f"{prefix}_{base_name}.json"
-                    else:
-                        output_name = f"{base_name}.json"
-
-                    json_path = output_json_dir / output_name
-
-                    # Save as JSON
-                    doc.save_as_json(json_path)
-                    json_files.append(json_path)
-                    _log.info(f"\u2713 Saved DoclingDocument JSON to: {json_path}")
-                else:
-                    _log.warning(f"\u26a0 Failed to convert {image_path.name}")
-
+                document = convert_cvat_to_docling(xml_path, image_path)
             except MissingImageInCVATXML:
+                message = f"Image {image_path.name} not present in {xml_path.name}."
                 if self.strict:
-                    # In strict mode, this is a fatal error
-                    _log.error(
-                        f"Strict mode: Image {image_path.name} not found in {cvat_xml_path.name}"
-                    )
-                    raise
-                else:
-                    # In normal mode, this should be unexpected due to pre-filtering
-                    _log.error(
-                        f"Unexpected: Image {image_path.name} was pre-filtered but not found in {cvat_xml_path.name}. "
-                        "This suggests an issue with the filtering logic."
-                    )
-                    continue
-            except ValueError as ve:
-                _log.error(f"\u2717 Error processing {image_path.name}: {ve}")
+                    raise ValueError(message) from None
+                _log.error(message)
+                failed_pages.append(image_path.name)
                 continue
-            except Exception as e:
-                _log.error(f"\u2717 Error processing {image_path.name}: {e}")
+            except Exception as exc:  # pragma: no cover - defensive logging
+                if self.strict:
+                    raise
+                _log.error("Conversion failed for %s: %s", image_path.name, exc)
+                failed_pages.append(image_path.name)
                 continue
 
-        _log.info(f"Converted {len(json_files)} files to JSON format")
+            if document is None:
+                message = f"Conversion returned None for {image_path.name}"
+                if self.strict:
+                    raise ValueError(message)
+                _log.warning(message)
+                failed_pages.append(image_path.name)
+                continue
+
+            json_path = output_json_dir / f"{image_path.stem}.json"
+            document.save_as_json(json_path)
+            json_files.append(json_path)
+            _log.info("✓ Saved Docling JSON to %s", json_path)
+
+        if failed_pages:
+            _log.warning(
+                "Skipped %d page(s) due to conversion issues: %s",
+                len(failed_pages),
+                ", ".join(sorted(failed_pages)[:5])
+                + ("..." if len(failed_pages) > 5 else ""),
+            )
+
+        if self.strict and failed_pages:
+            raise ValueError("Strict mode enabled: conversion errors were encountered.")
+
+        _log.info("Converted %d/%d page(s) to JSON format", len(json_files), len(pages))
         return json_files
 
-    def create_ground_truth_dataset(self, gt_cvat_xml: Path) -> None:
-        """
-        Step 1: Create ground truth dataset from CVAT XML.
+    def _merge_task_xmls(self, xml_pattern: str, destination: Path) -> Path:
+        """Merge all CVAT task XMLs for ``xml_pattern`` into a single file."""
 
-        Args:
-            gt_cvat_xml: Path to ground truth CVAT XML file
+        xml_files = find_xml_files_by_pattern(self.cvat_root, xml_pattern)
+        if not xml_files:
+            raise ValueError(
+                f"No XML files matching pattern '{xml_pattern}' found in {self.cvat_root / 'cvat_tasks'}"
+            )
+
+        _log.info(
+            "Merging %d CVAT task XMLs matching '%s'", len(xml_files), xml_pattern
+        )
+
+        image_elements = extract_image_tags(xml_files)
+        if not image_elements:
+            raise ValueError(
+                f"No annotated images discovered while merging pattern '{xml_pattern}'"
+            )
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        create_merged_annotation_xml(image_elements, destination)
+        _log.info("✓ Generated merged annotations at %s", destination)
+        return destination
+
+    def create_ground_truth_dataset(self) -> None:
+        """
+        Step 1: Create ground truth dataset from CVAT folder exports.
         """
         _log.info("=== Creating Ground Truth Dataset ===")
 
         # Convert CVAT XML to JSON
-        gt_json_files = self._convert_cvat_to_json(gt_cvat_xml, self.gt_json_dir)
+        gt_json_files = self._convert_cvat_set_to_json(
+            self.set_a_pattern, self.gt_json_dir
+        )
 
         if not gt_json_files:
             raise ValueError("No ground truth JSON files were created")
@@ -227,12 +243,9 @@ class CVATEvaluationPipeline:
         dataset_builder.save_to_disk(chunk_size=50, do_visualization=True)
         _log.info(f"✓ Ground truth dataset created: {self.gt_dataset_dir}")
 
-    def create_prediction_dataset(self, pred_cvat_xml: Path) -> None:
+    def create_prediction_dataset(self) -> None:
         """
-        Step 2: Create prediction dataset from CVAT XML using the ground truth dataset.
-
-        Args:
-            pred_cvat_xml: Path to prediction CVAT XML file
+        Step 2: Create prediction dataset from CVAT folder exports using the ground truth dataset.
         """
         _log.info("=== Creating Prediction Dataset ===")
 
@@ -243,7 +256,9 @@ class CVATEvaluationPipeline:
             )
 
         # Convert prediction CVAT XML to JSON
-        pred_json_files = self._convert_cvat_to_json(pred_cvat_xml, self.pred_json_dir)
+        pred_json_files = self._convert_cvat_set_to_json(
+            self.set_b_pattern, self.pred_json_dir
+        )
 
         if not pred_json_files:
             raise ValueError("No prediction JSON files were created")
@@ -269,15 +284,13 @@ class CVATEvaluationPipeline:
 
     def run_table_evaluation(
         self,
-        gt_cvat_xml: Path,
-        pred_cvat_xml: Path,
         out_json: Optional[Path] = None,
         containment_thresh: float = 0.50,
         table_pair_iou: float = 0.20,
         sem_match_iou: float = 0.30,
     ) -> Path:
         """
-        Run the table structure/semantics evaluation directly on the two CVAT XMLs.
+        Run the table structure/semantics evaluation using merged CVAT task XMLs.
 
         Writes a JSON file (default: evaluation_results/evaluation_CVAT_tables.json) and returns its path.
         """
@@ -288,9 +301,16 @@ class CVATEvaluationPipeline:
 
         self.evaluation_results_dir.mkdir(parents=True, exist_ok=True)
 
+        merged_dir = self._intermediate_dir / "merged_xml"
+        gt_merged = merged_dir / "combined_set_A.xml"
+        pred_merged = merged_dir / "combined_set_B.xml"
+
+        gt_xml = self._merge_task_xmls(self.set_a_pattern, gt_merged)
+        pred_xml = self._merge_task_xmls(self.set_b_pattern, pred_merged)
+
         result = evaluate_tables(
-            set_a=gt_cvat_xml,
-            set_b=pred_cvat_xml,
+            set_a=gt_xml,
+            set_b=pred_xml,
             containment_thresh=containment_thresh,
             table_pair_iou=table_pair_iou,
             sem_match_iou=sem_match_iou,
@@ -392,8 +412,6 @@ class CVATEvaluationPipeline:
 
     def run_full_pipeline(
         self,
-        gt_cvat_xml: Path,
-        pred_cvat_xml: Path,
         modalities: Optional[List[str]] = None,
         user_csv: Optional[Path] = None,
     ) -> None:
@@ -401,18 +419,15 @@ class CVATEvaluationPipeline:
         Run the complete pipeline: create datasets, run evaluation, and combine results.
 
         Args:
-            gt_cvat_xml: Path to ground truth CVAT XML file
-            pred_cvat_xml: Path to prediction CVAT XML file
             modalities: List of evaluation modalities to run
             user_csv: Path to user CSV file for provenance/self-confidence
-            combined_out: Output file for combined evaluation (defaults to output_dir/combined_evaluation.xlsx)
         """
         _log.info("=== Running Full CVAT Evaluation Pipeline ===")
 
         try:
-            self.create_ground_truth_dataset(gt_cvat_xml)
-            self.create_prediction_dataset(pred_cvat_xml)
-            self.run_table_evaluation(gt_cvat_xml, pred_cvat_xml)
+            self.create_ground_truth_dataset()
+            self.create_prediction_dataset()
+            self.run_table_evaluation()
             self.run_evaluation(modalities, user_csv)
 
             # Combine results if user_csv is provided
@@ -451,7 +466,9 @@ def main():
     )
 
     parser.add_argument(
-        "images_dir", type=Path, help="Directory containing PNG image files"
+        "cvat_root",
+        type=Path,
+        help="Path to the cvat_dataset_preannotated root directory",
     )
 
     parser.add_argument(
@@ -459,11 +476,17 @@ def main():
     )
 
     parser.add_argument(
-        "--gt-xml", type=Path, help="Path to ground truth CVAT XML file"
+        "--set-a-pattern",
+        type=str,
+        default="task_{xx}_set_A",
+        help="Pattern used to locate ground-truth task XMLs (default: task_{xx}_set_A)",
     )
 
     parser.add_argument(
-        "--pred-xml", type=Path, help="Path to prediction CVAT XML file"
+        "--set-b-pattern",
+        type=str,
+        default="task_{xx}_set_B",
+        help="Pattern used to locate prediction task XMLs (default: task_{xx}_set_B)",
     )
 
     parser.add_argument(
@@ -495,7 +518,7 @@ def main():
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Strict mode: require all images to have annotations in XML files (default: allow partial annotation batches)",
+        help="Strict mode: abort if any conversion fails (default: log and continue)",
     )
 
     args = parser.parse_args()
@@ -503,60 +526,40 @@ def main():
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # Validate inputs
-    if not args.images_dir.exists():
-        _log.error(f"Images directory does not exist: {args.images_dir}")
+    if not args.cvat_root.exists():
+        _log.error(f"CVAT root directory does not exist: {args.cvat_root}")
         sys.exit(1)
 
-    # Initialize pipeline
+    if not args.cvat_root.is_dir():
+        _log.error(f"CVAT root path is not a directory: {args.cvat_root}")
+        sys.exit(1)
+
+    overview_path = args.cvat_root / "cvat_overview.json"
+    if not overview_path.exists():
+        _log.error(
+            "cvat_overview.json not found in %s. Please point to a cvat_dataset_preannotated root.",
+            args.cvat_root,
+        )
+        sys.exit(1)
+
     pipeline = CVATEvaluationPipeline(
-        args.images_dir, args.output_dir, strict=args.strict
+        cvat_root=args.cvat_root,
+        output_dir=args.output_dir,
+        strict=args.strict,
+        set_a_pattern=args.set_a_pattern,
+        set_b_pattern=args.set_b_pattern,
     )
 
     if args.step == "gt":
-        if not args.gt_xml:
-            _log.error("--gt-xml is required for ground truth step")
-            sys.exit(1)
-        if not args.gt_xml.exists():
-            _log.error(f"Ground truth XML file does not exist: {args.gt_xml}")
-            sys.exit(1)
-        pipeline.create_ground_truth_dataset(args.gt_xml)
-
+        pipeline.create_ground_truth_dataset()
     elif args.step == "pred":
-        if not args.pred_xml:
-            _log.error("--pred-xml is required for prediction step")
-            sys.exit(1)
-        if not args.pred_xml.exists():
-            _log.error(f"Prediction XML file does not exist: {args.pred_xml}")
-            sys.exit(1)
-        pipeline.create_prediction_dataset(args.pred_xml)
+        pipeline.create_prediction_dataset()
     elif args.step == "tables":
-        if not args.gt_xml or not args.pred_xml:
-            _log.error("Both --gt-xml and --pred-xml are required for tables step")
-            sys.exit(1)
-        if not args.gt_xml.exists():
-            _log.error(f"Ground truth XML file does not exist: {args.gt_xml}")
-            sys.exit(1)
-        if not args.pred_xml.exists():
-            _log.error(f"Prediction XML file does not exist: {args.pred_xml}")
-            sys.exit(1)
-        pipeline.run_table_evaluation(args.gt_xml, args.pred_xml)
+        pipeline.run_table_evaluation()
     elif args.step == "eval":
         pipeline.run_evaluation(args.modalities, user_csv=args.user_csv)
-
     elif args.step == "full":
-        if not args.gt_xml or not args.pred_xml:
-            _log.error("Both --gt-xml and --pred-xml are required for full pipeline")
-            sys.exit(1)
-        if not args.gt_xml.exists():
-            _log.error(f"Ground truth XML file does not exist: {args.gt_xml}")
-            sys.exit(1)
-        if not args.pred_xml.exists():
-            _log.error(f"Prediction XML file does not exist: {args.pred_xml}")
-            sys.exit(1)
-        pipeline.run_full_pipeline(
-            args.gt_xml, args.pred_xml, args.modalities, user_csv=args.user_csv
-        )
+        pipeline.run_full_pipeline(args.modalities, user_csv=args.user_csv)
 
 
 if __name__ == "__main__":

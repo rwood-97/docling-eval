@@ -1,11 +1,13 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, List, Optional, Set, Type
 
 from docling_core.types.doc.document import ContentLayer
 
 from .document import DocumentStructure
+from .folder_models import CVATDocument
 from .models import (
     CVATElement,
     CVATValidationError,
@@ -13,6 +15,7 @@ from .models import (
     ValidationSeverity,
 )
 from .path_mappings import validate_caption_footnote_paths
+from .tree import find_ancestor
 from .utils import DEFAULT_PROXIMITY_THRESHOLD, find_elements_containing_point
 
 logger = logging.getLogger("docling_eval.cvat_tools.validator")
@@ -119,14 +122,10 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
         if not node:
             return False
 
-        # Walk up the containment tree to check if any ancestor is a table
-        current = node.parent
-        while current:
-            if current.element.label == "table":
-                return True
-            current = current.parent
-
-        return False
+        return (
+            find_ancestor(node, lambda ancestor: ancestor.element.label == "table")
+            is not None
+        )
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
         errors: list[CVATValidationError] = []
@@ -535,3 +534,54 @@ class Validator:
             errors.extend(rule.validate(doc))
 
         return CVATValidationReport(sample_name=sample_name, errors=errors)
+
+
+@dataclass
+class ValidatedSample:
+    """DocumentStructure paired with its validation report."""
+
+    sample_name: str
+    structure: DocumentStructure
+    report: CVATValidationReport
+
+
+def validate_cvat_sample(
+    xml_path: Path,
+    image_filename: str,
+    *,
+    validator: Optional[Validator] = None,
+    proximity_thresh: float = DEFAULT_PROXIMITY_THRESHOLD,
+) -> ValidatedSample:
+    """Load a CVAT sample, build its structure, and validate it."""
+
+    structure = DocumentStructure.from_cvat_xml(
+        xml_path, image_filename, proximity_thresh
+    )
+    active_validator = validator if validator is not None else Validator()
+    report = active_validator.validate_sample(image_filename, structure)
+    return ValidatedSample(
+        sample_name=image_filename, structure=structure, report=report
+    )
+
+
+def validate_cvat_document(
+    cvat_document: CVATDocument,
+    *,
+    validator: Optional[Validator] = None,
+    proximity_thresh: float = DEFAULT_PROXIMITY_THRESHOLD,
+) -> Dict[str, ValidatedSample]:
+    """Validate each page contained in ``cvat_document``."""
+
+    active_validator = validator if validator is not None else Validator()
+    results: Dict[str, ValidatedSample] = {}
+
+    for page_info in sorted(cvat_document.pages, key=lambda page: page.page_number):
+        sample = validate_cvat_sample(
+            page_info.xml_path,
+            page_info.image_filename,
+            validator=active_validator,
+            proximity_thresh=proximity_thresh,
+        )
+        results[page_info.image_filename] = sample
+
+    return results
