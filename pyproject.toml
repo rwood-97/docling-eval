@@ -54,6 +54,7 @@ dependencies = [
     "scipy>=1.15.3",
     "scipy-stubs>=1.15.3.0",
     "editdistance>=0.8.1",
+    "tenacity>=9.1.2",
 ]
 
 [project.urls]

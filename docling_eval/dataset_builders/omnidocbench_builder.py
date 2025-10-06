@@ -96,6 +96,7 @@ class OmniDocBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
         split: str = "test",
         begin_index: int = 0,
         end_index: int = -1,
+        max_workers: int = 8,
     ):
         """
         Initialize the OmniDocBench dataset builder.
@@ -108,7 +109,11 @@ class OmniDocBenchDatasetBuilder(BaseEvaluationDatasetBuilder):
         """
         super().__init__(
             name="OmniDocBench: end-to-end",
-            dataset_source=HFSource(repo_id="opendatalab/OmniDocBench"),
+            dataset_source=HFSource(
+                repo_id="opendatalab/OmniDocBench",
+                max_workers=max_workers,
+                revision="v1_0",
+            ),
             target=target,
             split=split,
             begin_index=begin_index,
