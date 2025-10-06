@@ -6,8 +6,9 @@ reading order processing and ancestor searching.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
+from typing import Callable, Dict, Iterable, Iterator, List, Optional, Set
 
+from .geometry import bbox_fraction_inside
 from .models import CVATAnnotationPath, CVATElement
 
 
@@ -32,17 +33,59 @@ class TreeNode:
         return ids
 
 
-def contains(parent: CVATElement, child: CVATElement, iou_thresh: float = 0.7) -> bool:
-    """Check if parent element contains child element based on IOU threshold.
+def iter_tree_nodes(roots: Iterable["TreeNode"]) -> Iterator["TreeNode"]:
+    """Yield all nodes contained in ``roots`` using depth-first traversal."""
 
-    Only larger elements can contain smaller ones to prevent circular dependencies.
-    """
-    # Only larger elements can contain smaller ones
+    stack = list(roots)
+    while stack:
+        node = stack.pop()
+        yield node
+        stack.extend(reversed(node.children))
+
+
+def iter_ancestors(
+    node: "TreeNode", include_self: bool = False
+) -> Iterator["TreeNode"]:
+    """Yield ancestors for ``node`` starting from its parent."""
+
+    current = node if include_self else node.parent
+    while current is not None:
+        yield current
+        current = current.parent
+
+
+def get_ancestors(node: "TreeNode") -> List["TreeNode"]:
+    """Return a list of ancestors from closest to root."""
+
+    return list(iter_ancestors(node))
+
+
+def find_ancestor(
+    node: "TreeNode", predicate: Callable[["TreeNode"], bool]
+) -> Optional["TreeNode"]:
+    """Return the first ancestor matching ``predicate`` or ``None``."""
+
+    for ancestor in iter_ancestors(node):
+        if predicate(ancestor):
+            return ancestor
+    return None
+
+
+def index_tree_by_element_id(
+    roots: Iterable["TreeNode"],
+) -> Dict[int, "TreeNode"]:
+    """Map every element identifier to its ``TreeNode``."""
+
+    return {node.element.id: node for node in iter_tree_nodes(roots)}
+
+
+def contains(parent: CVATElement, child: CVATElement, iou_thresh: float = 0.7) -> bool:
+    """Check if parent element contains child element based on IoU threshold."""
+
     if parent.bbox.area() <= child.bbox.area():
         return False
 
-    intersection = parent.bbox.intersection_area_with(child.bbox)
-    return intersection / (child.bbox.area() + 1e-6) > iou_thresh
+    return bbox_fraction_inside(child.bbox, parent.bbox) > iou_thresh
 
 
 def build_containment_tree(elements: List[CVATElement]) -> List[TreeNode]:
@@ -83,15 +126,6 @@ def find_node_by_element_id(
     return None
 
 
-def get_ancestors(node: TreeNode) -> List[TreeNode]:
-    """Return a list of ancestors from closest to root."""
-    ancestors = []
-    while node.parent:
-        node = node.parent
-        ancestors.append(node)
-    return ancestors
-
-
 def closest_common_ancestor(nodes: List[TreeNode]) -> Optional[TreeNode]:
     """Find the closest common ancestor of a list of nodes."""
     if not nodes:
@@ -123,16 +157,7 @@ def apply_reading_order_to_tree(
     if not tree_roots or not global_order:
         return tree_roots[:]
 
-    def collect_all_nodes(roots: List[TreeNode]) -> List[TreeNode]:
-        stack = list(roots)
-        all_nodes = []
-        while stack:
-            node = stack.pop()
-            all_nodes.append(node)
-            stack.extend(node.children)
-        return all_nodes
-
-    id_to_node = {node.element.id: node for node in collect_all_nodes(tree_roots)}
+    id_to_node = {node.element.id: node for node in iter_tree_nodes(tree_roots)}
 
     # First, reorder the tree roots themselves
     ordered_roots = []
