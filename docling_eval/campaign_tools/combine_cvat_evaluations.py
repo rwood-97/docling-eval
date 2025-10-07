@@ -32,11 +32,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from typing import Final, Optional
 
 import pandas as pd
 from xlsxwriter.utility import xl_range
+
+from docling_eval.datamodels.cvat_page_mapping import CvatPageMapping
 
 
 def _to_doc_id(path_like: str) -> str:
@@ -47,7 +50,86 @@ def _to_doc_id(path_like: str) -> str:
     return stem
 
 
-def load_tables(json_path: Path) -> pd.DataFrame:
+def _enrich_with_mapping(
+    df: pd.DataFrame,
+    mapping: Optional[CvatPageMapping],
+    *,
+    image_column: str = "image_name",
+) -> pd.DataFrame:
+    if image_column not in df.columns:
+        return df
+
+    if {"doc_name", "page_no", image_column}.issubset(df.columns):
+        return df
+
+    enriched = df.copy()
+    original_values = enriched[image_column].astype(str).tolist()
+
+    pattern = re.compile(
+        r"^(?P<doc>.+?)[\s_-]*page[\s_-]*(?P<page>\d+)$", re.IGNORECASE
+    )
+    hash_pattern = re.compile(
+        r"^doc_(?P<hash>[0-9a-f]{64})_page_(?P<page>\d{6})(?:\.png)?$",
+        re.IGNORECASE,
+    )
+
+    doc_names: list[str] = []
+    page_nos: list[Optional[int]] = []
+    resolved_image_names: list[str] = []
+
+    for raw_value in original_values:
+        candidate_doc: Optional[str] = None
+        candidate_page: Optional[int] = None
+        candidate_hash: Optional[str] = None
+
+        match = pattern.match(raw_value)
+        if match:
+            candidate_doc = match.group("doc").strip()
+            candidate_page = int(match.group("page"))
+
+        hash_match = hash_pattern.match(raw_value)
+        if hash_match:
+            candidate_hash = hash_match.group("hash")
+            candidate_page = int(hash_match.group("page"))
+
+        ref = None
+        if mapping is not None:
+            ref = mapping.page_for_image(raw_value)
+            if (
+                ref is None
+                and candidate_hash is not None
+                and candidate_page is not None
+            ):
+                for page_ref in mapping.pages_for_doc_hash(candidate_hash):
+                    if page_ref.page_no == candidate_page:
+                        ref = page_ref
+                        break
+
+            if ref is None and candidate_doc is not None and candidate_page is not None:
+                for page_ref in mapping.pages_for_doc_name(candidate_doc):
+                    if page_ref.page_no == candidate_page:
+                        ref = page_ref
+                        break
+
+        if ref is not None:
+            doc_names.append(ref.doc_name)
+            page_nos.append(ref.page_no)
+            resolved_image_names.append(ref.image_name)
+        else:
+            fallback_doc = candidate_doc or _to_doc_id(raw_value)
+            doc_names.append(fallback_doc)
+            page_nos.append(candidate_page)
+            resolved_image_names.append(raw_value)
+
+    enriched["doc_name"] = doc_names
+    enriched["page_no"] = page_nos
+    enriched[image_column] = resolved_image_names
+    return enriched
+
+
+def load_tables(
+    json_path: Path, mapping: Optional[CvatPageMapping] = None
+) -> pd.DataFrame:
     """Load evaluation_CVAT_tables.json and return a DataFrame."""
     with open(json_path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
@@ -56,12 +138,15 @@ def load_tables(json_path: Path) -> pd.DataFrame:
             "The supplied tables evaluation JSON does not contain the 'evaluations' field."
         )
     df = pd.DataFrame(data["evaluations"])
-    # The evaluator writes consistent doc_id (image stem). No further mapping needed.
-    df["doc_id"] = df["doc_id"].astype(str)
-    return df
+    if "image_name" not in df.columns and "doc_id" in df.columns:
+        df = df.rename(columns={"doc_id": "image_name"})
+    df["image_name"] = df["image_name"].astype(str)
+    return _enrich_with_mapping(df, mapping)
 
 
-def load_layout(json_path: Path) -> pd.DataFrame:
+def load_layout(
+    json_path: Path, mapping: Optional[CvatPageMapping] = None
+) -> pd.DataFrame:
     """Load *evaluation_CVAT_layout.json* and return a DataFrame."""
     with open(json_path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
@@ -78,7 +163,6 @@ def load_layout(json_path: Path) -> pd.DataFrame:
     # A handful of convenient renames for readability
     df = df.rename(
         columns={
-            "name": "image_name",  # original filename / doc identifier
             "true_element_count": "element_count_set_A",
             "pred_element_count": "element_count_set_B",
             "true_table_count": "table_count_set_A",
@@ -90,13 +174,20 @@ def load_layout(json_path: Path) -> pd.DataFrame:
         }
     )
 
-    # Build merge key
-    df["doc_id"] = df["image_name"].map(_to_doc_id)
+    if "name" in df.columns:
+        if "image_name" in df.columns:
+            df = df.drop(columns=["name"])
+        else:
+            df = df.rename(columns={"name": "image_name"})
 
+    # Build merge key
+    df = _enrich_with_mapping(df, mapping)
     return df
 
 
-def load_doc_structure(json_path: Path) -> pd.DataFrame:
+def load_doc_structure(
+    json_path: Path, mapping: Optional[CvatPageMapping] = None
+) -> tuple[pd.DataFrame, Optional[pd.DataFrame]]:
     """Load *evaluation_CVAT_document_structure.json* and return a DataFrame."""
     with open(json_path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
@@ -110,16 +201,31 @@ def load_doc_structure(json_path: Path) -> pd.DataFrame:
     df = pd.DataFrame(data["evaluations"])
     df = df.rename(
         columns={
-            "doc_id": "image_name",  # keep a consistent identifier column
+            "doc_id": "doc_name",
             "edit_distance": "edit_distance_struct",  # be explicit
         }
     )
-    df["doc_id"] = df["image_name"].map(_to_doc_id)
+    per_page_df: Optional[pd.DataFrame] = None
+    if "evaluations_per_page" in data:
+        per_page_data = data["evaluations_per_page"]
+        if isinstance(per_page_data, list) and per_page_data:
+            per_page_df = pd.DataFrame(per_page_data)
+            if (
+                "image_name" not in per_page_df.columns
+                and "doc_id" in per_page_df.columns
+            ):
+                per_page_df = per_page_df.rename(columns={"doc_id": "doc_name"})
+            per_page_df = per_page_df.rename(
+                columns={"edit_distance": "edit_distance_struct_page"}
+            )
+            per_page_df = _enrich_with_mapping(per_page_df, mapping)
 
-    return df
+    return df, per_page_df
 
 
-def load_key_value(json_path: Path) -> pd.DataFrame:
+def load_key_value(
+    json_path: Path, mapping: Optional[CvatPageMapping] = None
+) -> tuple[pd.DataFrame, Optional[pd.DataFrame]]:
     """Load *evaluation_CVAT_key_value.json* and return a DataFrame."""
     with open(json_path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
@@ -137,11 +243,37 @@ def load_key_value(json_path: Path) -> pd.DataFrame:
         evaluations_list.append(eval_data)
 
     df = pd.DataFrame(evaluations_list)
+    df = df.rename(columns={"doc_id": "doc_name"})
 
-    return df
+    per_page_df: Optional[pd.DataFrame] = None
+    if "evaluations_per_page" in data:
+        per_page_data = data["evaluations_per_page"]
+        if isinstance(per_page_data, list) and per_page_data:
+            per_page_df = pd.DataFrame(per_page_data)
+            if (
+                "image_name" not in per_page_df.columns
+                and "doc_id" in per_page_df.columns
+            ):
+                per_page_df = per_page_df.rename(columns={"doc_id": "doc_name"})
+            rename_map = {
+                col: f"{col}_page"
+                for col in per_page_df.columns
+                if col
+                not in {
+                    "doc_name",
+                    "image_name",
+                    "page_no",
+                }
+            }
+            per_page_df = per_page_df.rename(columns=rename_map)
+            per_page_df = _enrich_with_mapping(per_page_df, mapping)
+
+    return df, per_page_df
 
 
-def load_user_table(csv_path: Path) -> pd.DataFrame:
+def load_user_table(
+    csv_path: Path, mapping: Optional[CvatPageMapping] = None
+) -> pd.DataFrame:
     """Load *file_name_user_id.csv* (staff provenance) and return a DataFrame."""
     df = pd.read_csv(csv_path)
 
@@ -160,79 +292,129 @@ def load_user_table(csv_path: Path) -> pd.DataFrame:
         }
     )
 
-    df["doc_id"] = df["image_name"].map(_to_doc_id)
-
+    df = _enrich_with_mapping(df, mapping)
     return df
 
 
 def merge_tables(
     layout_df: pd.DataFrame,
     doc_df: pd.DataFrame,
+    doc_page_df: Optional[pd.DataFrame] = None,
     keyvalue_df: Optional[pd.DataFrame] = None,
+    keyvalue_page_df: Optional[pd.DataFrame] = None,
     user_df: Optional[pd.DataFrame] = None,
     tables_df: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
-    df = layout_df.merge(
-        doc_df[["doc_id", "edit_distance_struct"]], on="doc_id", how="outer"
-    )
+    df = layout_df.copy()
 
-    if keyvalue_df is not None:
-        df = df.merge(
-            keyvalue_df[
-                [
-                    "doc_id",
-                    "entity_f1",
-                    "relation_f1",
-                    "num_entity_diff",
-                    "num_entity_diff_normalized",
-                    "num_link_diff",
-                    "num_link_diff_normalized",
+    if doc_df is not None and not doc_df.empty:
+        doc_metrics = doc_df.copy()
+        doc_metrics = doc_metrics.drop(
+            columns=[
+                col
+                for col in [
+                    "image_name",
+                    "page_no",
                 ]
+                if col in doc_metrics.columns
             ],
-            on="doc_id",
+            errors="ignore",
+        )
+        df = df.merge(doc_metrics, on="doc_name", how="left")
+
+    if doc_page_df is not None and not doc_page_df.empty:
+        doc_page_metrics = doc_page_df.drop(
+            columns=[
+                col
+                for col in [
+                    "doc_name",
+                    "page_no",
+                ]
+                if col in doc_page_df.columns
+            ],
+            errors="ignore",
+        )
+        doc_page_metrics = doc_page_metrics.drop_duplicates(subset=["image_name"])
+        df = df.merge(
+            doc_page_metrics,
+            on="image_name",
             how="left",
         )
 
-    if tables_df is not None:
-        df = df.merge(
-            tables_df[
-                [
-                    "doc_id",
-                    "row_count_abs_diff_sum",
-                    "col_count_abs_diff_sum",
-                    "merge_count_abs_diff_sum",
-                    "sem_body_f1",
-                    "sem_row_section_f1",
-                    "sem_row_header_f1",
-                    "sem_col_header_f1",
-                    "tables_unmatched",
-                    "table_pairs",
-                    "orphan_table_annotation_A",
-                    "orphan_table_annotation_B",
+    if keyvalue_df is not None and not keyvalue_df.empty:
+        kv_doc_metrics = keyvalue_df.copy()
+        kv_doc_metrics = kv_doc_metrics.drop(
+            columns=[
+                col
+                for col in [
+                    "image_name",
+                    "page_no",
                 ]
+                if col in kv_doc_metrics.columns
             ],
-            on="doc_id",
+            errors="ignore",
+        )
+        df = df.merge(kv_doc_metrics, on="doc_name", how="left")
+
+    if keyvalue_page_df is not None and not keyvalue_page_df.empty:
+        kv_page_metrics = keyvalue_page_df.drop(
+            columns=[
+                col
+                for col in [
+                    "doc_name",
+                    "page_no",
+                ]
+                if col in keyvalue_page_df.columns
+            ],
+            errors="ignore",
+        )
+        kv_page_metrics = kv_page_metrics.drop_duplicates(subset=["image_name"])
+        df = df.merge(
+            kv_page_metrics,
+            on="image_name",
             how="left",
         )
 
-    if user_df is not None:
+    if tables_df is not None and not tables_df.empty:
+        table_metrics = tables_df.drop(
+            columns=[
+                col
+                for col in [
+                    "doc_name",
+                    "page_no",
+                ]
+                if col in tables_df.columns
+            ],
+            errors="ignore",
+        )
         df = df.merge(
-            user_df[["doc_id", "annotator_id", "self_confidence", "image_name"]],
-            on="doc_id",
+            table_metrics.drop_duplicates(subset=["image_name"]),
+            on="image_name",
+            how="left",
+        )
+
+    if user_df is not None and not user_df.empty:
+        df = df.merge(
+            user_df.drop_duplicates(subset=["image_name"])[
+                ["image_name", "annotator_id", "self_confidence"]
+            ],
+            on="image_name",
             how="left",
             suffixes=("", "_user"),
         )
         df["self_confidence"] = pd.to_numeric(df["self_confidence"], errors="coerce")
-        df["diff_self_confidence"] = df.groupby("doc_id")["self_confidence"].transform(
-            lambda x: x.max() - x.min()
-        )
+        df["diff_self_confidence"] = df.groupby("doc_name")[
+            "self_confidence"
+        ].transform(lambda x: x.max() - x.min())
 
     preferred_order = [
-        "doc_id",
+        "doc_name",
         "image_name",
+        "page_no",
         "avg_weighted_label_matched_iou_50",
         "segmentation_f1",
         "edit_distance_struct",
+        "edit_distance_struct_page",
         # table metrics (consolidated)
         "row_count_abs_diff_sum",
         "col_count_abs_diff_sum",
@@ -248,6 +430,8 @@ def merge_tables(
         # key-values & misc
         "entity_f1",
         "relation_f1",
+        "entity_f1_page",
+        "relation_f1_page",
         "map_val",
         "annotator_id",
         "self_confidence",
@@ -258,11 +442,14 @@ def merge_tables(
     df = df[ordered]
 
     filter_cols = [
-        "doc_id",
+        "doc_name",
+        "image_name",
+        "page_no",
         "segmentation_f1",
         "segmentation_f1_no_pictures",
         "avg_weighted_label_matched_iou_50",
         "edit_distance_struct",
+        "edit_distance_struct_page",
         # consolidated table metrics
         "row_count_abs_diff_sum",
         "col_count_abs_diff_sum",
@@ -278,6 +465,8 @@ def merge_tables(
         # key-values
         "entity_f1",
         "relation_f1",
+        "entity_f1_page",
+        "relation_f1_page",
         "num_entity_diff",
         "num_entity_diff_normalized",
         "num_link_diff",
@@ -405,6 +594,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Path to evaluation_CVAT_key_value.json",
     )
     p.add_argument(
+        "--tables_json",
+        type=Path,
+        default=None,
+        help="Path to evaluation_CVAT_tables.json (optional)",
+    )
+    p.add_argument(
         "--user_csv",
         type=Path,
         default=Path("file_name_user_id.csv"),
@@ -420,6 +615,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "    - other  → CSV)"
         ),
     )
+    p.add_argument(
+        "--cvat_overview_path",
+        type=Path,
+        default=None,
+        help="Path to cvat_overview.json for image/page mapping (optional)",
+    )
     return p
 
 
@@ -430,6 +631,7 @@ def combine_cvat_evaluations(
     user_csv: Optional[Path] = None,
     tables_json: Optional[Path] = None,
     out: Path = Path("combined_evaluation.xlsx"),
+    cvat_overview_path: Optional[Path] = None,
 ) -> pd.DataFrame:
     """
     Combine CVAT layout, document-structure, and key-value evaluation JSONs with the staff provenance CSV into a single spreadsheet.
@@ -444,18 +646,33 @@ def combine_cvat_evaluations(
     Returns:
         The combined DataFrame that was written to disk.
     """
-    layout_df = load_layout(layout_json)
-    doc_df = load_doc_structure(docstruct_json)
-    tables_df = load_tables(tables_json) if tables_json is not None else None
+    page_mapping: Optional[CvatPageMapping] = None
+    if cvat_overview_path is not None and cvat_overview_path.exists():
+        page_mapping = CvatPageMapping.from_overview_path(cvat_overview_path)
+
+    layout_df = load_layout(layout_json, page_mapping)
+    doc_df, doc_page_df = load_doc_structure(docstruct_json, page_mapping)
+    tables_df = (
+        load_tables(tables_json, page_mapping) if tables_json is not None else None
+    )
 
     keyvalue_df: Optional[pd.DataFrame] = None
+    keyvalue_page_df: Optional[pd.DataFrame] = None
     if keyvalue_json is not None:
-        keyvalue_df = load_key_value(keyvalue_json)
+        keyvalue_df, keyvalue_page_df = load_key_value(keyvalue_json, page_mapping)
     user_df: Optional[pd.DataFrame] = None
     if user_csv is not None:
-        user_df = load_user_table(user_csv)
+        user_df = load_user_table(user_csv, page_mapping)
 
-    combined_df = merge_tables(layout_df, doc_df, keyvalue_df, user_df, tables_df)
+    combined_df = merge_tables(
+        layout_df,
+        doc_df,
+        doc_page_df,
+        keyvalue_df,
+        keyvalue_page_df,
+        user_df,
+        tables_df,
+    )
 
     if out.suffix.lower() == ".xlsx":
         # combined_df.to_excel(out, index=False)
@@ -474,7 +691,9 @@ def main() -> None:
         docstruct_json=args.docstruct_json,
         keyvalue_json=args.keyvalue_json,
         user_csv=args.user_csv,
+        tables_json=args.tables_json,
         out=args.out,
+        cvat_overview_path=args.cvat_overview_path,
     )
 
 

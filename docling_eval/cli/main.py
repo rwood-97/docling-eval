@@ -569,19 +569,9 @@ def evaluate(
     idir: Path,
     odir: Path,
     split: str = "test",
+    cvat_overview_path: Optional[Path] = None,
 ) -> Optional[DatasetEvaluationType]:
-    """
-    Evaluate predictions against ground truth.
-
-    Args:
-        modality: Evaluation modality
-        benchmark: Benchmark name
-        idir: Input directory with dataset
-        odir: Output directory for results
-        split: Dataset split
-        begin_index: Begin index
-        end_index: End index
-    """
+    """Evaluate predictions against ground truth."""
     if not os.path.exists(idir):
         _log.error(f"Benchmark directory not found: {idir}")
         return None
@@ -609,6 +599,7 @@ def evaluate(
         layout_evaluator = LayoutEvaluator(
             # missing_prediction_strategy=MissingPredictionStrategy.PENALIZE,
             # label_filtering_strategy=LabelFilteringStrategy.INTERSECTION,
+            page_mapping_path=cvat_overview_path,
         )
         evaluation = layout_evaluator(  # type: ignore
             idir,
@@ -629,7 +620,9 @@ def evaluate(
             json.dump(evaluation.model_dump(), fd, indent=2, sort_keys=True)
 
     elif modality == EvaluationModality.DOCUMENT_STRUCTURE:
-        doc_struct_evaluator = DocStructureEvaluator()
+        doc_struct_evaluator = DocStructureEvaluator(
+            page_mapping_path=cvat_overview_path
+        )
         evaluation = doc_struct_evaluator(  # type: ignore
             idir,
             split=split,
@@ -696,7 +689,7 @@ def evaluate(
             )
 
     elif modality == EvaluationModality.KEY_VALUE:
-        keyvalue_evaluator = KeyValueEvaluator()
+        keyvalue_evaluator = KeyValueEvaluator(page_mapping_path=cvat_overview_path)
         evaluation = keyvalue_evaluator(  # type: ignore
             idir,
             split=split,
