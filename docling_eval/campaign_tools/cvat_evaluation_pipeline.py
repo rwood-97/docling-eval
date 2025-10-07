@@ -335,6 +335,9 @@ class CVATEvaluationPipeline:
 
         self.evaluation_results_dir.mkdir(parents=True, exist_ok=True)
 
+        overview_path = self.cvat_root / "cvat_overview.json"
+        overview_for_eval = overview_path if overview_path.exists() else None
+
         for modality_name in modalities:
             _log.info(f"Running {modality_name} evaluation...")
 
@@ -356,6 +359,7 @@ class CVATEvaluationPipeline:
                     idir=self.eval_dataset_dir,
                     odir=self.evaluation_results_dir,
                     split="test",
+                    cvat_overview_path=overview_for_eval,
                 )
 
                 if evaluation_result:
@@ -395,6 +399,7 @@ class CVATEvaluationPipeline:
             user_csv=user_csv,
             tables_json=tables_json,
             out=combined_out,
+            cvat_overview_path=overview_for_eval,
         )
 
     def run_full_pipeline(
@@ -427,6 +432,8 @@ class CVATEvaluationPipeline:
                 self.evaluation_results_dir / "evaluation_CVAT_key_value.json"
             )
             tables_json = self.evaluation_results_dir / "evaluation_CVAT_tables.json"
+            overview_path = self.cvat_root / "cvat_overview.json"
+            overview_for_eval = overview_path if overview_path.exists() else None
 
             _log.info(f"Combining evaluation results to {combined_out}")
             combine_cvat_evaluations(
@@ -436,6 +443,7 @@ class CVATEvaluationPipeline:
                 user_csv=user_csv,
                 tables_json=tables_json,
                 out=combined_out,
+                cvat_overview_path=overview_for_eval,
             )
 
             _log.info("=== Pipeline completed successfully! ===")

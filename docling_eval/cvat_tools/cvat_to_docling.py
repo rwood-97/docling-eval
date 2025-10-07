@@ -597,6 +597,9 @@ class CVATToDoclingConverter:
         # Process to_value relationships
         self._process_to_value_relationships()
 
+        # Remove groups left without any children during conversion
+        self._prune_empty_groups()
+
         return self.doc
 
     def _reset_list_state(self):
@@ -781,6 +784,28 @@ class CVATToDoclingConverter:
             if element.id in group_element_ids:
                 return path_id
         return None
+
+    def _prune_empty_groups(self) -> None:
+        """Remove group containers that ended up without children."""
+        empty_groups: List[GroupItem] = []
+
+        for item, _ in self.doc.iterate_items(with_groups=True):
+            if (
+                isinstance(item, GroupItem)
+                and not item.children
+                and item.parent is not None
+            ):
+                empty_groups.append(item)
+
+        if not empty_groups:
+            return
+
+        self.doc.delete_items(node_items=empty_groups)
+
+        # Keep local bookkeeping in sync for any removed groups
+        for path_id, group in list(self.created_groups.items()):
+            if group in empty_groups:
+                self.created_groups.pop(path_id)
 
     def _find_logical_children_for_list_item(
         self, list_element: CVATElement, global_order: List[int], current_pos: int
@@ -1851,7 +1876,19 @@ class CVATFolderConverter:
                 doc_backend: DoclingParseV4DocumentBackend = in_doc._backend  # type: ignore
 
                 num_pages = doc_backend.page_count()
-                for page_no in range(1, num_pages + 1):
+                annotated_page_numbers = sorted(
+                    {page_info.page_number for page_info in cvat_doc.pages}
+                )
+
+                for page_no in annotated_page_numbers:
+                    if page_no < 1 or page_no > num_pages:
+                        _logger.warning(
+                            "Annotated page %s out of bounds for document %s",
+                            page_no,
+                            cvat_doc.doc_name,
+                        )
+                        continue
+
                     page = doc_backend.load_page(page_no - 1)
                     seg_page = page.get_segmented_page()
                     page_image = page.get_page_image()
