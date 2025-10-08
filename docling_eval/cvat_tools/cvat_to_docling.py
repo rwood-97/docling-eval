@@ -7,13 +7,13 @@ caption/footnote relationships.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
 from docling_core.types.doc import RichTableCell, TableCell
-from docling_core.types.doc.base import BoundingBox, CoordOrigin
+from docling_core.types.doc.base import BoundingBox, CoordOrigin, ImageRefMode
 from docling_core.types.doc.document import (
     ContentLayer,
     DocItem,
@@ -46,7 +46,19 @@ from docling_core.types.doc.page import (
 from PIL import Image as PILImage
 
 from docling_eval.cvat_tools.document import DocumentStructure
-from docling_eval.cvat_tools.models import CVATElement, TableStructLabel
+from docling_eval.cvat_tools.folder_models import CVATDocument, CVATFolderStructure
+from docling_eval.cvat_tools.folder_parser import parse_cvat_folder
+from docling_eval.cvat_tools.geometry import (
+    bbox_contains,
+    bbox_intersection,
+    dedupe_items_by_bbox,
+)
+from docling_eval.cvat_tools.models import (
+    CVATElement,
+    CVATValidationReport,
+    TableStructLabel,
+    ValidationSeverity,
+)
 from docling_eval.cvat_tools.parser import MissingImageInCVATXML
 from docling_eval.cvat_tools.tree import (
     TreeNode,
@@ -54,7 +66,11 @@ from docling_eval.cvat_tools.tree import (
     build_global_reading_order,
     find_node_by_element_id,
 )
-from docling_eval.cvat_tools.validator import Validator
+from docling_eval.cvat_tools.validator import (
+    Validator,
+    validate_cvat_document,
+    validate_cvat_sample,
+)
 from docling_eval.utils.utils import classify_cells, sort_cell_ids
 
 _logger = logging.getLogger(__name__)
@@ -79,19 +95,6 @@ DEFAULT_CONTAINMENT_THRESH: float = 0.50
 DEFAULT_SEM_MATCH_IOU: float = 0.30
 
 
-def inter_area(a: BoundingBox, b: BoundingBox) -> float:
-    return a.intersection_area_with(b)
-
-
-def inside_with_tolerance(
-    child: BoundingBox, parent: BoundingBox, thresh: float
-) -> bool:
-    a = child.area()
-    if a <= 0.0:
-        return False
-    return (inter_area(child, parent) / a) >= thresh
-
-
 @dataclass(frozen=True)
 class Cell:
     start_row: int
@@ -107,75 +110,12 @@ class Cell:
     fillable_cell: bool = False
 
 
-# === CVAT ELEMENTS BBOX CHECKS ===
-# Compute IOU between two bboxes
-def compute_iou(a: "BoundingBox", b: "BoundingBox") -> float:
-    """Intersection over Union with another box."""
-    inter_w = max(0.0, min(a.r, b.r) - max(a.l, b.l))
-    inter_h = max(0.0, min(a.b, b.b) - max(a.t, b.t))
-    inter = inter_w * inter_h
-    if inter == 0.0:
-        return 0.0
-    union = a.area() + b.area() - inter
-    return inter / union if union > 0.0 else 0.0
-
-
-# Deduplicate list of CANVA elements based on their bbox IOU
-def _dedupe_by_bboxes(
-    elements: list[CVATElement],
-    iou_threshold: float = 0.9,
-) -> List[CVATElement]:
-    """
-    Return a cleaned list of elements where no two boxes have IoU >= iou_threshold.
-    If duplicates exist, keep just one.
-    """
-    if not elements:
-        return []
-
-    kept: List[CVATElement] = []
-    for elem in elements:
-        # keep only if it's not too similar to any already kept box
-        if all(compute_iou(elem.bbox, k.bbox) < iou_threshold for k in kept):
-            kept.append(elem)
-    return kept
-
-
 def is_bbox_within(
     bbox_a: BoundingBox, bbox_b: BoundingBox, threshold: float = 0.5
 ) -> bool:
-    """
-    Returns True if at least `threshold` proportion of B is inside A.
-    """
+    """Return ``True`` when ``bbox_b`` lies within ``bbox_a`` above ``threshold``."""
 
-    # Intersection coordinates
-    inter_left = max(bbox_a.l, bbox_b.l)
-    inter_top = max(bbox_a.t, bbox_b.t)
-    inter_right = min(bbox_a.r, bbox_b.r)
-    inter_bottom = min(bbox_a.b, bbox_b.b)
-
-    # Compute intersection area
-    inter_width = max(0.0, inter_right - inter_left)
-    inter_height = max(0.0, inter_bottom - inter_top)
-    inter_area = inter_width * inter_height
-
-    # Compute ratio of B’s area inside A
-    b_area = bbox_b.area()
-    if b_area == 0:
-        return False  # degenerate box
-
-    inside_ratio = inter_area / b_area
-    return inside_ratio >= threshold
-
-
-# COMPUTE UNIQUE TABLE CELLS
-def intersect_bboxes(a: BoundingBox, b: BoundingBox) -> Optional[BoundingBox]:
-    l1 = max(a.l, b.l)
-    t1 = max(a.t, b.t)
-    r1 = min(a.r, b.r)
-    b1 = min(a.b, b.b)
-    if r1 <= l1 or b1 <= t1:
-        return None
-    return BoundingBox(l=l1, t=t1, r=r1, b=b1, coord_origin=a.coord_origin)
+    return bbox_contains(bbox_b, bbox_a, threshold=threshold)
 
 
 def compute_cells(
@@ -209,7 +149,7 @@ def compute_cells(
         idxs = []
         best_i, best_len = None, 0.0
         for i, elem in enumerate(lines):
-            inter = intersect_bboxes(m, elem.bbox)
+            inter = bbox_intersection(m, elem.bbox)
             if not inter:
                 continue
             if axis == "row":
@@ -293,7 +233,7 @@ def compute_cells(
         for ci, col in enumerate(columns):
             if (ri, ci) in covered:
                 continue
-            inter = intersect_bboxes(row.bbox, col.bbox)
+            inter = bbox_intersection(row.bbox, col.bbox)
             if not inter:
                 # In degenerate cases (big gaps), there might be no intersection; skip.
                 continue
@@ -657,6 +597,9 @@ class CVATToDoclingConverter:
         # Process to_value relationships
         self._process_to_value_relationships()
 
+        # Remove groups left without any children during conversion
+        self._prune_empty_groups()
+
         return self.doc
 
     def _reset_list_state(self):
@@ -841,6 +784,28 @@ class CVATToDoclingConverter:
             if element.id in group_element_ids:
                 return path_id
         return None
+
+    def _prune_empty_groups(self) -> None:
+        """Remove group containers that ended up without children."""
+        empty_groups: List[GroupItem] = []
+
+        for item, _ in self.doc.iterate_items(with_groups=True):
+            if (
+                isinstance(item, GroupItem)
+                and not item.children
+                and item.parent is not None
+            ):
+                empty_groups.append(item)
+
+        if not empty_groups:
+            return
+
+        self.doc.delete_items(node_items=empty_groups)
+
+        # Keep local bookkeeping in sync for any removed groups
+        for path_id, group in list(self.created_groups.items()):
+            if group in empty_groups:
+                self.created_groups.pop(path_id)
 
     def _find_logical_children_for_list_item(
         self, list_element: CVATElement, global_order: List[int], current_pos: int
@@ -1324,54 +1289,54 @@ class CVATToDoclingConverter:
             )  # use row sections to compensate for missing rows
             # pool_rows.extend(pool_col_headers)  # use column headers to compensate for missing rows
 
-            rows = _dedupe_by_bboxes(
+            rows = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_rows
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            cols = _dedupe_by_bboxes(
+            cols = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_cols
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            merges = _dedupe_by_bboxes(
+            merges = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_merges
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
 
-            col_headers = _dedupe_by_bboxes(
+            col_headers = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_col_headers
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            row_headers = _dedupe_by_bboxes(
+            row_headers = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_row_headers
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            row_sections = _dedupe_by_bboxes(
+            row_sections = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_row_sections
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
-            fillable_cells = _dedupe_by_bboxes(
+            fillable_cells = dedupe_items_by_bbox(
                 [
                     e
                     for e in pool_fillable_cells
-                    if inside_with_tolerance(e.bbox, tb, DEFAULT_CONTAINMENT_THRESH)
+                    if bbox_contains(e.bbox, tb, threshold=DEFAULT_CONTAINMENT_THRESH)
                 ]
             )
 
@@ -1761,6 +1726,225 @@ def create_segmented_page_from_ocr(image):
     return seg_page
 
 
+@dataclass
+class CVATConversionResult:
+    """Outcome of converting a CVAT document."""
+
+    document: Optional[DoclingDocument]
+    validation_report: Optional[CVATValidationReport]
+    per_page_reports: Dict[str, CVATValidationReport] = field(default_factory=dict)
+    error: Optional[str] = None
+
+
+def convert_cvat_folder_to_docling(
+    folder_path: Path,
+    xml_pattern: str = "task_{xx}_set_A",
+    output_dir: Optional[Path] = None,
+    save_formats: Optional[List[str]] = None,
+    folder_structure: Optional[CVATFolderStructure] = None,
+    log_validation: bool = False,
+) -> Dict[str, CVATConversionResult]:
+    """Convert an entire CVAT folder into DoclingDocument objects grouped by document."""
+
+    if save_formats is None:
+        save_formats = ["json"]
+
+    if output_dir is None:
+        output_dir = folder_path / "json_predictions"
+
+    if folder_structure is None:
+        folder_structure = parse_cvat_folder(folder_path, xml_pattern)
+    converter = CVATFolderConverter(folder_structure, log_validation=log_validation)
+    results = converter.convert_all_documents()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for doc_hash, result in results.items():
+        doc = result.document
+        if doc is None:
+            continue
+
+        cvat_doc = folder_structure.documents[doc_hash]
+        base_filename = cvat_doc.doc_name
+
+        for format_type in save_formats:
+            if format_type == "json":
+                output_path = output_dir / f"{base_filename}.json"
+                doc.save_as_json(output_path)
+            elif format_type == "html":
+                output_path = output_dir / f"{base_filename}.html"
+                doc.save_as_html(output_path, image_mode=ImageRefMode.EMBEDDED)
+            elif format_type == "md":
+                output_path = output_dir / f"{base_filename}.md"
+                doc.save_as_markdown(output_path, image_mode=ImageRefMode.EMBEDDED)
+            elif format_type == "txt":
+                output_path = output_dir / f"{base_filename}.txt"
+                with open(output_path, "w", encoding="utf-8") as fp:
+                    fp.write(doc.export_to_element_tree())
+            elif format_type == "viz":
+                viz_imgs = doc.get_visualization()
+                for page_no, img in viz_imgs.items():
+                    if page_no is not None:
+                        img.save(output_dir / f"{base_filename}_docling_p{page_no}.png")
+
+    return results
+
+
+class CVATFolderConverter:
+    """Convert CVAT folder structures into DoclingDocument instances."""
+
+    def __init__(
+        self, folder_structure: CVATFolderStructure, log_validation: bool = False
+    ):
+        self.folder_structure = folder_structure
+        self.log_validation = log_validation
+
+    def convert_document(self, doc_hash: str) -> CVATConversionResult:
+        """Convert a single document identified by its hash."""
+
+        if doc_hash not in self.folder_structure.documents:
+            _logger.error("Document %s not found in folder structure", doc_hash)
+            return CVATConversionResult(
+                document=None,
+                validation_report=None,
+                error="Document missing from folder structure",
+            )
+
+        cvat_doc = self.folder_structure.documents[doc_hash]
+
+        try:
+            validator = Validator()
+            validated_pages = validate_cvat_document(cvat_doc, validator=validator)
+            per_page_reports: Dict[str, CVATValidationReport] = {}
+            fatal_messages: List[str] = []
+
+            for page_name, validated in validated_pages.items():
+                page_report = validated.report
+                per_page_reports[page_name] = page_report
+
+                if page_report.has_fatal_errors():
+                    page_fatals = [
+                        f"{err.error_type}: {err.message}"
+                        for err in page_report.errors
+                        if err.severity == ValidationSeverity.FATAL
+                    ]
+                    fatal_messages.append(
+                        f"{page_name}: "
+                        + ("; ".join(page_fatals) if page_fatals else "Fatal errors")
+                    )
+
+                if self.log_validation:
+                    _logger.info(
+                        "Validation report for %s (page %s):\n%s",
+                        cvat_doc.doc_name,
+                        page_name,
+                        page_report.model_dump_json(indent=2),
+                    )
+
+            if fatal_messages:
+                _logger.error(
+                    "Fatal validation errors on document %s. Skipping conversion.",
+                    cvat_doc.doc_name,
+                )
+                error_message = " | ".join(fatal_messages)
+                return CVATConversionResult(
+                    document=None,
+                    validation_report=None,
+                    per_page_reports=per_page_reports,
+                    error=error_message,
+                )
+
+            doc_structure = DocumentStructure.from_cvat_folder_structure(
+                self.folder_structure, doc_hash
+            )
+
+            segmented_pages: Dict[int, SegmentedPage] = {}
+            page_images: Dict[int, PILImage.Image] = {}
+
+            if cvat_doc.mime_type == "application/pdf":
+                from docling.backend.docling_parse_v4_backend import (
+                    DoclingParseV4DocumentBackend,
+                )
+                from docling.datamodel.base_models import InputFormat
+                from docling.datamodel.document import InputDocument
+
+                in_doc = InputDocument(
+                    path_or_stream=cvat_doc.bin_file,
+                    format=InputFormat.PDF,
+                    backend=DoclingParseV4DocumentBackend,
+                )
+                doc_backend: DoclingParseV4DocumentBackend = in_doc._backend  # type: ignore
+
+                num_pages = doc_backend.page_count()
+                annotated_page_numbers = sorted(
+                    {page_info.page_number for page_info in cvat_doc.pages}
+                )
+
+                for page_no in annotated_page_numbers:
+                    if page_no < 1 or page_no > num_pages:
+                        _logger.warning(
+                            "Annotated page %s out of bounds for document %s",
+                            page_no,
+                            cvat_doc.doc_name,
+                        )
+                        continue
+
+                    page = doc_backend.load_page(page_no - 1)
+                    seg_page = page.get_segmented_page()
+                    page_image = page.get_page_image()
+
+                    if seg_page is not None:
+                        segmented_pages[page_no] = seg_page
+                    if page_image is not None:
+                        page_images[page_no] = page_image
+
+                    page.unload()
+
+                doc_backend.unload()
+
+            else:
+                for page_info in cvat_doc.pages:
+                    image = PILImage.open(page_info.image_path)
+                    seg_page = create_segmented_page_from_ocr(image)
+                    segmented_pages[page_info.page_number] = seg_page
+                    page_images[page_info.page_number] = image
+
+            converter = CVATToDoclingConverter(
+                doc_structure,
+                segmented_pages,
+                page_images,
+                cvat_doc.doc_name,
+            )
+
+            docling_doc = converter.convert()
+            return CVATConversionResult(
+                document=docling_doc,
+                validation_report=None,
+                per_page_reports=per_page_reports,
+                error=None,
+            )
+
+        except Exception as exc:  # pragma: no cover - logged error propagation
+            _logger.error("Error converting document %s: %s", doc_hash, exc)
+            return CVATConversionResult(
+                document=None,
+                validation_report=None,
+                per_page_reports=(
+                    per_page_reports if "per_page_reports" in locals() else {}
+                ),
+                error=str(exc),
+            )
+
+    def convert_all_documents(self) -> Dict[str, CVATConversionResult]:
+        """Convert every document present in the folder structure."""
+
+        results: Dict[str, CVATConversionResult] = {}
+        for doc_hash in self.folder_structure.documents:
+            results[doc_hash] = self.convert_document(doc_hash)
+
+        return results
+
+
 def convert_cvat_to_docling(
     xml_path: Path,
     input_path: Path,
@@ -1784,11 +1968,9 @@ def convert_cvat_to_docling(
         DoclingDocument or None if conversion fails
     """
     try:
-        # Create DocumentStructure
-        doc_structure = DocumentStructure.from_cvat_xml(xml_path, input_path.name)
-
-        validator = Validator()
-        validation_report = validator.validate_sample(input_path.name, doc_structure)
+        validated_sample = validate_cvat_sample(xml_path, input_path.name)
+        doc_structure = validated_sample.structure
+        validation_report = validated_sample.report
 
         print(validation_report.model_dump_json(indent=2))
 

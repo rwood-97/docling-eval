@@ -1,12 +1,18 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from docling_core.types.doc.base import ImageRefMode
 from pydantic import BaseModel
 
-from docling_eval.cvat_tools.cvat_to_docling import convert_cvat_to_docling
+from docling_eval.cvat_tools.cvat_to_docling import (
+    CVATConversionResult,
+    convert_cvat_folder_to_docling,
+    convert_cvat_to_docling,
+)
+from docling_eval.cvat_tools.folder_models import CVATFolderStructure
+from docling_eval.cvat_tools.folder_parser import parse_cvat_folder
 from docling_eval.cvat_tools.parser import find_samples_in_directory
 
 
@@ -22,6 +28,7 @@ class ConversionFailure(BaseModel):
 
     sample_name: str
     error: str
+    details: Optional[Dict[str, Any]] = None
 
 
 class BatchConversionReport(BaseModel):
@@ -51,10 +58,17 @@ class BatchConversionReport(BaseModel):
             ConversionResult(sample_name=sample_name, output_files=output_files)
         )
 
-    def add_failure(self, sample_name: str, error_message: str):
+    def add_failure(
+        self,
+        sample_name: str,
+        error_message: str,
+        details: Optional[Dict[str, Any]] = None,
+    ):
         """Add a failed conversion."""
         self.failed_conversions.append(
-            ConversionFailure(sample_name=sample_name, error=error_message)
+            ConversionFailure(
+                sample_name=sample_name, error=error_message, details=details
+            )
         )
 
 
@@ -181,8 +195,127 @@ def process_samples_for_conversion(
     return report
 
 
+def process_cvat_folder(
+    folder_path: Path,
+    output_dir: Path,
+    xml_pattern: str = "task_{xx}_set_A",
+    save_formats: Optional[List[str]] = None,
+    verbose: bool = False,
+    folder_structure: Optional[CVATFolderStructure] = None,
+    log_validation: bool = False,
+) -> BatchConversionReport:
+    """Process a CVAT export folder for document-level conversion."""
+
+    if save_formats is None:
+        save_formats = ["json", "html", "md"]
+
+    report = BatchConversionReport()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        if folder_structure is None:
+            folder_structure = parse_cvat_folder(folder_path, xml_pattern)
+        outcomes = convert_cvat_folder_to_docling(
+            folder_path,
+            xml_pattern,
+            output_dir,
+            save_formats,
+            folder_structure=folder_structure,
+            log_validation=log_validation,
+        )
+
+        for doc_hash, outcome in outcomes.items():
+            cvat_doc = folder_structure.documents[doc_hash]
+            base_filename = cvat_doc.doc_name
+
+            if outcome.document is not None:
+                output_files: Dict[str, str] = {}
+                for fmt in save_formats:
+                    if fmt == "json":
+                        output_files["json"] = str(output_dir / f"{base_filename}.json")
+                    elif fmt == "html":
+                        output_files["html"] = str(output_dir / f"{base_filename}.html")
+                    elif fmt == "md":
+                        output_files["markdown"] = str(
+                            output_dir / f"{base_filename}.md"
+                        )
+                    elif fmt == "txt":
+                        output_files["txt"] = str(output_dir / f"{base_filename}.txt")
+                    elif fmt == "viz":
+                        output_files["viz"] = str(
+                            output_dir / f"{base_filename}_docling_p*.png"
+                        )
+
+                report.add_success(base_filename, output_files)
+
+                if verbose:
+                    print(f"  ✓ Converted {base_filename}")
+                    doc = outcome.document
+                    pages_attr = getattr(doc, "pages", None)
+                    texts_attr = getattr(doc, "texts", None)
+                    pictures_attr = getattr(doc, "pictures", None)
+                    tables_attr = getattr(doc, "tables", None)
+
+                    if pages_attr is not None:
+                        try:
+                            print(f"    - Pages: {len(pages_attr)}")
+                        except TypeError:
+                            pass
+                    if texts_attr is not None:
+                        try:
+                            print(f"    - Texts: {len(texts_attr)}")
+                        except TypeError:
+                            pass
+                    if pictures_attr is not None:
+                        try:
+                            print(f"    - Pictures: {len(pictures_attr)}")
+                        except TypeError:
+                            pass
+                    if tables_attr is not None:
+                        try:
+                            print(f"    - Tables: {len(tables_attr)}")
+                        except TypeError:
+                            pass
+                else:
+                    print(f"  ✓ {base_filename}")
+            else:
+                error_message = outcome.error or "Conversion returned None"
+                validation_details: Dict[str, Any] = {}
+                if outcome.validation_report is not None:
+                    validation_details["aggregated_report"] = (
+                        outcome.validation_report.model_dump()
+                    )
+                if outcome.per_page_reports:
+                    validation_details["per_page_reports"] = {
+                        page_name: report.model_dump()
+                        for page_name, report in outcome.per_page_reports.items()
+                    }
+                details_payload: Optional[Dict[str, Any]] = (
+                    validation_details if validation_details else None
+                )
+                report.add_failure(
+                    base_filename,
+                    error_message,
+                    details=details_payload if log_validation else None,
+                )
+                if verbose and log_validation and details_payload is not None:
+                    print(f"  ✗ {base_filename}: {error_message}")
+                    print(json.dumps(details_payload, indent=2))
+                elif verbose:
+                    print(f"  ✗ {base_filename}: {error_message}")
+                else:
+                    print(f"  ✗ {base_filename}")
+
+    except Exception as exc:
+        report.add_failure("folder_processing", str(exc))
+        if verbose:
+            print(f"  ✗ Error: {exc}")
+
+    return report
+
+
 def main():
-    """Main CLI for CVAT batch conversion: converts CVAT annotations to DoclingDocuments."""
+    """Main CLI for CVAT batch conversion."""
     parser = argparse.ArgumentParser(
         description="Convert CVAT annotations to DoclingDocuments in batch."
     )
@@ -195,6 +328,23 @@ def main():
         "--output-dir",
         type=str,
         help="Output directory for converted documents (default: input_path/docling_output)",
+    )
+    parser.add_argument(
+        "--folder-mode",
+        action="store_true",
+        help="Process CVAT folder structure instead of individual files",
+    )
+    parser.add_argument(
+        "--xml-pattern",
+        type=str,
+        default="task_{xx}_set_A",
+        help="XML file pattern (task_{xx}_set_A, task_{xx}_set_B, task_{xx}_preannotate)",
+    )
+    parser.add_argument(
+        "--tasks-root",
+        type=str,
+        default=None,
+        help="Optional path whose 'cvat_tasks' directory contains the annotation XMLs",
     )
     parser.add_argument(
         "--image",
@@ -216,6 +366,12 @@ def main():
         help="Print detailed information during processing (default: False)",
     )
     parser.add_argument(
+        "--log-validation",
+        action="store_true",
+        default=False,
+        help="Log validation reports for each document",
+    )
+    parser.add_argument(
         "--report",
         type=str,
         default=None,
@@ -224,12 +380,15 @@ def main():
 
     args = parser.parse_args()
 
+    if not args.input_path:
+        print("Error: --input_path is required")
+        return
+
     input_path = Path(args.input_path)
     if not input_path.exists():
         print(f"Error: Input path {input_path} does not exist")
         return
 
-    # Set up output directory
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
@@ -238,53 +397,89 @@ def main():
         else:
             output_dir = input_path.parent / "docling_output"
 
-    # Find samples to process
-    if input_path.is_dir():
-        # Find all samples in directory
-        samples = find_samples_in_directory(input_path)
-        # Filter by image name if specified
-        if args.image:
-            samples = [s for s in samples if s[0] == args.image]
-            if not samples:
-                print(f"Error: No matching image '{args.image}' found in {input_path}")
-                return
-    else:
-        # Single file mode
-        if not args.image:
-            print("Error: --image argument required when processing a single XML file")
+    if args.folder_mode:
+        if not input_path.is_dir():
+            print("Error: folder-mode requires --input_path to be a directory")
             return
-        samples = [(args.image, input_path, args.image)]
 
-    if not samples:
-        print("No samples found to process")
-        return
+        tasks_root: Optional[Path] = None
+        if args.tasks_root is not None:
+            tasks_root = Path(args.tasks_root)
+            if not tasks_root.exists():
+                print(f"Error: tasks-root {tasks_root} does not exist")
+                return
+            if not tasks_root.is_dir():
+                print(f"Error: tasks-root {tasks_root} is not a directory")
+                return
+            tasks_root = tasks_root.resolve()
 
-    print(f"Found {len(samples)} samples to process")
-    print(f"Output directory: {output_dir}")
-    print("=" * 60)
+        try:
+            folder_structure = parse_cvat_folder(
+                input_path,
+                args.xml_pattern,
+                tasks_root=tasks_root,
+            )
+        except Exception as exc:  # pragma: no cover - CLI feedback
+            print(f"Error: failed to parse CVAT folder - {exc}")
+            return
 
-    # Process the samples
-    report = process_samples_for_conversion(
-        samples=samples,
-        output_dir=output_dir,
-        save_formats=args.formats,
-        verbose=args.verbose,
-    )
+        print(f"Found {len(folder_structure.documents)} documents to process")
+        print(f"Output directory: {output_dir}")
+        print("=" * 60)
 
-    # Print summary
+        report = process_cvat_folder(
+            folder_path=input_path,
+            output_dir=output_dir,
+            xml_pattern=args.xml_pattern,
+            save_formats=args.formats,
+            verbose=args.verbose,
+            folder_structure=folder_structure,
+            log_validation=args.log_validation,
+        )
+    else:
+        if input_path.is_dir():
+            samples = find_samples_in_directory(input_path)
+            if args.image:
+                samples = [s for s in samples if s[0] == args.image]
+                if not samples:
+                    print(
+                        f"Error: No matching image '{args.image}' found in {input_path}"
+                    )
+                    return
+        else:
+            if not args.image:
+                print(
+                    "Error: --image argument required when processing a single XML file"
+                )
+                return
+            samples = [(args.image, input_path, args.image)]
+
+        if not samples:
+            print("No samples found to process")
+            return
+
+        print(f"Found {len(samples)} samples to process")
+        print(f"Output directory: {output_dir}")
+        print("=" * 60)
+
+        report = process_samples_for_conversion(
+            samples=samples,
+            output_dir=output_dir,
+            save_formats=args.formats,
+            verbose=args.verbose,
+        )
+
     print("\n" + "=" * 60)
     print("Batch conversion complete:")
     print(f"  ✓ Successfully processed: {report.successful_count}")
     print(f"  ✗ Failed: {report.failed_count}")
 
-    # Save report if requested
     if args.report:
         report_path = Path(args.report)
         with open(report_path, "w") as f:
             f.write(report.model_dump_json(indent=2))
         print(f"  📄 Report saved to: {report_path}")
 
-    # Also print report to stdout in JSON format if not verbose
     if not args.verbose:
         print("\nConversion Report:")
         print(report.model_dump_json(indent=2))

@@ -3,27 +3,25 @@ import json
 from pathlib import Path
 from typing import List, Tuple
 
-from ..cvat_tools.document import DocumentStructure
 from ..cvat_tools.models import CVATValidationReport, CVATValidationRunReport
 from ..cvat_tools.parser import find_samples_in_directory, get_all_images_from_cvat_xml
-from ..cvat_tools.validator import Validator
+from ..cvat_tools.validator import Validator, validate_cvat_sample
 
 
 def process_samples(samples: List[Tuple[str, Path, str]]) -> CVATValidationRunReport:
     """Process a list of samples and return a validation report."""
     validator = Validator()
-    reports = []
+    reports: List[CVATValidationReport] = []
 
     for sample_name, xml_path, image_filename in samples:
         try:
-            doc = DocumentStructure.from_cvat_xml(xml_path, image_filename)
-            report = validator.validate_sample(sample_name, doc)
-            # Only include reports that have errors
-            if report.errors:
-                reports.append(report)
+            validated = validate_cvat_sample(
+                xml_path, image_filename, validator=validator
+            )
+            if validated.report.errors:
+                reports.append(validated.report)
 
         except Exception as e:
-            # Create error report for failed samples
             reports.append(
                 CVATValidationReport(
                     sample_name=sample_name,
