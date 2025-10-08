@@ -173,7 +173,13 @@ class BaseEvaluationDatasetBuilder:
         ),
     )
     def _download_with_retry(
-        self, repo_id: str, token: Optional[str], local_dir: Path, max_workers: int
+        self,
+        repo_id: str,
+        repo_type: str,
+        token: Optional[str],
+        local_dir: Path,
+        max_workers: int,
+        revision: Optional[str] = None,
     ) -> Path:
         """
         Download dataset with exponential backoff on rate limit errors.
@@ -184,7 +190,8 @@ class BaseEvaluationDatasetBuilder:
         try:
             path_str = snapshot_download(
                 repo_id=repo_id,
-                repo_type="dataset",
+                revision=revision,
+                repo_type=repo_type,
                 token=token,
                 local_dir=local_dir,
                 max_workers=max_workers,
