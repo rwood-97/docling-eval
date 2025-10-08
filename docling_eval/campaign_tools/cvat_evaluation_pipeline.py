@@ -196,6 +196,24 @@ class CVATEvaluationPipeline:
         _log.info("✓ Generated merged annotations at %s", destination)
         return destination
 
+    def merge_annotation_xmls(
+        self, destination_dir: Optional[Path] = None
+    ) -> tuple[Path, Path]:
+        """Merge all CVAT task XMLs for ground-truth and prediction sets."""
+
+        if destination_dir is None:
+            destination_dir = self._intermediate_dir / "merged_xml"
+
+        destination_dir.mkdir(parents=True, exist_ok=True)
+
+        gt_path = destination_dir / "combined_set_A.xml"
+        pred_path = destination_dir / "combined_set_B.xml"
+
+        gt_xml = self._merge_task_xmls(GROUND_TRUTH_PATTERN, gt_path)
+        pred_xml = self._merge_task_xmls(PREDICTION_PATTERN, pred_path)
+
+        return gt_xml, pred_xml
+
     def create_ground_truth_dataset(self) -> None:
         """
         Step 1: Create ground truth dataset from CVAT folder exports.
@@ -282,17 +300,8 @@ class CVATEvaluationPipeline:
 
         self.evaluation_results_dir.mkdir(parents=True, exist_ok=True)
 
-        merged_dir = self._intermediate_dir / "merged_xml"
-        gt_merged = merged_dir / "combined_set_A.xml"
-        pred_merged = merged_dir / "combined_set_B.xml"
-
-        gt_xml = self._merge_task_xmls(
-            GROUND_TRUTH_PATTERN,
-            gt_merged,
-        )
-        pred_xml = self._merge_task_xmls(
-            PREDICTION_PATTERN,
-            pred_merged,
+        gt_xml, pred_xml = self.merge_annotation_xmls(
+            destination_dir=self._intermediate_dir / "merged_xml"
         )
 
         result = evaluate_tables(
