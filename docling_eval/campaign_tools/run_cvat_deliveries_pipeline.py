@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence
 
+import pandas as pd
+
+from docling_eval.campaign_tools.combine_cvat_evaluations import _write_as_excel_table
 from docling_eval.campaign_tools.cvat_evaluation_pipeline import CVATEvaluationPipeline
 
 _LOGGER = logging.getLogger(__name__)
@@ -91,72 +95,177 @@ def run_jobs(
     user_csv: Optional[Path] = None,
     force: bool = False,
     merge_only: bool = False,
+    eval_only: bool = False,
 ) -> None:
     """Execute the CVAT evaluation pipeline for each prepared job."""
     if not jobs:
         _LOGGER.info("No jobs discovered; nothing to do.")
         return
 
+    jobs_by_submission: "OrderedDict[str, list[SubmissionSubsetJob]]" = OrderedDict()
     for job in jobs:
-        _LOGGER.info(
-            "Processing submission=%s subset=%s",
-            job.submission_name,
-            job.subset_name,
-        )
+        jobs_by_submission.setdefault(job.submission_name, []).append(job)
 
-        merged_dir = job.output_dir / "merged_xml"
-        merged_gt = merged_dir / "combined_set_A.xml"
-        merged_pred = merged_dir / "combined_set_B.xml"
+    for submission_name, submission_jobs in jobs_by_submission.items():
+        if not submission_jobs:
+            continue
 
-        if merge_only:
-            if not force and merged_gt.exists() and merged_pred.exists():
-                _LOGGER.info(
-                    "Skipping %s/%s: merged XML already present at %s",
-                    job.submission_name,
-                    job.subset_name,
-                    merged_dir,
-                )
-                continue
-        else:
-            if job.output_dir.exists() and not force:
-                _LOGGER.info(
-                    "Skipping %s/%s: output directory already exists at %s (use --force to re-run)",
-                    job.submission_name,
-                    job.subset_name,
-                    job.output_dir,
-                )
-                continue
+        submission_dir = submission_jobs[0].output_dir.parent
+        submission_dir.mkdir(parents=True, exist_ok=True)
+        submission_dfs: List[pd.DataFrame] = []
+        failure = False
 
-        if dry_run:
-            verb = "merge annotations for" if merge_only else "evaluate"
+        _LOGGER.info("=== Processing submission %s ===", submission_name)
+
+        for job in submission_jobs:
             _LOGGER.info(
-                "Dry-run: would %s %s/%s with base=%s tasks=%s output=%s",
-                verb,
+                "Processing submission=%s subset=%s",
                 job.submission_name,
                 job.subset_name,
-                job.base_cvat_root,
-                job.tasks_root,
-                job.output_dir,
             )
-            continue
 
-        pipeline = CVATEvaluationPipeline(
-            cvat_root=job.base_cvat_root,
-            output_dir=job.output_dir,
-            strict=strict,
-            tasks_root=job.tasks_root,
-        )
+            merged_dir = job.output_dir / "merged_xml"
+            merged_gt = merged_dir / "combined_set_A.xml"
+            merged_pred = merged_dir / "combined_set_B.xml"
 
-        if merge_only:
-            pipeline.merge_annotation_xmls(destination_dir=merged_dir)
-            continue
+            try:
+                if merge_only:
+                    if not force and merged_gt.exists() and merged_pred.exists():
+                        _LOGGER.info(
+                            "Skipping %s/%s: merged XML already present at %s",
+                            job.submission_name,
+                            job.subset_name,
+                            merged_dir,
+                        )
+                        continue
+                else:
+                    if job.output_dir.exists() and not force and not eval_only:
+                        _LOGGER.info(
+                            "Skipping %s/%s: output directory already exists at %s (use --force to re-run)",
+                            job.submission_name,
+                            job.subset_name,
+                            job.output_dir,
+                        )
+                        continue
 
-        pipeline.create_ground_truth_dataset()
-        pipeline.create_prediction_dataset()
-        pipeline.run_table_evaluation()
-        pipeline.run_evaluation(
-            modalities=list(modalities) if modalities else None, user_csv=user_csv
-        )
+                if dry_run:
+                    if merge_only:
+                        verb = "merge annotations for"
+                    elif eval_only:
+                        verb = "run evaluation for"
+                    else:
+                        verb = "evaluate"
+                    _LOGGER.info(
+                        "Dry-run: would %s %s/%s with base=%s tasks=%s output=%s",
+                        verb,
+                        job.submission_name,
+                        job.subset_name,
+                        job.base_cvat_root,
+                        job.tasks_root,
+                        job.output_dir,
+                    )
+                    continue
+
+                pipeline = CVATEvaluationPipeline(
+                    cvat_root=job.base_cvat_root,
+                    output_dir=job.output_dir,
+                    strict=strict,
+                    tasks_root=job.tasks_root,
+                )
+
+                job.output_dir.mkdir(parents=True, exist_ok=True)
+
+                if merge_only:
+                    pipeline.merge_annotation_xmls(destination_dir=merged_dir)
+                    continue
+
+                if eval_only:
+                    pipeline.run_table_evaluation()
+                    subset_df = pipeline.run_evaluation(
+                        modalities=list(modalities) if modalities else None,
+                        user_csv=user_csv,
+                        subset_label=job.subset_name,
+                    )
+                else:
+                    pipeline.create_ground_truth_dataset()
+                    pipeline.create_prediction_dataset()
+                    pipeline.run_table_evaluation(reuse_existing=False)
+                    subset_df = pipeline.run_evaluation(
+                        modalities=list(modalities) if modalities else None,
+                        user_csv=user_csv,
+                        subset_label=job.subset_name,
+                    )
+
+                if subset_df is not None and not subset_df.empty:
+                    if "subset" not in subset_df.columns:
+                        subset_df = subset_df.copy()
+                        subset_df.insert(0, "subset", job.subset_name)
+                    submission_dfs.append(subset_df)
+
+            except (
+                Exception
+            ) as exc:  # noqa: BLE001 - we want to capture all failures per subset
+                failure = True
+                _LOGGER.error(
+                    "Submission %s subset %s failed: %s",
+                    submission_name,
+                    job.subset_name,
+                    exc,
+                )
+                _LOGGER.debug("Subset failure details", exc_info=True)
+
+        if submission_dfs:
+            combined_df = pd.concat(submission_dfs, ignore_index=True)
+            combined_out = submission_dir / "combined_evaluation.xlsx"
+            status_label = "FAILED" if failure else "SUCCESS"
+            _LOGGER.info(
+                "Writing submission-level combined evaluation for %s (%s) to %s",
+                submission_name,
+                status_label,
+                combined_out,
+            )
+            if "subset" not in combined_df.columns:
+                combined_df.insert(0, "subset", submission_name)
+            _write_as_excel_table(combined_df, combined_out)
+        else:
+            status_label = "FAILED" if failure else "SKIPPED"
+            _LOGGER.warning(
+                "Submission %s completed with status %s (no aggregated dataframe)",
+                submission_name,
+                status_label,
+            )
+
+        for job in submission_jobs:
+            subset_combined = job.output_dir / "combined_evaluation.xlsx"
+            if subset_combined.exists():
+                try:
+                    subset_combined.unlink()
+                    _LOGGER.debug(
+                        "Removed subset combined evaluation %s", subset_combined
+                    )
+                except Exception as cleanup_exc:  # noqa: BLE001
+                    _LOGGER.warning(
+                        "Failed to remove subset combined evaluation %s: %s",
+                        subset_combined,
+                        cleanup_exc,
+                    )
+
+            intermediate_dir = job.output_dir / "intermediate"
+            if intermediate_dir.exists():
+                try:
+                    for extra in sorted(intermediate_dir.glob("**/*"), reverse=True):
+                        if extra.is_file() or extra.is_symlink():
+                            extra.unlink(missing_ok=True)
+                        else:
+                            extra.rmdir()
+                    intermediate_dir.rmdir()
+                    _LOGGER.debug("Removed intermediate directory %s", intermediate_dir)
+                except Exception as cleanup_exc:  # noqa: BLE001
+                    _LOGGER.warning(
+                        "Failed to remove intermediate directory %s: %s",
+                        intermediate_dir,
+                        cleanup_exc,
+                    )
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -211,6 +320,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="Only create combined set A/B XMLs for each submission subset.",
     )
+    parser.add_argument(
+        "--eval-only",
+        action="store_true",
+        help="Skip dataset creation and rerun only the evaluation stage.",
+    )
 
     return parser.parse_args(argv)
 
@@ -225,6 +339,10 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     configure_logging()
     args = parse_args(argv)
 
+    if args.merge_only and args.eval_only:
+        _LOGGER.error("Cannot use --merge-only and --eval-only at the same time.")
+        return
+
     jobs = discover_jobs(args.deliveries_root, args.datasets_root, args.output_root)
     run_jobs(
         jobs,
@@ -234,6 +352,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         user_csv=args.user_csv,
         force=args.force,
         merge_only=args.merge_only,
+        eval_only=args.eval_only,
     )
 
 
