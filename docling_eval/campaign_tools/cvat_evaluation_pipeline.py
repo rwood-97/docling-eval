@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 CVAT Evaluation Pipeline Utility
 
@@ -16,6 +18,8 @@ import logging
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
+
+import pandas as pd
 
 from docling_eval.campaign_tools.combine_cvat_evaluations import (
     combine_cvat_evaluations,
@@ -287,9 +291,13 @@ class CVATEvaluationPipeline:
         containment_thresh: float = 0.50,
         table_pair_iou: float = 0.20,
         sem_match_iou: float = 0.30,
+        *,
+        reuse_existing: bool = True,
     ) -> Path:
-        """
-        Run the table structure/semantics evaluation using merged CVAT task XMLs.
+        """Run the table structure/semantics evaluation using merged CVAT task XMLs.
+
+        When ``reuse_existing`` is ``True`` the method will reuse the previously merged
+        ``combined_set_A/B.xml`` if present instead of re-parsing the CVAT exports.
 
         Writes a JSON file (default: evaluation_results/evaluation_CVAT_tables.json) and returns its path.
         """
@@ -300,9 +308,19 @@ class CVATEvaluationPipeline:
 
         self.evaluation_results_dir.mkdir(parents=True, exist_ok=True)
 
-        gt_xml, pred_xml = self.merge_annotation_xmls(
-            destination_dir=self._intermediate_dir / "merged_xml"
-        )
+        if reuse_existing and out_json.exists():
+            _log.info("Reusing existing tables evaluation at %s", out_json)
+            return out_json
+
+        merged_dir = self._intermediate_dir / "merged_xml"
+        gt_xml_path = merged_dir / "combined_set_A.xml"
+        pred_xml_path = merged_dir / "combined_set_B.xml"
+
+        if reuse_existing and gt_xml_path.exists() and pred_xml_path.exists():
+            _log.info("Reusing existing merged table annotations at %s", merged_dir)
+            gt_xml, pred_xml = gt_xml_path, pred_xml_path
+        else:
+            gt_xml, pred_xml = self.merge_annotation_xmls(destination_dir=merged_dir)
 
         result = evaluate_tables(
             set_a=gt_xml,
@@ -320,8 +338,12 @@ class CVATEvaluationPipeline:
         return out_json
 
     def run_evaluation(
-        self, modalities: Optional[List[str]] = None, user_csv: Optional[Path] = None
-    ) -> None:
+        self,
+        modalities: Optional[List[str]] = None,
+        user_csv: Optional[Path] = None,
+        *,
+        subset_label: Optional[str] = None,
+    ) -> Optional[pd.DataFrame]:
         """
         Step 3: Run evaluation on the prediction dataset.
 
@@ -401,7 +423,7 @@ class CVATEvaluationPipeline:
         key_value_json = self.evaluation_results_dir / "evaluation_CVAT_key_value.json"
         tables_json = self.evaluation_results_dir / "evaluation_CVAT_tables.json"
         _log.info(f"Combining evaluation results to {combined_out}")
-        combine_cvat_evaluations(
+        combined_df = combine_cvat_evaluations(
             layout_json=layout_json,
             docstruct_json=docstruct_json,
             keyvalue_json=key_value_json,
@@ -410,6 +432,14 @@ class CVATEvaluationPipeline:
             out=combined_out,
             cvat_overview_path=overview_for_eval,
         )
+        if subset_label is not None:
+            combined_df = combined_df.copy()
+            if "subset" not in combined_df.columns:
+                combined_df.insert(0, "subset", subset_label)
+            else:
+                combined_df["subset"] = subset_label
+
+        return combined_df
 
     def run_full_pipeline(
         self,
@@ -430,30 +460,6 @@ class CVATEvaluationPipeline:
             self.create_prediction_dataset()
             self.run_table_evaluation()
             self.run_evaluation(modalities, user_csv)
-
-            # Combine results if user_csv is provided
-            combined_out = self.output_dir / "combined_evaluation.xlsx"
-            layout_json = self.evaluation_results_dir / "evaluation_CVAT_layout.json"
-            docstruct_json = (
-                self.evaluation_results_dir / "evaluation_CVAT_document_structure.json"
-            )
-            key_value_json = (
-                self.evaluation_results_dir / "evaluation_CVAT_key_value.json"
-            )
-            tables_json = self.evaluation_results_dir / "evaluation_CVAT_tables.json"
-            overview_path = self.cvat_root / "cvat_overview.json"
-            overview_for_eval = overview_path if overview_path.exists() else None
-
-            _log.info(f"Combining evaluation results to {combined_out}")
-            combine_cvat_evaluations(
-                layout_json=layout_json,
-                docstruct_json=docstruct_json,
-                keyvalue_json=key_value_json,
-                user_csv=user_csv,
-                tables_json=tables_json,
-                out=combined_out,
-                cvat_overview_path=overview_for_eval,
-            )
 
             _log.info("=== Pipeline completed successfully! ===")
             _log.info(f"Results available in: {self.output_dir}")
