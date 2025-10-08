@@ -160,16 +160,23 @@ class BasePredictionProvider:
                 prediction_record.predicted_pictures,
                 prediction_record.predicted_page_images,
             )
-            save_comparison_html_with_clusters(
-                filename=target_dataset_dir
-                / "visualizations"
-                / f"{prediction_record.doc_id}.html",
-                true_doc=gt_doc,
-                pred_doc=pred_doc,
-                # true_labels=self.true_labels,
-                # pred_labels=self.pred_labels,
-                draw_reading_order=True,
-            )
+            try:
+                save_comparison_html_with_clusters(
+                    filename=target_dataset_dir
+                    / "visualizations"
+                    / f"{prediction_record.doc_id}.html",
+                    true_doc=gt_doc,
+                    pred_doc=pred_doc,
+                    # true_labels=self.true_labels,
+                    # pred_labels=self.pred_labels,
+                    draw_reading_order=True,
+                )
+            except (IndexError, ValueError) as exc:
+                _log.warning(
+                    "Skipping visualization for %s due to serialization error: %s",
+                    prediction_record.doc_id,
+                    exc,
+                )
 
     @property
     @abstractmethod

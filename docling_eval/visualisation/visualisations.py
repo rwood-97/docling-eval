@@ -167,12 +167,24 @@ def _get_document_visualization_data(
     Returns:
         Tuple of (base64_image, html_content)
     """
-    page_imgs = doc.get_visualization(show_label=False, viz_mode=viz_mode)
+    visualization_error: Optional[str] = None
+
+    try:
+        page_imgs = doc.get_visualization(show_label=False, viz_mode=viz_mode)
+    except (IndexError, ValueError) as exc:
+        visualization_error = str(exc)
+        logging.error(
+            "Could not render visualization for page %s due to geometry issue: %s",
+            page_no,
+            exc,
+        )
+        page_imgs = {}
 
     if page_no in page_imgs:
         doc_img_b64 = from_pil_to_base64(page_imgs[page_no])
     else:
-        logging.error(f"{page_no} not in page_imgs, get default image.")
+        if visualization_error is None:
+            logging.error(f"{page_no} not in page_imgs, get default image.")
         doc_img_b64 = from_pil_to_base64(get_missing_pageimg())
 
     try:
@@ -181,11 +193,16 @@ def _get_document_visualization_data(
             page_no=page_no,
             included_content_layers={ContentLayer.BODY, ContentLayer.FURNITURE},
         )
-    except ValueError as e:
+    except (IndexError, ValueError) as exc:
         logging.error(
-            f"Could not export page {page_no} to HTML due to a ValueError: {e}"
+            "Could not export page %s to HTML due to serialization error: %s",
+            page_no,
+            exc,
         )
-        doc_page_body = f"<p>ERROR: Could not render page HTML due to invalid coordinates. Details: {e}</p>"
+        doc_page_body = (
+            "<p>ERROR: Could not render page HTML due to serialization issues. "
+            f"Details: {exc}</p>"
+        )
         return doc_img_b64, doc_page_body
 
     # Search for the pattern in the HTML string
@@ -198,6 +215,12 @@ def _get_document_visualization_data(
 
     if len(doc_page_body) == 0:
         doc_page_body = "<p>Nothing Found</p>"
+
+    if visualization_error is not None:
+        doc_page_body = (
+            "<p>WARNING: Page visualization unavailable due to geometry issues. "
+            f"Details: {visualization_error}</p>\n" + doc_page_body
+        )
 
     return doc_img_b64, doc_page_body
 
