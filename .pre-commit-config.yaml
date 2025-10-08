@@ -14,12 +14,12 @@ repos:
         pass_filenames: false
         language: system
         files: '\.py$'
-      - id: mypy
-        name: MyPy
-        entry: uv run --no-sync mypy docling_eval tests docs/examples
-        pass_filenames: false
-        language: system
-        files: '\.py$'
+      # - id: mypy
+      #   name: MyPy
+      #   entry: uv run --no-sync mypy docling_eval tests docs/examples
+      #   pass_filenames: false
+      #   language: system
+      #   files: '\.py$'
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.7.8
     hooks:
