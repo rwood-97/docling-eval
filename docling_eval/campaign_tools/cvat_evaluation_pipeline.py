@@ -17,7 +17,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -54,6 +54,13 @@ _log = logging.getLogger(__name__)
 GROUND_TRUTH_PATTERN: str = "task_{xx}_set_A"
 PREDICTION_PATTERN: str = "task_{xx}_set_B"
 
+# Mapping from modality name to enum
+_MODALITY_MAP = {
+    "layout": EvaluationModality.LAYOUT,
+    "document_structure": EvaluationModality.DOCUMENT_STRUCTURE,
+    "key_value": EvaluationModality.KEY_VALUE,
+}
+
 
 class CVATEvaluationPipeline:
     """Pipeline for CVAT annotation evaluation."""
@@ -65,6 +72,8 @@ class CVATEvaluationPipeline:
         *,
         strict: bool = False,
         tasks_root: Optional[Path] = None,
+        force_ocr: bool = False,
+        ocr_scale: float = 1.0,
     ):
         """
         Initialize the pipeline.
@@ -74,11 +83,16 @@ class CVATEvaluationPipeline:
             output_dir: Base directory for all pipeline outputs
             strict: If True, treat conversion failures as fatal (default: False)
             tasks_root: Optional override directory containing ``cvat_tasks`` XMLs
+            force_ocr: If True, force OCR on PDF page images instead of using native text layer (default: False)
+            ocr_scale: Scale factor for rendering PDFs for OCR (default: 1.0 = 72 DPI).
+                      Higher values increase OCR resolution. Coordinates are mapped back to 144 DPI.
         """
         self.cvat_root = Path(cvat_root)
         self.output_dir = Path(output_dir)
         self.strict = strict
         self.tasks_root = Path(tasks_root).resolve() if tasks_root else None
+        self.force_ocr = force_ocr
+        self.ocr_scale = ocr_scale
         self._folder_cache: Dict[str, CVATFolderStructure] = {}
 
         # Create subdirectories
@@ -110,8 +124,19 @@ class CVATEvaluationPipeline:
         self,
         output_json_dir: Path,
         xml_pattern: str,
+        save_validation_report: bool = False,
     ) -> List[Path]:
-        """Convert all documents covered by ``xml_pattern`` into Docling JSON files."""
+        """Convert all documents covered by ``xml_pattern`` into Docling JSON files.
+
+        Args:
+            output_json_dir: Directory to save JSON files
+            xml_pattern: Pattern to match XML files
+            save_validation_report: If True, save validation report to output_dir
+
+        Returns:
+            List of created JSON file paths
+        """
+        from docling_eval.cvat_tools.models import CVATValidationRunReport
 
         folder_structure = self._load_folder_structure(xml_pattern)
 
@@ -120,11 +145,12 @@ class CVATEvaluationPipeline:
                 stale_json.unlink()
         output_json_dir.mkdir(parents=True, exist_ok=True)
 
+        set_label = "ground truth" if "set_A" in xml_pattern else "predictions"
+        _log.info("=" * 60)
         _log.info(
-            "Converting %d document(s) matching %s",
-            len(folder_structure.documents),
-            xml_pattern,
+            f"Converting {len(folder_structure.documents)} {set_label} document(s)..."
         )
+        _log.info("=" * 60)
 
         results = convert_cvat_folder_to_docling(
             folder_path=self.cvat_root,
@@ -133,16 +159,23 @@ class CVATEvaluationPipeline:
             save_formats=["json"],
             folder_structure=folder_structure,
             log_validation=self.strict,
+            force_ocr=self.force_ocr,
+            ocr_scale=self.ocr_scale,
         )
 
         json_files: List[Path] = []
         failed_docs: List[str] = []
+        all_validation_reports: List[Any] = []
 
         for doc_hash, result in results.items():
             cvat_doc = folder_structure.documents[doc_hash]
             json_path = output_json_dir / f"{cvat_doc.doc_name}.json"
 
-            if result.document is None or not json_path.exists():
+            # Collect validation reports from all pages
+            all_validation_reports.extend(result.per_page_reports.values())
+
+            # Check if conversion succeeded (JSON file exists and no fatal error)
+            if result.error is not None or not json_path.exists():
                 failed_docs.append(cvat_doc.doc_name)
                 if json_path.exists():
                     json_path.unlink()
@@ -150,25 +183,45 @@ class CVATEvaluationPipeline:
 
             json_files.append(json_path)
 
-        if failed_docs:
-            _log.warning(
-                "Skipped %d document(s) due to conversion issues: %s",
-                len(failed_docs),
-                ", ".join(sorted(failed_docs)[:5])
-                + ("..." if len(failed_docs) > 5 else ""),
+        # Save validation report if requested
+        if save_validation_report:
+            set_label = "set_A" if "set_A" in xml_pattern else "set_B"
+            validation_report_path = (
+                self.output_dir / f"validation_report_{set_label}.json"
             )
+            run_report = CVATValidationRunReport(samples=all_validation_reports)
+            validation_report_path.write_text(
+                run_report.model_dump_json(indent=2),
+                encoding="utf-8",
+            )
+            _log.info(f"✓ Validation report saved to: {validation_report_path}")
+
+        # Summary
+        json_files.sort()
+        success_count = len(json_files)
+        total_count = len(folder_structure.documents)
+        failed_count = len(failed_docs)
+
+        _log.info("=" * 60)
+        if failed_count == 0:
+            _log.info(
+                f"✓ SUCCESS: All {success_count} documents converted successfully"
+            )
+        else:
+            _log.warning(
+                f"⚠ PARTIAL: {success_count}/{total_count} documents converted ({failed_count} failed)"
+            )
+            _log.warning(
+                f"  Failed documents: {', '.join(sorted(failed_docs)[:5])}"
+                + ("..." if len(failed_docs) > 5 else "")
+            )
+        _log.info("=" * 60)
 
         if self.strict and failed_docs:
             raise ValueError(
                 "Strict mode enabled: conversion errors were encountered while converting documents."
             )
 
-        json_files.sort()
-        _log.info(
-            "Converted %d/%d document(s) to JSON format",
-            len(json_files),
-            len(folder_structure.documents),
-        )
         return json_files
 
     def _merge_task_xmls(
@@ -222,18 +275,23 @@ class CVATEvaluationPipeline:
         """
         Step 1: Create ground truth dataset from CVAT folder exports.
         """
-        _log.info("=== Creating Ground Truth Dataset ===")
+        _log.info("")
+        _log.info("╔" + "=" * 58 + "╗")
+        _log.info("║" + " STEP 1: CREATE GROUND TRUTH DATASET ".center(58) + "║")
+        _log.info("╚" + "=" * 58 + "╝")
 
         # Convert CVAT XML to JSON
         gt_json_files = self._convert_cvat_set_to_json(
             self.gt_json_dir,
             GROUND_TRUTH_PATTERN,
+            save_validation_report=True,
         )
 
         if not gt_json_files:
             raise ValueError("No ground truth JSON files were created")
 
         # Create ground truth dataset
+        _log.info("Building ground truth dataset...")
         dataset_builder = FileDatasetBuilder(
             name="CVAT_Ground_Truth_Dataset",
             dataset_source=self.gt_json_dir,
@@ -249,7 +307,10 @@ class CVATEvaluationPipeline:
         """
         Step 2: Create prediction dataset from CVAT folder exports using the ground truth dataset.
         """
-        _log.info("=== Creating Prediction Dataset ===")
+        _log.info("")
+        _log.info("╔" + "=" * 58 + "╗")
+        _log.info("║" + " STEP 2: CREATE PREDICTION DATASET ".center(58) + "║")
+        _log.info("╚" + "=" * 58 + "╝")
 
         if not self.gt_dataset_dir.exists():
             raise ValueError(
@@ -261,12 +322,14 @@ class CVATEvaluationPipeline:
         pred_json_files = self._convert_cvat_set_to_json(
             self.pred_json_dir,
             PREDICTION_PATTERN,
+            save_validation_report=True,
         )
 
         if not pred_json_files:
             raise ValueError("No prediction JSON files were created")
 
         # Create prediction dataset using FilePredictionProvider
+        _log.info("Building prediction dataset...")
         file_provider = FilePredictionProvider(
             prediction_format=PredictionFormats.JSON,
             source_path=self.pred_json_dir,
@@ -301,7 +364,10 @@ class CVATEvaluationPipeline:
 
         Writes a JSON file (default: evaluation_results/evaluation_CVAT_tables.json) and returns its path.
         """
-        _log.info("=== Running Table Evaluation ===")
+        _log.info("")
+        _log.info("╔" + "=" * 58 + "╗")
+        _log.info("║" + " RUNNING TABLE EVALUATION ".center(58) + "║")
+        _log.info("╚" + "=" * 58 + "╝")
 
         if out_json is None:
             out_json = self.evaluation_results_dir / "evaluation_CVAT_tables.json"
@@ -353,7 +419,10 @@ class CVATEvaluationPipeline:
                        Default: both modalities
             user_csv: Path to user CSV file for provenance/self-confidence (optional)
         """
-        _log.info("=== Running Evaluation ===")
+        _log.info("")
+        _log.info("╔" + "=" * 58 + "╗")
+        _log.info("║" + " STEP 3: RUNNING EVALUATION ".center(58) + "║")
+        _log.info("╚" + "=" * 58 + "╝")
 
         if not self.eval_dataset_dir.exists():
             raise ValueError(
@@ -369,19 +438,15 @@ class CVATEvaluationPipeline:
         overview_path = self.cvat_root / "cvat_overview.json"
         overview_for_eval = overview_path if overview_path.exists() else None
 
-        for modality_name in modalities:
-            _log.info(f"Running {modality_name} evaluation...")
+        for idx, modality_name in enumerate(modalities, start=1):
+            _log.info(
+                f"[{idx}/{len(modalities)}] Running {modality_name} evaluation..."
+            )
 
-            if modality_name == "layout":
-                modality = EvaluationModality.LAYOUT
-            elif modality_name == "document_structure":
-                modality = EvaluationModality.DOCUMENT_STRUCTURE
-            elif modality_name == "key_value":
-                modality = EvaluationModality.KEY_VALUE
-            else:
+            modality = _MODALITY_MAP.get(modality_name)
+            if modality is None:
                 _log.warning(f"Unknown modality: {modality_name}. Skipping.")
                 continue
-            # TODO: add key-value evaluation, see https://github.com/docling-project/docling-eval/pull/140
 
             try:
                 evaluation_result = evaluate(
@@ -414,24 +479,28 @@ class CVATEvaluationPipeline:
                 _log.error(f"\u2717 Error in {modality_name} evaluation: {e}")
                 raise e
 
-        # Combine results if user_csv is provided
+        # Combine results
+        _log.info("")
+        _log.info("=" * 60)
+        _log.info("Combining evaluation results...")
         combined_out = self.output_dir / "combined_evaluation.xlsx"
-        layout_json = self.evaluation_results_dir / "evaluation_CVAT_layout.json"
-        docstruct_json = (
-            self.evaluation_results_dir / "evaluation_CVAT_document_structure.json"
-        )
-        key_value_json = self.evaluation_results_dir / "evaluation_CVAT_key_value.json"
-        tables_json = self.evaluation_results_dir / "evaluation_CVAT_tables.json"
-        _log.info(f"Combining evaluation results to {combined_out}")
+
+        def _result_path(name: str) -> Path:
+            return self.evaluation_results_dir / f"evaluation_CVAT_{name}.json"
+
         combined_df = combine_cvat_evaluations(
-            layout_json=layout_json,
-            docstruct_json=docstruct_json,
-            keyvalue_json=key_value_json,
+            layout_json=_result_path("layout"),
+            docstruct_json=_result_path("document_structure"),
+            keyvalue_json=_result_path("key_value"),
+            tables_json=_result_path("tables"),
             user_csv=user_csv,
-            tables_json=tables_json,
             out=combined_out,
             cvat_overview_path=overview_for_eval,
         )
+
+        _log.info(f"✓ Combined evaluation saved to: {combined_out}")
+        _log.info("=" * 60)
+
         if subset_label is not None:
             combined_df = combined_df.copy()
             if "subset" not in combined_df.columns:
@@ -458,7 +527,7 @@ class CVATEvaluationPipeline:
         try:
             self.create_ground_truth_dataset()
             self.create_prediction_dataset()
-            self.run_table_evaluation()
+            self.run_table_evaluation(reuse_existing=False)
             self.run_evaluation(modalities, user_csv)
 
             _log.info("=== Pipeline completed successfully! ===")
@@ -503,7 +572,14 @@ def main():
         "--step",
         choices=["gt", "pred", "tables", "eval", "full"],
         default="full",
-        help="Pipeline step to run: gt (ground truth), pred (predictions), tables (table eval only), eval, or full.",
+        help=(
+            "Pipeline step to run: "
+            "gt (create ground truth dataset), "
+            "pred (create prediction dataset), "
+            "tables (run table evaluation only), "
+            "eval (run evaluation only), "
+            "full (complete pipeline)"
+        ),
     )
 
     parser.add_argument(
@@ -511,7 +587,7 @@ def main():
         nargs="+",
         choices=["layout", "document_structure", "key_value"],
         default=["layout", "document_structure", "key_value"],
-        help="Evaluation modalities to run",
+        help="Evaluation modalities to run (used with --step=eval or --step=full)",
     )
 
     parser.add_argument(
@@ -524,18 +600,35 @@ def main():
         help="Strict mode: abort if any conversion fails (default: log and continue)",
     )
 
+    parser.add_argument(
+        "--force-ocr",
+        action="store_true",
+        help="Force OCR on PDF page images instead of using native text layer",
+    )
+
+    parser.add_argument(
+        "--ocr-scale",
+        type=float,
+        default=1.0,
+        help="Scale for rendering PDFs for OCR (default: 1.0 = 72 DPI, 2.0 = 144 DPI, 3.0 = 216 DPI). "
+        "Higher values may improve OCR accuracy. Coordinates are mapped back to 144 DPI to match CVAT annotations.",
+    )
+
     args = parser.parse_args()
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    if not args.cvat_root.exists():
-        _log.error(f"CVAT root directory does not exist: {args.cvat_root}")
-        sys.exit(1)
+    # Validate input paths
+    def _validate_dir(path: Path, name: str) -> None:
+        if not path.exists():
+            _log.error(f"{name} does not exist: {path}")
+            sys.exit(1)
+        if not path.is_dir():
+            _log.error(f"{name} is not a directory: {path}")
+            sys.exit(1)
 
-    if not args.cvat_root.is_dir():
-        _log.error(f"CVAT root path is not a directory: {args.cvat_root}")
-        sys.exit(1)
+    _validate_dir(args.cvat_root, "CVAT root directory")
 
     overview_path = args.cvat_root / "cvat_overview.json"
     if not overview_path.exists():
@@ -547,28 +640,28 @@ def main():
 
     tasks_root = args.tasks_root
     if tasks_root is not None:
-        if not tasks_root.exists():
-            _log.error(f"tasks-root does not exist: {tasks_root}")
-            sys.exit(1)
-        if not tasks_root.is_dir():
-            _log.error(f"tasks-root is not a directory: {tasks_root}")
-            sys.exit(1)
+        _validate_dir(tasks_root, "tasks-root")
         tasks_root = tasks_root.resolve()
 
+    # Initialize pipeline
     pipeline = CVATEvaluationPipeline(
         cvat_root=args.cvat_root,
         output_dir=args.output_dir,
         strict=args.strict,
         tasks_root=tasks_root,
+        force_ocr=args.force_ocr,
+        ocr_scale=args.ocr_scale,
     )
 
+    # Execute requested pipeline step
     if args.step == "gt":
         pipeline.create_ground_truth_dataset()
     elif args.step == "pred":
         pipeline.create_prediction_dataset()
     elif args.step == "tables":
-        pipeline.run_table_evaluation()
+        pipeline.run_table_evaluation(reuse_existing=False)
     elif args.step == "eval":
+        pipeline.run_table_evaluation(reuse_existing=True)
         pipeline.run_evaluation(args.modalities, user_csv=args.user_csv)
     elif args.step == "full":
         pipeline.run_full_pipeline(args.modalities, user_csv=args.user_csv)
