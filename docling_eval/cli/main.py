@@ -1239,8 +1239,8 @@ def create_eval(
         ),
     ] = "granitedocling_transformers",
     max_new_tokens: Annotated[
-        int, typer.Option(help="Override the default value of max_new_tokens")
-    ] = -1,
+        Optional[int], typer.Option(help="Override the default value of max_new_tokens")
+    ] = None,
 ):
     """Create evaluation dataset from existing ground truth."""
     gt_dir = gt_dir or output_dir / "gt_dataset"
