@@ -106,9 +106,8 @@ dev = [
 [tool.uv]
 package = true
 
-# [tool.uv.sources]
-# docling = { git = "https://github.com/docling-project/docling.git", rev = "dev/add-granite-docling-extension" }
-# docling-core = { git = "https://github.com/docling-project/docling-core.git", rev = "robustify-page-filtering" }
+[tool.uv.sources]
+docling-core = { git = "https://github.com/docling-project/docling-core.git", rev = "robustify-page-filtering" }
 
 [tool.setuptools.packages.find]
 include = ["docling_eval*"]

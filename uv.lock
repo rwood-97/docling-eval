@@ -1165,7 +1165,7 @@ vlm = [
 [[package]]
 name = "docling-core"
 version = "2.48.4"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/docling-project/docling-core.git?rev=robustify-page-filtering#399b09c93123091c3a6d0dc0002b5c7710f324b8" }
 dependencies = [
     { name = "jsonref" },
     { name = "jsonschema" },
@@ -1177,10 +1177,6 @@ dependencies = [
     { name = "tabulate" },
     { name = "typer" },
     { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/38/d8/f0c8034f87d6151eb955e56975b9f2374a54d57af2b56b1682d7c8ff5c71/docling_core-2.48.4.tar.gz", hash = "sha256:d87ce3021cdae3d073ce7572a2396b69be3cde82ebf9a74d4bad1e1cdfdfd524", size = 161377, upload-time = "2025-10-01T09:10:08.614Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/2a/06e5f9d3083f830de8bef86f91acda994965f88d8b945ce3b257ea83e780/docling_core-2.48.4-py3-none-any.whl", hash = "sha256:367675c1165d0934ae498fa57ca2d27ef0468aad74dc44a5ab061f5d87882ea1", size = 164374, upload-time = "2025-10-01T09:10:06.034Z" },
 ]
 
 [package.optional-dependencies]
@@ -1278,7 +1274,7 @@ requires-dist = [
     { name = "datasets", specifier = ">=3.2.0,<4.0.0" },
     { name = "distance", specifier = ">=0.1.3,<0.2.0" },
     { name = "docling", extras = ["vlm"], specifier = ">=2.56.1,<3.0.0" },
-    { name = "docling-core", specifier = ">=2.48.0,<3.0.0" },
+    { name = "docling-core", git = "https://github.com/docling-project/docling-core.git?rev=robustify-page-filtering" },
     { name = "edit-distance", specifier = ">=1.0.6,<2.0.0" },
     { name = "editdistance", specifier = ">=0.8.1" },
     { name = "evaluate", specifier = ">=0.4.3,<0.5.0" },
