@@ -12,6 +12,7 @@ from .models import (
     CVATElement,
     CVATValidationError,
     CVATValidationReport,
+    TableStructLabel,
     ValidationSeverity,
 )
 from .tree import find_ancestor
@@ -111,27 +112,184 @@ class SecondLevelReadingOrderParentRule(ValidationRule):
 
 
 class ElementTouchedByReadingOrderRule(ValidationRule):
-    """Validate that every non-background element is touched by a reading order path - ERROR level."""
+    """Validate that every non-background element is touched by a reading order path.
+
+    Severity levels:
+    - ERROR: Elements not touched by reading order (default case)
+    - ERROR: Elements inside tables not touched by second-level (level 2+) reading order
+    - WARNING: Elements inside regular picture containers (not chart/infographic/illustration)
+
+    Table-specific validation:
+    - Elements inside table containers MUST be in second-level reading order
+    - Exceptions: checkbox elements, picture elements, key/value elements (GraphCellLabel), table structure elements (TableStructLabel)
+
+    Exemptions (no error reported):
+    - GraphCellLabel elements (key/value) - don't need reading order anywhere
+    - TableStructLabel elements (table structure) - don't need reading order anywhere
+    - Checkbox elements inside tables - can be standalone
+    - Picture elements inside tables - can be standalone
+    - Picture elements with descendants in level 1 reading order
+    - Elements inside completely untouched CHART/INFOGRAPHIC/ILLUSTRATION pictures
+      (when NO descendants are in reading order, treated as atomic visual units)
+
+    Special handling:
+    - Elements inside partially annotated CHART/INFOGRAPHIC/ILLUSTRATION pictures
+      (where SOME descendants are in reading order) still get ERROR if untouched
+    """
+
+    # Picture types that get special exemption handling (atomic visual units when completely untouched)
+    ATOMIC_PICTURE_TYPES = frozenset(["CHART", "INFOGRAPHIC", "ILLUSTRATION"])
+
+    def _is_merge_group_inside_container(
+        self,
+        element: CVATElement,
+        container_element: CVATElement,
+        doc: DocumentStructure,
+        threshold: float = 0.7,
+    ) -> bool:
+        """Check if an element's merge group is substantially inside a container.
+
+        For merged elements, ALL parts of the merge group must be inside the container.
+        If any element in a merge group is outside, the entire group is considered outside.
+
+        Args:
+            element: Element to check
+            container_element: Container element to check against
+            doc: Document structure
+            threshold: Fraction of element that must be inside (default 0.7 = 70%)
+
+        Returns:
+            True if all elements in the merge group are >threshold inside the container
+        """
+        from .geometry import bbox_fraction_inside
+
+        # Get all elements in the merge group (or just this element if not merged)
+        element_ids_to_check = {element.id}
+
+        # Find merge group containing this element
+        for merge_elements in doc.path_mappings.merge.values():
+            if element.id in merge_elements:
+                element_ids_to_check = set(merge_elements)
+                break
+
+        # Check all elements in the group
+        for el_id in element_ids_to_check:
+            el = next((e for e in doc.elements if e.id == el_id), None)
+            if not el:
+                continue
+
+            # Check spatial containment for each element in the group
+            fraction = bbox_fraction_inside(el.bbox, container_element.bbox)
+
+            # If any element in the merge group is not substantially inside,
+            # treat the entire group as outside the container
+            if fraction <= threshold:
+                return False
+
+        return True
 
     def _is_element_inside_table(
         self, element: CVATElement, doc: DocumentStructure
     ) -> bool:
-        """Check if an element is inside a table container."""
+        """Check if an element is inside a table container.
+
+        For merged elements, ALL parts of the merge group must be inside the table.
+        If any element in a merge group is outside, the entire group is considered outside.
+        """
         node = doc.get_node_by_element_id(element.id)
         if not node:
             return False
 
-        return (
-            find_ancestor(
-                node, lambda ancestor: ancestor.element.label == DocItemLabel.TABLE
-            )
-            is not None
+        # Check if element has a TABLE ancestor in containment tree
+        table_ancestor = find_ancestor(
+            node, lambda ancestor: ancestor.element.label == DocItemLabel.TABLE
         )
+
+        if not table_ancestor:
+            return False
+
+        # Check if the merge group is substantially inside the table
+        return self._is_merge_group_inside_container(
+            element, table_ancestor.element, doc, threshold=0.7
+        )
+
+    def _is_element_inside_regular_picture(
+        self, element: CVATElement, doc: DocumentStructure
+    ) -> bool:
+        """Check if an element is inside a regular picture container.
+
+        Regular pictures are those that are NOT chart/infographic/illustration types.
+        Chart/infographic/illustration pictures get special exemption handling.
+
+        For merged elements, ALL parts of the merge group must be inside the same
+        regular picture. If any element is outside or in a different container,
+        the entire group is considered outside.
+        """
+        node = doc.get_node_by_element_id(element.id)
+        if not node:
+            return False
+
+        # Find if element has a picture ancestor that is NOT chart/infographic/illustration
+        picture_ancestor = find_ancestor(
+            node, lambda ancestor: ancestor.element.label == DocItemLabel.PICTURE
+        )
+
+        if not picture_ancestor:
+            return False
+
+        # Check if the picture is an atomic type (chart/infographic/illustration)
+        picture_type = picture_ancestor.element.type
+        if picture_type and picture_type.upper() in self.ATOMIC_PICTURE_TYPES:
+            return False
+
+        # For merged elements, check that ALL are inside the same regular picture
+        element_ids_to_check = {element.id}
+
+        # Find merge group containing this element
+        for merge_elements in doc.path_mappings.merge.values():
+            if element.id in merge_elements:
+                element_ids_to_check = set(merge_elements)
+                break
+
+        # Check all elements in the merge group
+        for el_id in element_ids_to_check:
+            if el_id == element.id:
+                continue  # Already checked above
+
+            el_node = doc.get_node_by_element_id(el_id)
+            if not el_node:
+                # Element not in tree - treat as outside
+                return False
+
+            # Check if this element has the same picture ancestor
+            el_picture_ancestor = find_ancestor(
+                el_node, lambda ancestor: ancestor.element.label == DocItemLabel.PICTURE
+            )
+
+            # If element has no picture ancestor or different picture, treat group as outside
+            if (
+                not el_picture_ancestor
+                or el_picture_ancestor.element.id != picture_ancestor.element.id
+            ):
+                return False
+
+            # Check if this element's picture is also non-atomic
+            el_picture_type = el_picture_ancestor.element.type
+            if el_picture_type and el_picture_type.upper() in self.ATOMIC_PICTURE_TYPES:
+                return False
+
+        return True
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
         from .models import GraphCellLabel
 
         errors: list[CVATValidationError] = []
+
+        # Skip reading order validation for samples with very few elements
+        # (0 or 1 elements don't need reading order)
+        if len(doc.elements) <= 1:
+            return errors
+
         touched = set()
         for elist in doc.path_mappings.reading_order.values():
             touched.update(elist)
@@ -158,17 +316,19 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
 
         # Pre-compute level 1 reading order touched elements for efficiency
         level1_touched = set()
+        level2_plus_touched = set()
         for path_id, element_ids in doc.path_mappings.reading_order.items():
             path = doc.get_path_by_id(path_id)
-            if (
-                path
-                and path.label.startswith("reading_order")
-                and (path.level == 1 or path.level is None)
-            ):
-                level1_touched.update(element_ids)
+            if path and path.label.startswith("reading_order"):
+                if path.level == 1 or path.level is None:
+                    level1_touched.update(element_ids)
+                elif path.level and path.level > 1:
+                    level2_plus_touched.update(element_ids)
 
         logger.debug(f"Level 1 touched elements: {len(level1_touched)}")
         logger.debug(f"Level 1 touched element IDs: {sorted(level1_touched)}")
+        logger.debug(f"Level 2+ touched elements: {len(level2_plus_touched)}")
+        logger.debug(f"Level 2+ touched element IDs: {sorted(level2_plus_touched)}")
 
         # Pre-compute all descendant IDs for efficiency (avoid repeated tree traversal)
         element_descendants = {}
@@ -177,8 +337,11 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
             if node:
                 element_descendants[el.id] = node.get_descendant_ids()
 
-        # Collect all elements that would fail the reading order validation
+        # Collect elements that would fail reading order validation
+        # Split into table elements and non-table elements for different validation rules
         untouched_elements = []
+        untouched_table_elements = []
+
         for el in doc.elements:
             if el.content_layer == ContentLayer.BACKGROUND:
                 continue
@@ -187,8 +350,24 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
             if isinstance(el.label, GraphCellLabel):
                 continue
 
-            # Skip validation for elements inside table containers
+            # Skip validation for TableStructLabel elements - they don't need reading order
+            if isinstance(el.label, TableStructLabel):
+                continue
+
+            # Handle elements inside table containers separately
             if self._is_element_inside_table(el, doc):
+                # Checkboxes and pictures inside tables don't need reading order
+                if el.label in [
+                    DocItemLabel.CHECKBOX_SELECTED,
+                    DocItemLabel.CHECKBOX_UNSELECTED,
+                    DocItemLabel.PICTURE,
+                ]:
+                    continue
+
+                # Check if touched by level 2+ reading order
+                descendant_ids = element_descendants.get(el.id, set())
+                if not (descendant_ids & level2_plus_touched):
+                    untouched_table_elements.append(el)
                 continue
 
             # Skip validation for picture elements that have descendants touched by level 1 reading order
@@ -212,18 +391,20 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
         )
         logger.debug(f"Untouched element IDs: {[el.id for el in untouched_elements]}")
 
-        # Apply special condition for CHART/INFOGRAPHIC picture elements
+        # Apply special condition for atomic picture elements (CHART/INFOGRAPHIC/ILLUSTRATION)
         if untouched_elements:
-            # Find CHART/INFOGRAPHIC pictures that have NO touched elements (completely untouched)
-            chart_infographic_untouched = set()
+            # Find atomic pictures that have NO touched descendants (completely untouched)
+            # Pre-compute mapping of element_id -> parent atomic picture_id for efficiency
+            element_to_untouched_atomic_picture: Dict[int, int] = {}
+
             for el in doc.elements:
                 if (
                     el.label == DocItemLabel.PICTURE
                     and el.type
-                    and el.type.upper() in ["CHART", "INFOGRAPHIC"]
+                    and el.type.upper() in self.ATOMIC_PICTURE_TYPES
                 ):
                     logger.debug(
-                        f"Found CHART/INFOGRAPHIC picture element {el.id} with type '{el.type}'"
+                        f"Found atomic picture element {el.id} with type '{el.type}'"
                     )
                     picture_descendants = element_descendants.get(el.id, set())
                     # Exclude the picture element itself from touched elements inside
@@ -236,39 +417,50 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
                     )
                     # Only add if the picture has NO touched elements (excluding the picture itself)
                     if not touched_inside:
-                        chart_infographic_untouched.add(el.id)
+                        # Map all descendants to this untouched atomic picture
+                        for desc_id in picture_descendants:
+                            element_to_untouched_atomic_picture[desc_id] = el.id
                         logger.debug(
-                            f"Added picture {el.id} to chart_infographic_untouched"
+                            f"Picture {el.id} is completely untouched, mapped {len(picture_descendants)} descendants"
                         )
                     else:
                         logger.debug(
-                            f"Picture {el.id} has touched descendants, NOT added to chart_infographic_untouched"
+                            f"Picture {el.id} has touched descendants, not exempt"
                         )
 
             logger.debug(
-                f"chart_infographic_untouched: {sorted(chart_infographic_untouched)}"
+                f"Elements in untouched atomic pictures: {len(element_to_untouched_atomic_picture)}"
             )
 
-            # Report errors for elements not in completely untouched CHART/INFOGRAPHIC pictures
+            # Report errors for elements not in completely untouched atomic pictures
             for el in untouched_elements:
-                # Check if element is in a completely untouched CHART/INFOGRAPHIC picture
-                in_untouched_chart_infographic = False
-                for picture_el in doc.elements:
-                    if (
-                        picture_el.label == DocItemLabel.PICTURE
-                        and picture_el.type
-                        and picture_el.type.upper() in ["CHART", "INFOGRAPHIC"]
-                        and picture_el.id in chart_infographic_untouched
-                        and el.id in element_descendants.get(picture_el.id, set())
-                    ):
-                        in_untouched_chart_infographic = True
-                        logger.debug(
-                            f"Element {el.id} is inside untouched CHART/INFOGRAPHIC picture {picture_el.id}"
-                        )
-                        break
+                # Skip if element is in a completely untouched atomic picture
+                if el.id in element_to_untouched_atomic_picture:
+                    picture_id = element_to_untouched_atomic_picture[el.id]
+                    logger.debug(
+                        f"Skipping element {el.id} - inside completely untouched atomic picture {picture_id}"
+                    )
+                    continue
 
-                if not in_untouched_chart_infographic:
-                    logger.debug(f"Adding error for element {el.id} ({el.label})")
+                logger.debug(f"Adding error for element {el.id} ({el.label})")
+
+                # Check if element is inside any NON-chart/infographic/illustration picture container
+                is_inside_regular_picture = self._is_element_inside_regular_picture(
+                    el, doc
+                )
+
+                if is_inside_regular_picture:
+                    # WARNING level for elements inside regular picture containers (not chart/infographic/illustration)
+                    errors.append(
+                        CVATValidationError(
+                            error_type="element_not_touched_by_reading_order_inside_picture",
+                            message=f"Element {el.id} ({el.label}) inside picture container not touched by any reading-order path.",
+                            severity=ValidationSeverity.WARNING,
+                            element_id=el.id,
+                        )
+                    )
+                else:
+                    # ERROR level for all other elements
                     errors.append(
                         CVATValidationError(
                             error_type="element_not_touched_by_reading_order",
@@ -277,6 +469,22 @@ class ElementTouchedByReadingOrderRule(ValidationRule):
                             element_id=el.id,
                         )
                     )
+
+        # Report errors for elements inside tables not touched by level 2+ reading order
+        logger.debug(f"Untouched table elements: {len(untouched_table_elements)}")
+        logger.debug(
+            f"Untouched table element IDs: {[el.id for el in untouched_table_elements]}"
+        )
+
+        for el in untouched_table_elements:
+            errors.append(
+                CVATValidationError(
+                    error_type="element_not_touched_by_reading_order_inside_table",
+                    message=f"Element {el.id} ({el.label}) inside table container not touched by second-level reading-order path.",
+                    severity=ValidationSeverity.ERROR,
+                    element_id=el.id,
+                )
+            )
 
         return errors
 
@@ -354,10 +562,22 @@ class MergeGroupPathsRule(ValidationRule):
 
             elements_in_group = [id_to_element[el_id] for el_id in el_ids]
             labels = {el.label for el in elements_in_group}
+            first_el = elements_in_group[0]
 
-            # Allow only the special case for checkboxes
-            if labels == {"checkbox_selected", "checkbox_unselected"}:
-                pass  # legal
+            # Check label consistency based on path type and content
+            # A group path is a "list group" if the first element is a list_item
+            # List groups can have mixed labels (list items grouped with their child content)
+            # Other groups must have uniform labels (except checkbox special case)
+            is_list_group = (
+                path_type == "group" and first_el.label == DocItemLabel.LIST_ITEM
+            )
+
+            if is_list_group:
+                # List groups can have mixed labels - skip label check
+                pass
+            elif labels == {"checkbox_selected", "checkbox_unselected"}:
+                # Special case for checkboxes - mixed labels allowed
+                pass
             elif len(labels) > 1:
                 errors.append(
                     CVATValidationError(
@@ -369,20 +589,19 @@ class MergeGroupPathsRule(ValidationRule):
                 )
 
             # Check same content_layer
-            first_el = elements_in_group[0]
-            for el in elements_in_group[1:]:
-                if el.content_layer != first_el.content_layer:
-                    errors.append(
-                        CVATValidationError(
-                            error_type=f"{path_type}_path_different_content_layers",
-                            message=f"{path_type.capitalize()} path {path_id}: Elements have different content layers: {first_el.content_layer} vs {el.content_layer}",
-                            severity=ValidationSeverity.ERROR,
-                            path_id=path_id,
-                        )
+            content_layers = {el.content_layer for el in elements_in_group}
+            if len(content_layers) > 1:
+                errors.append(
+                    CVATValidationError(
+                        error_type=f"{path_type}_path_different_content_layers",
+                        message=f"{path_type.capitalize()} path {path_id}: Elements have different content layers: {sorted(content_layers)}",
+                        severity=ValidationSeverity.ERROR,
+                        path_id=path_id,
                     )
+                )
 
-            # For group paths with list_item elements, check that all have same level
-            if path_type == "group" and DocItemLabel.LIST_ITEM in labels:
+            # For list groups, check that all list_item elements have same level
+            if is_list_group:
                 levels = {
                     el.level
                     for el in elements_in_group
@@ -408,6 +627,32 @@ class MergeGroupPathsRule(ValidationRule):
                             path_id=path_id,
                         )
                     )
+
+        return errors
+
+
+class MergePathDirectionRule(ValidationRule):
+    """Validate that merge path direction matches reading order - ERROR level."""
+
+    def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
+        errors: list[CVATValidationError] = []
+
+        # Check each merge path using the centralized helper
+        for path_id, element_ids in doc.path_mappings.merge.items():
+            corrected_ids, was_backwards = doc.get_corrected_merge_elements(
+                path_id, element_ids
+            )
+
+            if was_backwards:
+                errors.append(
+                    CVATValidationError(
+                        error_type="merge_path_backwards",
+                        message=f"Merge path {path_id}: Direction is backwards relative to reading order "
+                        f"(merge: {element_ids}, reading order: {corrected_ids}). ",
+                        severity=ValidationSeverity.WARNING,
+                        path_id=path_id,
+                    )
+                )
 
         return errors
 
@@ -878,22 +1123,89 @@ class UnrecognizedAttributesRule(ValidationRule):
 
 
 class GroupConsecutiveReadingOrderRule(ValidationRule):
-    """Validate that group paths connect consecutive elements in reading order."""
+    """Validate that group paths with list items don't have ungrouped elements sandwiched in reading order.
+
+    This validator flags cases where elements appear in reading order between grouped list items
+    but are not included in the group path. This typically indicates that the group path is
+    incomplete and may cause conversion issues where list content is not properly nested.
+    """
 
     def validate(self, doc: DocumentStructure) -> List[CVATValidationError]:
         errors: List[CVATValidationError] = []
 
-        # Build global reading order - this needs proper implementation
-        # For now, skipping this validation
-        # global_order = build_global_reading_order(...)
+        id_to_element = {el.id: el for el in doc.elements}
 
-        for path_id, element_ids in doc.path_mappings.group.items():
-            if len(element_ids) < 2:
+        # Check each group path
+        for path_id, group_element_ids in doc.path_mappings.group.items():
+            if len(group_element_ids) < 2:
                 continue
 
-            # TODO: Implement proper consecutive reading order validation
-            # This requires building the global reading order first
-            pass
+            # Only check groups containing list_item elements
+            group_elements_raw = [id_to_element.get(eid) for eid in group_element_ids]
+            group_elements: List[CVATElement] = [
+                el for el in group_elements_raw if el is not None
+            ]
+
+            has_list_items = any(
+                el.label == DocItemLabel.LIST_ITEM for el in group_elements
+            )
+
+            if not has_list_items:
+                continue
+
+            # Get the reading order for this group
+            # We need to check all reading order paths that touch these elements
+            for ro_path_id, ro_element_ids in doc.path_mappings.reading_order.items():
+                # Find positions of grouped elements in this reading order
+                group_positions = []
+                for i, elem_id in enumerate(ro_element_ids):
+                    if elem_id in group_element_ids:
+                        group_positions.append((i, elem_id))
+
+                if len(group_positions) < 2:
+                    # Group elements not in this reading order, or only one element
+                    continue
+
+                # Check elements between consecutive group elements
+                group_positions.sort(key=lambda x: x[0])  # Sort by position
+
+                for j in range(len(group_positions) - 1):
+                    start_pos, start_id = group_positions[j]
+                    end_pos, end_id = group_positions[j + 1]
+
+                    # Check if there are elements between start and end
+                    sandwiched_elements = []
+                    for pos in range(start_pos + 1, end_pos):
+                        between_id = ro_element_ids[pos]
+                        # If this element is not in the group, it's sandwiched
+                        if between_id not in group_element_ids:
+                            sandwiched_elements.append(between_id)
+
+                    if sandwiched_elements:
+                        # Get element details for the error message
+                        sandwiched_labels = [
+                            (
+                                id_to_element[eid].label.value
+                                if id_to_element.get(eid)
+                                else "unknown"
+                            )
+                            for eid in sandwiched_elements
+                        ]
+
+                        errors.append(
+                            CVATValidationError(
+                                error_type="list_group_reading_order_impurity",
+                                message=(
+                                    f"Group path {path_id} (list group): Found {len(sandwiched_elements)} "
+                                    f"non-grouped element(s) in reading order between grouped list items "
+                                    f"{start_id} and {end_id}. Sandwiched elements: {sandwiched_elements} "
+                                    f"(labels: {sandwiched_labels}). These elements may not be properly "
+                                    f"nested in the converted document structure."
+                                ),
+                                severity=ValidationSeverity.WARNING,
+                                path_id=path_id,
+                            )
+                        )
 
         return errors
 
@@ -909,6 +1221,7 @@ class Validator:
             # ERROR
             ElementTouchedByReadingOrderRule,
             MergeGroupPathsRule,
+            MergePathDirectionRule,
             CaptionFootnotePathsRule,
             TableStructLocationRule,
             GraphCellLocationRule,

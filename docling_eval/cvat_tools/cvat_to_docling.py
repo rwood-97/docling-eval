@@ -632,7 +632,9 @@ class CVATToDoclingConverter:
                 )
 
         # Scale all item provenances
-        for item, _ in self.doc.iterate_items():
+        for item, _ in self.doc.iterate_items(
+            traverse_pictures=True, included_content_layers=set(ContentLayer)
+        ):
             if isinstance(item, DocItem):
                 for prov in item.prov:
                     prov.bbox = prov.bbox.scaled(scale_factor)
@@ -643,6 +645,13 @@ class CVATToDoclingConverter:
                 for cell in item.graph.cells:
                     if cell.prov:
                         cell.prov.bbox = cell.prov.bbox.scaled(scale_factor)
+
+        # Scale table cell bboxes
+        for table_item in self.doc.tables:
+            if table_item.data and table_item.data.table_cells:
+                for cell in table_item.data.table_cells:
+                    if isinstance(cell, TableCell) and cell.bbox:
+                        cell.bbox = cell.bbox.scaled(scale_factor)
 
     def _reset_list_state(self):
         """Reset list processing state for clean conversion."""
@@ -1181,20 +1190,30 @@ class CVATToDoclingConverter:
         return False
 
     def _get_merge_elements(self, element_id: int) -> List[CVATElement]:
-        """Get all elements that should be merged with the given element."""
-        merge_elements = []
+        """Get all elements that should be merged with the given element.
 
+        Auto-corrects backwards merge paths by sorting elements according to reading order.
+        """
         for path_id, element_ids in self.doc_structure.path_mappings.merge.items():
-            if element_id in element_ids:
-                # Get all elements in this merge that haven't been processed
-                for el_id in element_ids:
-                    if el_id not in self.processed_elements:
-                        element = self.doc_structure.get_element_by_id(el_id)
-                        if element:
-                            merge_elements.append(element)
-                break
+            if element_id not in element_ids:
+                continue
 
-        return merge_elements
+            # Auto-correct the order before collecting elements
+            corrected_ids, _ = self.doc_structure.get_corrected_merge_elements(
+                path_id, element_ids
+            )
+
+            # Collect unprocessed elements in corrected order
+            merge_elements = []
+            for el_id in corrected_ids:
+                if el_id not in self.processed_elements:
+                    element = self.doc_structure.get_element_by_id(el_id)
+                    if element:
+                        merge_elements.append(element)
+
+            return merge_elements
+
+        return []
 
     def _create_merged_item(
         self, elements: List[CVATElement], parent: Optional[NodeItem]
