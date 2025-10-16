@@ -628,7 +628,7 @@ def main():
             args.save_dir,
             doc_label_to_valid_label_mapping,
         )
-    elif args.operation.upper() == "predictions":
+    elif args.operation.upper() == "PREDICTIONS":
         exporter.export_predictions_wrt_original_COCO(
             "test",
             args.save_dir,
