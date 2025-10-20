@@ -60,6 +60,7 @@ class BenchMarkNames(str, Enum):
     DPBENCH = "DPBench"
     DOCLING_DPBENCH = "DoclingDPBench"
     OMNIDOCBENCH = "OmniDocBench"
+    CUSTOM_OMNIDOCBENCH = "CustomOmniDocBench"
     WORDSCAPE = "WordScape"
 
     # Layout

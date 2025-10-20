@@ -65,6 +65,9 @@ from docling_eval.dataset_builders.funsd_builder import FUNSDDatasetBuilder
 from docling_eval.dataset_builders.omnidocbench_builder import (
     OmniDocBenchDatasetBuilder,
 )
+from docling_eval.dataset_builders.custom_omnidocbench_builder import (
+    CustomOmniDocBenchDatasetBuilder,
+)
 from docling_eval.dataset_builders.otsl_table_dataset_builder import (
     FintabNetDatasetBuilder,
     PubTables1MDatasetBuilder,
@@ -245,6 +248,7 @@ def get_dataset_builder(
     begin_index: int = 0,
     end_index: int = -1,
     dataset_source: Optional[Path] = None,
+    dataset_id: Optional[str] = None,
 ):
     """Get the appropriate dataset builder for the given benchmark."""
     common_params = {
@@ -280,6 +284,9 @@ def get_dataset_builder(
 
     elif benchmark == BenchMarkNames.OMNIDOCBENCH:
         return OmniDocBenchDatasetBuilder(**common_params)  # type: ignore
+    
+    elif benchmark == BenchMarkNames.CUSTOM_OMNIDOCBENCH:
+        return CustomOmniDocBenchDatasetBuilder(dataset_id=dataset_id, **common_params)  # type: ignore
 
     elif benchmark == BenchMarkNames.FINTABNET:
         return FintabNetDatasetBuilder(**common_params)  # type: ignore
@@ -1083,6 +1090,9 @@ def create_gt(
     dataset_source: Annotated[
         Optional[Path], typer.Option(help="Dataset source path")
     ] = None,
+    dataset_id: Annotated[
+        Optional[str], typer.Option(help="Dataset ID for custom OmniDocBench")
+    ] = None,
     split: Annotated[str, typer.Option(help="Dataset split")] = "test",
     begin_index: Annotated[int, typer.Option(help="Begin index (inclusive)")] = 0,
     end_index: Annotated[
@@ -1104,6 +1114,7 @@ def create_gt(
             begin_index=begin_index,
             end_index=end_index,
             dataset_source=dataset_source,
+            dataset_id=dataset_id,
         )
 
         # Retrieve and save the dataset
@@ -1279,6 +1290,9 @@ def create(
     dataset_source: Annotated[
         Optional[Path], typer.Option(help="Dataset source path")
     ] = None,
+    dataset_id: Annotated[
+        Optional[str], typer.Option(help="Dataset ID for custom OmniDocBench")
+    ] = None,
     split: Annotated[str, typer.Option(help="Dataset split")] = "test",
     begin_index: Annotated[int, typer.Option(help="Begin index (inclusive)")] = 0,
     end_index: Annotated[
@@ -1325,6 +1339,7 @@ def create(
         benchmark=benchmark,
         output_dir=output_dir,
         dataset_source=dataset_source,
+        dataset_id=dataset_id,
         split=split,
         begin_index=begin_index,
         end_index=end_index,

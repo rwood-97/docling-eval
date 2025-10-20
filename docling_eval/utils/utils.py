@@ -101,7 +101,7 @@ def add_pages_to_true_doc(
     pdf_path: Path | BytesIO, true_doc: DoclingDocument, image_scale: float = 1.0
 ):
     in_doc = get_input_document(pdf_path, backend_t=PyPdfiumDocumentBackend)
-    assert in_doc.valid, "Input doc must be valid."
+    assert in_doc.valid, f"Input doc must be valid. Path provided: {pdf_path}"
     # assert in_doc.page_count == 1, "doc must have one page."
 
     # add the pages
